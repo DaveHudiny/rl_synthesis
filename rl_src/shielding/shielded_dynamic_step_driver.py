@@ -149,6 +149,7 @@ class ShieldedDynamicStepDriver(driver.Driver):
           resets=time_step.is_first().numpy().tolist()
       )
       played_action = tf.random.categorical(logits, 1)
+      self.prev_actions = played_action
       action_step = action_step._replace(action=tf.squeeze(played_action, axis=-1))
       # ----------------------------------------------
 
