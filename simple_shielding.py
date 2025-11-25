@@ -15,6 +15,7 @@ from tools.args_emulator import ArgsEmulator
 from tools.evaluators import evaluate_policy_in_model
 from tests.general_test_tools import init_args
 from shielding.shield_processor import ShieldProcessor
+import shielding.shields
 
 # PAYNT implementation imports
 from paynt.parser.sketch import Sketch
@@ -76,15 +77,15 @@ def set_global_seeds(seed):
 @click.command()
 @click.argument('project', type=click.Path(exists=True))
 @click.option("--nu", type=float, default=0.05, help="Safety threshold for the shielding.")
-@click.option("--shield", type=click.Choice([None, 'identity', 'standard', 'pesssimistic', 'optimistic', 'self-constructing', 'self-constructing-simple']), default=None, help="Shielding method to use.")
+@click.option("--shield", type=click.Choice([None, 'identity', 'standard', 'pessimistic', 'optimistic', 'self-constructing', 'self-constructing-simple']), default=None, help="Shielding method to use.")
 def main(project, nu, shield):
     project_path = project
-    # project_path = "mdp_obstacles/"
+    project_name = os.path.basename(os.path.normpath(project_path))
     prism_path = os.path.join(project_path, "sketch.templ")
     properties_path = os.path.join(project_path, "sketch.props")
     args = init_args(prism_path=prism_path, properties_path=properties_path,
                      use_rnn_less=False, # Use RNN-less agent (if True, the policy should be completely memoryless)
-                     max_steps=601, # Max steps per episode
+                     max_steps=301, # Max steps per episode
                      seed=None, # Random seed, for the reproducibility, set it to some integer value
                      prefer_stochastic=True, # Whether to prefer stochastic or deterministic actions during the evaluation
                     )
@@ -98,8 +99,8 @@ def main(project, nu, shield):
     # model = sketch.quotient_mdp
 
     # TODO investigate this
-    args.batch_size = 2  # For evaluation, we use batch size 1
-    args.num_environments = 16
+    args.batch_size = 1  # For evaluation, we use batch size 1
+    args.num_environments = 1
 
     environment = EnvironmentWrapperVec(
         model, args, num_envs=args.num_environments, enforce_compilation=True)
@@ -111,18 +112,36 @@ def main(project, nu, shield):
 
     tf_env = TFPyEnvironment(environment)
     agent = Recurrent_PPO_agent(
-        environment=environment, tf_environment=tf_env, args=args, load=True, agent_folder="trained_agents")
+        environment=environment, tf_environment=tf_env, args=args, load=True, agent_folder=f"trained_agents/{project_name}")
+    
     # agent.train_agent(iterations=100)
+
+    # TODO investigate this
+    # args.batch_size = 1  # For evaluation, we use batch size 1
+    # args.num_environments = 1
+    # # environment.batch_size = 1
+    # environment.num_environments = 1
+    # tf_env = TFPyEnvironment(environment)
+
     policy = agent.get_policy(False, True)
     policy.set_greedy(False)
     policy.set_policy_masker()
     policy.set_return_real_logits(True)
-    evaluate_policy_in_model(policy, args, environment, tf_env, shield_processor=shield_processor)
+    evaluate_policy_in_model(policy, args, environment, tf_env, max_steps=3000, shield_processor=shield_processor)
     # ---------------------------------------------------------
 
     # Save the results. Now the results are stored in the same folder as the processed models, but you can change it as needed.
     # json_path = create_json_file_name(project_path, seed=args.seed)
     # agent.evaluation_result.save_to_json(json_path, new_pomdp=False)
+
+    if shield_processor:
+        print()
+        print("Shield stats:")
+        print(f"Shield calls: {shield_processor.shield.shield_calls}")
+        print(f"Blocked actions: {shield_processor.shield.blocked_actions}")
+        if type(shield_processor.shield) in [shielding.shields.SelfConstructingShield, shielding.shields.SelfConstructingShieldDistributions]:
+            print(f"Tree size: {shield_processor.shield.initial_node.number_of_tree_nodes()}")
+            print(f"Initial node values: {shield_processor.shield.initial_node.value}")
 
 
 if __name__ == "__main__":

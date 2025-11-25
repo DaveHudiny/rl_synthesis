@@ -55,17 +55,17 @@ class ShieldProcessor:
         model_info = ModelInfo(model=model, observation_to_state=observation_to_state, bad_state="bad", vmin=vmin, vmax=vmax)
 
         if shield_type == 'identity':
-            self.shield = shielding.shields.IdentityShield(model_info=model_info)
+            self.shield = shielding.shields.IdentityShield(model_info=model_info, actions=self.actions)
         elif shield_type == 'standard':
-            self.shield = shielding.shields.StandardShield(model_info=model_info)
-        # elif shield_type == 'pesssimistic':
-        #     self.shield = shielding.shields.PessimisticShield(model_info=model_info, nu=nu)
-        # # elif shield_type == 'optimistic':
-        # #     self.shield = shielding.shields.OptimisticShield(model_info=model_info, nu=nu)
-        # elif shield_type == 'self-constructing':
-        #     self.shield = shielding.shields.SelfConstructingShieldDistributions(model_info=model_info, nu=nu)
-        # elif shield_type == 'self-constructing-simple':
-        #     self.shield = shielding.shields.SelfConstructingShield(model_info=model_info, nu=nu)
+            self.shield = shielding.shields.StandardShield(model_info=model_info, actions=self.actions)
+        elif shield_type == 'pessimistic':
+            self.shield = shielding.shields.PessimisticShield(model_info=model_info, actions=self.actions, nu=nu)
+        elif shield_type == 'optimistic':
+            self.shield = shielding.shields.OptimisticShield(model_info=model_info, actions=self.actions, nu=nu)
+        elif shield_type == 'self-constructing':
+            self.shield = shielding.shields.SelfConstructingShieldDistributions(model_info=model_info, actions=self.actions, nu=nu)
+        elif shield_type == 'self-constructing-simple':
+            self.shield = shielding.shields.SelfConstructingShield(model_info=model_info, actions=self.actions, nu=nu)
         else:
             raise ValueError(f"Unknown shield type: {shield_type}")
 
