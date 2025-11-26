@@ -37,11 +37,14 @@ class ShieldProcessor:
 
         # model checking results for debugging
         # reach_formula = stormpy.parse_properties("Pmax=? [ F \"goal\" ]")
-        # reward_formula = stormpy.parse_properties("Rmax=? [ F \"goal\" ]")
+        # reward_formula = stormpy.parse_properties("Rmin=? [ F \"goal\" ]")
+        # until_formula = stormpy.parse_properties("Pmax=? [ !\"bad\" U \"goal\" ]")
         # reach_result = stormpy.model_checking(mdp, reach_formula[0])
         # reward_result = stormpy.model_checking(mdp, reward_formula[0])
+        # until_result = stormpy.model_checking(mdp, until_formula[0])
         # print("Max reachability probabilities to goal from initial state:", reach_result.get_values()[mdp.initial_states[0]])
         # print("Max expected rewards to goal from initial state:", reward_result.get_values()[mdp.initial_states[0]])
+        # print("Max until probabilities to goal from initial state:", until_result.get_values()[mdp.initial_states[0]])
         # exit()
 
 
@@ -63,16 +66,15 @@ class ShieldProcessor:
         elif shield_type == 'optimistic':
             self.shield = shielding.shields.OptimisticShield(model_info=model_info, actions=self.actions, nu=nu)
         elif shield_type == 'self-constructing':
-            self.shield = shielding.shields.SelfConstructingShieldDistributions(model_info=model_info, actions=self.actions, nu=nu)
+            self.shield = shielding.shields.SelfConstructingShieldDistributionsSafe(model_info=model_info, actions=self.actions, nu=nu)
         elif shield_type == 'self-constructing-simple':
+            self.shield = shielding.shields.SelfConstructingShieldSafe(model_info=model_info, actions=self.actions, nu=nu)
+        elif shield_type == 'self-constructing-unsafe':
+            self.shield = shielding.shields.SelfConstructingShieldDistributions(model_info=model_info, actions=self.actions, nu=nu)
+        elif shield_type == 'self-constructing-simple-unsafe':
             self.shield = shielding.shields.SelfConstructingShield(model_info=model_info, actions=self.actions, nu=nu)
         else:
             raise ValueError(f"Unknown shield type: {shield_type}")
-
-
-    @staticmethod  
-    def dummy_shield(state, prev_action, played_prob, resets, nr_actions):
-        return played_prob
     
     def fix_distribution(self, distribution):
         total_prob = sum(distribution)
@@ -109,7 +111,7 @@ class ShieldProcessor:
             mapped_played_distribution = [played_probs[i][self.actions.index(action)] for action in current_state_choice_labels]
             mapped_played_distribution = self.fix_distribution(mapped_played_distribution)
 
-            distribution = self.shield.correct(prev_actions[i], current_state, mapped_played_distribution, resets[i])
+            distribution = self.shield.correct(prev_actions[i], current_state, mapped_played_distribution, resets[i], i)
 
             distribution = [distribution[current_state_choice_labels.index(action)] if action in current_state_choice_labels else 0.0 for action in self.actions]
 
