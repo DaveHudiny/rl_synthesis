@@ -105,7 +105,7 @@ def main():
     policy.set_greedy(False)
     policy.set_policy_masker()
     policy.set_return_real_logits(True)
-    evaluate_policy_in_model(policy, args, environment, tf_env, shield_processor=shield_processor)
+    evaluate_policy_in_model(policy, args, environment, tf_env, evaluation_steps=10000, shield_processor=shield_processor)
     # ---------------------------------------------------------
 
     # Save the results. Now the results are stored in the same folder as the processed models, but you can change it as needed.

@@ -19,6 +19,8 @@ from paynt.quotient.pomdp_family import PomdpFamilyQuotient
 
 from rl_src.agents.recurrent_ppo_agent import Recurrent_PPO_Agent
 
+import tensorflow as tf
+import random
 
 import numpy as np
 
@@ -30,6 +32,12 @@ from paynt.verification.property import construct_property
 from paynt.quotient.fsc import FscFactored
 
 logger = logging.getLogger(__name__)
+
+def set_global_seeds(seed):
+    """Set the global random seeds for reproducibility."""
+    tf.random.set_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
 
 
 def convert_all_fsc_keys_to_int(fsc: FscFactored):

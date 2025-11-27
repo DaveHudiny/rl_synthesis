@@ -92,7 +92,7 @@ class BottleneckExtractor:
         if max_steps is None:
             max_steps = agent.args.max_steps + 1 
         evaluation_result = evaluate_policy_in_model(
-            bottlenecked_policy, agent.args, agent.environment, agent.tf_environment, max_steps = max_steps)
+            bottlenecked_policy, agent.args, agent.environment, agent.tf_environment, evaluation_steps = max_steps)
 
         return evaluation_result
         eager = PyTFEagerPolicy(

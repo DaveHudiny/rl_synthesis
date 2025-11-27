@@ -340,7 +340,7 @@ class BlackBoxExtractor:
     def aalpy_extraction(self, original_policy : TFPolicy, 
                          env : EnvironmentWrapperVec, tf_env : TFPyEnvironment = None) -> tuple[TableBasedPolicy, ExtractionStats]:
         orig_eval_result = evaluate_policy_in_model(original_policy, environment=env, tf_environment=tf_env,
-                                                        max_steps=(self.max_episode_len + 1) * 2)
+                                                        evaluation_steps=(self.max_episode_len + 1) * 2)
 
         # if isinstance(original_policy, PolicyMaskWrapper):
         # original_policy.set_policy_masker()
@@ -393,7 +393,7 @@ class BlackBoxExtractor:
                 residual_connection=False
         )
         fsc_res = evaluate_policy_in_model(fsc, environment=env, tf_environment=tf_env,
-                                               max_steps=(self.max_episode_len + 1) * 2)
+                                               evaluation_steps=(self.max_episode_len + 1) * 2)
 
         extraction_stats.add_fsc_result(fsc_res.reach_probs[-1], fsc_res.returns[-1])
         extraction_stats.add_number_of_training_trajectories(len(all_trajectories))
@@ -403,7 +403,7 @@ class BlackBoxExtractor:
     def self_interpretable_extraction(self, original_policy : TFPolicy,
                                         env : EnvironmentWrapperVec, 
                                         tf_env : TFPyEnvironment = None, with_gru=False) -> tuple[TableBasedPolicy, ExtractionStats]:
-        orig_eval_result = evaluate_policy_in_model(original_policy, environment=env, tf_environment=tf_env, max_steps=(self.max_episode_len + 1) * 2)
+        orig_eval_result = evaluate_policy_in_model(original_policy, environment=env, tf_environment=tf_env, evaluation_steps=(self.max_episode_len + 1) * 2)
         if self.specification_checker is not None:
             self.specification_checker.set_optimal_value_from_evaluation_results(orig_eval_result)
 
@@ -437,7 +437,7 @@ class BlackBoxExtractor:
                                                                                family_quotient_numpy=self.family_quotient_numpy,
                                                                                complete_probs=self.complete_probs)
         self.cloned_actor.unset_probs_updates()
-        fsc_res = evaluate_policy_in_model(fsc, environment=env, tf_environment=tf_env, max_steps=(self.max_episode_len + 1) * 2)
+        fsc_res = evaluate_policy_in_model(fsc, environment=env, tf_environment=tf_env, evaluation_steps=(self.max_episode_len + 1) * 2)
         extraction_stats.add_fsc_result(fsc_res.reach_probs[-1], fsc_res.returns[-1])
         if extraction_stats_lstm is not None:
             extraction_stats.add_lstm_result(extraction_stats_lstm.extracted_policy_reachabilities[-1], extraction_stats_lstm.extracted_policy_rewards[-1])

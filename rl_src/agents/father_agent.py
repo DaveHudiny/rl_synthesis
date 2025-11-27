@@ -149,8 +149,12 @@ class FatherAgent(AbstractAgent):
             elif self.args.replay_buffer_option == ReplayBufferOptions.ON_POLICY:
                 buffer_size = self.args.trajectory_num_steps + self.args.max_steps + 1
 
+        # Add a data foo to the collect_data_spec
+        collect_data_spec = self.agent.collect_data_spec
+        print(type(collect_data_spec))
+        exit(0)
         self.replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
-            data_spec=self.agent.collect_data_spec,
+            data_spec=collect_data_spec,
             batch_size=batch_size,
             max_length=buffer_size)
 
@@ -370,6 +374,8 @@ class FatherAgent(AbstractAgent):
         Args:
             experience: The experience for training the agent.
         """
+        print(experience)
+        exit(0)
         train_loss = self.agent.train(experience)
         train_loss = train_loss.loss
         

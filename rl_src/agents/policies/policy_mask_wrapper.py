@@ -296,8 +296,9 @@ class PolicyMaskWrapper(TFPolicy):
         else:
             new_policy_state = distribution.state
             if self.return_real_logits:
-                info = {'dist_params̈́': {'logits': logits}}
-            info = distribution.info
+                info = {'dist_params': {'logits': logits}}
+            else:
+                info = distribution.info
 
         if self.epsilon_greedy_probability > 0.0:
             use_epsilon_greedy = tf.random.uniform((), 0, 1) < self.epsilon_greedy_probability

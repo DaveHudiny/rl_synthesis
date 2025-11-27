@@ -23,6 +23,7 @@ from paynt.rl_extension.self_interpretable_interface.black_box_extraction import
 from paynt.rl_extension.family_extractors.direct_fsc_construction import ConstructorFSC
 from paynt.quotient.fsc import FscFactored
 
+from robust_rl.robust_rl_tools import set_global_seeds
 
 class EvaluationOptionResult:
     def __init__(self, seed):
@@ -210,25 +211,20 @@ def run_evaluation_experiment(training_iterations_per_evaluation=100, meta_itera
 
 
 def main():
-    import os
-    import sys
-    run_evaluation_experiment(training_iterations_per_evaluation=100, meta_iterations=40,
-                              project_folder="models/models_distribution_experiments/")
-    exit(0)
-    project_path = "models/models_pomdp_no_family/rocks-16" if sys.argv.__len__(
-    ) < 2 else sys.argv[1]
+    project_path = "models/models_pomdp_no_family/refuel-10"
     # project_path = "mdp_obstacles/"
     prism_path = os.path.join(project_path, "sketch.templ")
     properties_path = os.path.join(project_path, "sketch.props")
     args = init_args(prism_path=prism_path, properties_path=properties_path,
-                     # Use RNN-less agent (if True, the policy should be completely memoryless)
-                     use_rnn_less=False,
-                     max_steps=601,  # Max steps per episode
-                     seed=None,  # Random seed, for the reproducibility, set it to some integer value
-                     # Whether to prefer stochastic or deterministic actions during the evaluation
-                     prefer_stochastic=True,
-                     )
+                     use_rnn_less=False, # Use RNN-less agent (if True, the policy should be completely memoryless)
+                     max_steps=601, # Max steps per episode
+                     seed=42, # Random seed, for the reproducibility, set it to some integer value
+                     prefer_stochastic=True, # Whether to prefer stochastic or deterministic actions during the evaluation
+                     stochastic_environment_actions=True,
+                     masked_training=False
+                    )
     # Replace by your sketch loader.
+    set_global_seeds(args.seed)
     sketch = load_sketch(project_path=project_path)
 
     # ---------------------------------------------------------
@@ -243,25 +239,17 @@ def main():
     tf_env = TFPyEnvironment(environment)
     agent = Recurrent_PPO_Agent(
         environment=environment, tf_environment=tf_env, args=args, load=False, agent_folder="trained_agents")
-    # agent = Recurrent_SAC_Agent(
-    #     environment=environment, tf_environment=tf_env, args=args, load=False, agent_folder="trained_agents")
-
-    # Go through all enum options from EvaluationOptions
-    for eval_option in EvaluationOptions:
-        print(f"Training with evaluation option: {eval_option.name}")
-    agent.train_agent(
-        iterations=2000, replay_buffer_option=ReplayBufferOptions.ON_POLICY)
+    agent.train_agent(iterations=2000)
     policy = agent.get_policy(False, True)
     evaluate_policy_in_model(policy, args, environment, tf_env)
     json_path = create_json_file_name(project_path, seed=args.seed)
     agent.evaluation_result.save_to_json(json_path, new_pomdp=False)
-    exit(0)
     # ---------------------------------------------------------
 
     # This performs the extraction.
 
-    if hasattr(sketch, 'pomdp'):  # Ensure, that the sketch has a POMDP representation
-        paynt_fsc, tf_fsc = fsc_extraction(sketch, agent)
+    # if hasattr(sketch, 'pomdp'): # Ensure, that the sketch has a POMDP representation
+    #     paynt_fsc, tf_fsc = fsc_extraction(sketch, agent)
 
     # Save the results. Now the results are stored in the same folder as the processed models, but you can change it as needed.
 

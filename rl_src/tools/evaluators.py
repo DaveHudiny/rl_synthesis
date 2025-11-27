@@ -80,19 +80,19 @@ def get_new_vectorized_evaluation_driver(tf_environment: tf_py_environment.TFPyE
 
 def evaluate_policy_in_model(policy: TFPolicy, args: ArgsEmulator = None,
                              environment: EnvironmentWrapperVec = None,
-                             tf_environment=None, max_steps=None,
+                             tf_environment=None, evaluation_steps=None,
                              evaluation_result: EvaluationResults = None,
                              use_tf_function=True,
                              shield_processor: ShieldProcessor = None) -> EvaluationResults:
     """Evaluate the policy in the given environment and return the evaluation results."""
-    if max_steps is None and args is not None:
-        max_steps = args.max_steps
-    elif max_steps is None:
-        max_steps = 1000
+    if evaluation_steps is None and args is not None:
+        evaluation_steps = args.max_steps
+    elif evaluation_steps is None:
+        evaluation_steps = 1000
     if evaluation_result is None:
         evaluation_result = EvaluationResults()
     driver, buffer = get_new_vectorized_evaluation_driver(
-        tf_environment, environment, custom_policy=policy, num_steps=max_steps, 
+        tf_environment, environment, custom_policy=policy, num_steps=evaluation_steps, 
         shield_processor=shield_processor)
     environment.set_random_starts_simulation(False)
     tf_environment.reset()

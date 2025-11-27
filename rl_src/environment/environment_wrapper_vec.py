@@ -733,14 +733,19 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
             dtype=tf.int32
         ) % legal_counts
         selected_flat_indices = batch_offsets + random_offsets
-        selected_actions = tf.gather(flat_indices[:, 1], selected_flat_indices)
-        selected_actions = tf.cast(selected_actions, tf.int32)
+        modified_actions = tf.gather(flat_indices[:, 1], selected_flat_indices)
+        modified_actions = tf.cast(modified_actions, tf.int32)
         new_actions = tf.where(
             is_action_allowed,
             actions,
-            selected_actions
+            modified_actions
         )
         return new_actions.numpy(), tf.logical_not(is_action_allowed)
+    
+    def restrict_allowed_actions(self, restriction_mask: tf.Tensor):
+        """Sets the allowed actions to be restricted by the given mask."""
+        self.allowed_actions = tf.logical_and(
+            self.allowed_actions, restriction_mask)
 
     def _step(self, action) -> ts.TimeStep:
         """Does the step in the environment. Important for TF-Agents and the TFPyEnvironment."""

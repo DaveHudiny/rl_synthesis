@@ -213,7 +213,7 @@ if __name__ == "__main__":
     )
     eager = PyTFEagerPolicy(policy, use_tf_function=True) # Makes the execution faster, but is not necessary for the policy to work
 
-    evaluate_policy_in_model(policy, args, environment, tf_env, max_steps=400)
+    evaluate_policy_in_model(policy, args, environment, tf_env, evaluation_steps=400)
 
 
 

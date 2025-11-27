@@ -19,15 +19,13 @@ import random
 import numpy as np
 import tensorflow as tf
 
+from robust_rl.robust_rl_tools import set_global_seeds
+
 import logging
 
 logger = logging.getLogger(__name__)
 
-def set_global_seeds(seed):
-    """Set the global random seeds for reproducibility."""
-    tf.random.set_seed(seed)
-    np.random.seed(seed)
-    random.seed(seed)
+
 
 def main():
     args_cmd = parse_args()

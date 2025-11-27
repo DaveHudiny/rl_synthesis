@@ -227,7 +227,7 @@ class AALpyExtractor:
             self.args,
             self.env,
             self.tf_env,
-            max_steps=801
+            evaluation_steps=801
         )
             
     

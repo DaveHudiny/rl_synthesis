@@ -74,7 +74,7 @@ class EvaluationResults:
 
     def save_to_json(self, filename, evaluation_time: float = float("nan"), split_iteration = -1, new_pomdp=False):
         import json
-        filename_training = filename.replace(".json", "_training.json")
+        filename_training = filename # .replace(".json", "_training.json")
         if new_pomdp:
             self.new_pomdp_iteration_numbers.append(len(self.returns))
         with open(filename_training, "w") as file:

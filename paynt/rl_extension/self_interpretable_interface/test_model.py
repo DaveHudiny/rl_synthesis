@@ -119,7 +119,7 @@ if __name__ == "__main__":
         args,
         env,
         tf_env,
-        max_steps=401,
+        evaluation_steps=401,
     )
 
 
