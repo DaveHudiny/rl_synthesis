@@ -151,8 +151,6 @@ class FatherAgent(AbstractAgent):
 
         # Add a data foo to the collect_data_spec
         collect_data_spec = self.agent.collect_data_spec
-        print(type(collect_data_spec))
-        exit(0)
         self.replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
             data_spec=collect_data_spec,
             batch_size=batch_size,
