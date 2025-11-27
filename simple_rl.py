@@ -102,7 +102,6 @@ def main():
                      max_steps=601, # Max steps per episode
                      seed=None, # Random seed, for the reproducibility, set it to some integer value
                      prefer_stochastic=True, # Whether to prefer stochastic or deterministic actions during the evaluation
-                     stochastic_environment_actions=True
                     )
     # Replace by your sketch loader.
     sketch = load_sketch(project_path=project_path)
@@ -119,6 +118,7 @@ def main():
     agent = Recurrent_PPO_agent(
         environment=environment, tf_environment=tf_env, args=args, load=False, agent_folder="trained_agents")
     agent.train_agent(iterations=500)
+    
     policy = agent.get_policy(False, True)
     evaluate_policy_in_model(policy, args, environment, tf_env)
     # ---------------------------------------------------------

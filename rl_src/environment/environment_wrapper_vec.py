@@ -742,6 +742,11 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         )
         return new_actions.numpy(), tf.logical_not(is_action_allowed)
 
+    def restrict_allowed_actions(self, restriction_mask: tf.Tensor):
+        """Sets the allowed actions to be restricted by the given mask."""
+        self.allowed_actions = tf.logical_and(
+            self.allowed_actions, restriction_mask)
+
     def _step(self, action) -> ts.TimeStep:
         """Does the step in the environment. Important for TF-Agents and the TFPyEnvironment."""
         # current_time = time.time()
