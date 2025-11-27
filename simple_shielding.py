@@ -77,7 +77,7 @@ def set_global_seeds(seed):
 @click.command()
 @click.argument('project', type=click.Path(exists=True))
 @click.option("--nu", type=float, default=0.05, help="Safety threshold for the shielding.")
-@click.option("--shield", type=click.Choice([None, 'identity', 'standard', 'pessimistic', 'optimistic', 'self-constructing', 'self-constructing-simple', 'self-constructing-unsafe', 'self-constructing-simple-unsafe']), default=None, help="Shielding method to use.")
+@click.option("--shield", type=click.Choice([None, 'identity', 'standard', 'pessimistic', 'optimistic', 'delta', 'self-constructing', 'self-constructing-simple', 'self-constructing-unsafe', 'self-constructing-simple-unsafe']), default=None, help="Shielding method to use.")
 @click.option("--agent-folder", type=str, default="", help="Suffix of folder containing the trained agent.")
 @click.option("--agent-training", is_flag=True, default=False, help="Whether to perform agent training.")
 def main(project, nu, shield, agent_folder, agent_training):
@@ -117,13 +117,13 @@ def main(project, nu, shield, agent_folder, agent_training):
         environment=environment, tf_environment=tf_env, args=args, load=True, agent_folder=f"trained_agents/{project_name}-{agent_folder}")
     
     if agent_training:
-        agent.train_agent(iterations=500)
+        agent.train_agent(iterations=300)
 
     policy = agent.get_policy(False, True)
     policy.set_greedy(False)
     policy.set_policy_masker()
     policy.set_return_real_logits(True)
-    evaluate_policy_in_model(policy, args, environment, tf_env, max_steps=50, shield_processor=shield_processor)
+    evaluate_policy_in_model(policy, args, environment, tf_env, max_steps=100, shield_processor=shield_processor)
     # ---------------------------------------------------------
 
     # Save the results. Now the results are stored in the same folder as the processed models, but you can change it as needed.
@@ -136,7 +136,8 @@ def main(project, nu, shield, agent_folder, agent_training):
         print(f"Shield calls: {shield_processor.shield.shield_calls}")
         print(f"Blocked actions: {shield_processor.shield.blocked_actions}")
         if type(shield_processor.shield) in [shielding.shields.SelfConstructingShield, shielding.shields.SelfConstructingShieldDistributions, shielding.shields.SelfConstructingShieldSafe, shielding.shields.SelfConstructingShieldDistributionsSafe]:
-            # shield_processor.shield.back_propagate_values(shield_processor.shield.current_nodes[0])
+            for node in shield_processor.shield.current_nodes:
+                shield_processor.shield.back_propagate_values(node)
             print(f"Tree size: {shield_processor.shield.initial_node.number_of_tree_nodes()}")
             print(f"Initial node values: {shield_processor.shield.initial_node.value}")
             print(f"Added non-optimal actions: {shield_processor.shield.added_nonoptimal_actions}")

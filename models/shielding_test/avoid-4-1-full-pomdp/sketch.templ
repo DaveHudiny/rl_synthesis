@@ -27,19 +27,20 @@ formula northenabled = dy != dyMIN;
 formula southenabled = dy != dyMAX;
 formula done = start & dx = dxMAX & dy = dyMAX;
 //observable "amdone" = done;
-formula crash =  (dx = ax & dy = ay);
+//formula crash =  (dx = ax & dy = ay);
+formula crash =  (dx = ax & dy = ay) | (dx = ax2 & dy = ay2);
 //observable "hascrash" = crash;
 formula seedrone = ax-dx < RADIUS + 1 & dx-ax < RADIUS +1 & ay-dy < RADIUS+1 & dy -ay < RADIUS+1;
 //observable "seedx" = seedrone ? ax : -1;
 //observable "seedy" = seedrone ? ay : -1;
 //observable "dir" = seedrone ? dir : -1;
-formula seedrone2 = ax2-dx < RADIUS + 1 & dx-ax2 < RADIUS +1 & ay2-dy < RADIUS+1 & dy -ay2 < RADIUS+1;
+//formula seedrone2 = ax2-dx < RADIUS + 1 & dx-ax2 < RADIUS +1 & ay2-dy < RADIUS+1 & dy -ay2 < RADIUS+1;
 //observable "seedx2" = seedrone2 ? ax2 : -1;
 //observable "seedy2" = seedrone2 ? ay2 : -1;
 //observable "dir2" = seedrone2 ? dir2 : -1;
 
 formula seeagent1 = ax-dx < ARADIUS + 1 & dx-ax < ARADIUS + 1 & ay-dy < ARADIUS+1 & dy -ay < ARADIUS+1;
-formula seeagent2 = ax2-dx < ARADIUS + 1 & dx-ax2 < ARADIUS + 1 & ay2-dy < ARADIUS+1 & dy -ay2 < ARADIUS+1;
+//formula seeagent2 = ax2-dx < ARADIUS + 1 & dx-ax2 < ARADIUS + 1 & ay2-dy < ARADIUS+1 & dy -ay2 < ARADIUS+1;
 
 //observable "seen" = (seeagent1 | seeagent2);
 
@@ -101,12 +102,12 @@ rewards "rews"
     [south] true : -1;
     [west] true : -1;
     [east] true : -1;
-    [done] true : 500;
-    [bad] true : -500;
+    //[done] true : 500;
+    //[bad] true : -500;
 endrewards
 
 //formula goal = finish = true;
-formula bad = crash | seeagent1 | seeagent2;
+formula bad = crash;
 label "goal" = done;
 label "traps" = crash;
 label "bad" = bad;

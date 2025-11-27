@@ -65,6 +65,8 @@ class ShieldProcessor:
             self.shield = shielding.shields.PessimisticShield(model_info=model_info, actions=self.actions, nu=nu)
         elif shield_type == 'optimistic':
             self.shield = shielding.shields.OptimisticShield(model_info=model_info, actions=self.actions, nu=nu)
+        elif shield_type == 'delta':
+            self.shield = shielding.shields.DeltaShield(model_info=model_info, actions=self.actions, delta=nu)
         elif shield_type == 'self-constructing':
             self.shield = shielding.shields.SelfConstructingShieldDistributionsSafe(model_info=model_info, actions=self.actions, nu=nu)
         elif shield_type == 'self-constructing-simple':

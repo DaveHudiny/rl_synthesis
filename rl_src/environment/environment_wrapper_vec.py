@@ -260,7 +260,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         self.antigoal_values_vector = tf.constant(
             [0.0] * self.num_envs, dtype=tf.float32)
         self.goal_values_vector = tf.constant(
-            [0.0] * self.num_envs, dtype=tf.float32)
+            [100.0] * self.num_envs, dtype=tf.float32)
 
     def set_reachability_rewards(self):
         self.reward_multiplier = 0.0

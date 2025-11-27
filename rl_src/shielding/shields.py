@@ -222,6 +222,32 @@ class OptimisticShield(Shield):
             output_distribution = new_distribution
 
         return output_distribution
+    
+
+class DeltaShield(Shield):
+    def __init__(self, model_info: ModelInfo, actions, delta: float):
+        super().__init__(model_info, actions)
+        self.delta = delta
+        self.standard_shield = StandardShield(model_info, actions)
+
+    def correct(self, last_action, current_state, distribution, reset, trace_index=0):
+        self.shield_calls += 1
+
+        # compute expected value of the distribution
+        expected_value = 0.0
+        for choice_index, prob in enumerate(distribution):
+            row_index = self.model_info.model.transition_matrix.get_row_group_start(current_state) + choice_index
+            row = self.model_info.model.transition_matrix.get_row(row_index)
+            for entry in row:
+                expected_value += prob * entry.value() * self.model_info.vmin[entry.column]
+
+        if expected_value - self.model_info.vmin[current_state] < self.delta:
+            output_distribution = distribution
+        else:
+            self.blocked_actions += 1
+            output_distribution = self.standard_shield.correct(last_action, current_state, distribution, reset)
+
+        return output_distribution
 
 @dataclass
 class Node:
@@ -377,7 +403,7 @@ class SelfConstructingShieldDistributions(SelfConstructingShield):
             # compute value from successors
             best_value = float('-inf')
             # points of the convex set
-            all_distributions = node.distributions + self.vmin_actions_distributions[node.state_index]
+            all_distributions = self.vmin_actions_distributions[node.state_index] + node.distributions
             for distr_index, distr in enumerate(all_distributions):
                 q_value = 0.0
                 for action_index, action_prob in enumerate(distr):
@@ -602,7 +628,7 @@ class SelfConstructingShieldDistributionsSafe(SelfConstructingShieldSafe):
             # compute value from successors
             best_value = float('-inf')
             # points of the convex set
-            all_distributions = node.distributions + self.vmin_actions_distributions[node.state_index]
+            all_distributions = self.vmin_actions_distributions[node.state_index] + node.distributions
             for distr_index, distr in enumerate(all_distributions):
                 q_value = 0.0
                 for action_index, action_prob in enumerate(distr):
@@ -618,7 +644,6 @@ class SelfConstructingShieldDistributionsSafe(SelfConstructingShieldSafe):
                 if q_value > best_value:
                     best_value = q_value
             assert best_value != float('-inf')
-            # print(best_value)
             node.value = best_value
             node = node.predecessor
 
