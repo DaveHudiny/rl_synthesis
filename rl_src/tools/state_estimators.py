@@ -1,6 +1,6 @@
 from vec_storm.storm_vec_env import StormVecEnv
 
-from environment.vectorized_sim_initializer import SimulatorInitializer
+from rl_src.environment.vectorized_sim_initializer import SimulatorInitializer
 
 import tensorflow as tf
 import numpy as np

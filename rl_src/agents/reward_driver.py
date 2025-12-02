@@ -31,7 +31,7 @@ from tf_agents.trajectories import trajectory
 from tf_agents.utils import common
 from tf_agents.utils import nest_utils
 
-from agents.policies.policy_mask_wrapper import PolicyMaskWrapper
+from rl_src.agents.policies.policy_mask_wrapper import PolicyMaskWrapper
 
 
 def is_bandit_env(env):

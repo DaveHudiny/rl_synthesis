@@ -6,23 +6,23 @@ from tf_agents.policies import TFPolicy
 from tf_agents.policies.py_tf_eager_policy import PyTFEagerPolicy
 from tf_agents.trajectories.policy_step import PolicyStep
 
-from interpreters.bottlenecking.bottleneck_autoencoder import Encoder, Decoder, Autoencoder
+from rl_src.interpreters.bottlenecking.bottleneck_autoencoder import Encoder, Decoder, Autoencoder
 
-from environment.tf_py_environment import TFPyEnvironment
-from agents.father_agent import FatherAgent
+from rl_src.environment.tf_py_environment import TFPyEnvironment
+from rl_src.agents.father_agent import FatherAgent
 
-from tools.evaluation_results_class import EvaluationResults
-from tools.evaluators import *
-from tools.saving_tools import *
+from rl_src.tools.evaluation_results_class import EvaluationResults
+from rl_src.tools.evaluators import *
+from rl_src.tools.saving_tools import *
 
 from rl_src.tests.general_test_tools import *
-from agents.recurrent_ppo_agent import Recurrent_PPO_agent
-from environment.environment_wrapper_vec import EnvironmentWrapperVec
+from rl_src.agents.recurrent_ppo_agent import Recurrent_PPO_agent
+from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
 
-from interpreters.bottlenecking.bottlenecked_actor_network import BottleneckedActor
-from interpreters.bottlenecking.reorganizer import Reorganizer
+from rl_src.interpreters.bottlenecking.bottlenecked_actor_network import BottleneckedActor
+from rl_src.interpreters.bottlenecking.reorganizer import Reorganizer
 
-from interpreters.extracted_fsc.table_based_policy import TableBasedPolicy
+from rl_src.interpreters.extracted_fsc.table_based_policy import TableBasedPolicy
 
 
 import sys

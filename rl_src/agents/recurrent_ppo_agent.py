@@ -1,37 +1,37 @@
 
 import logging
-from agents.father_agent import FatherAgent
-from shielding.shielding_options import ShieldingOptions
-from tools.encoding_methods import *
+from rl_src.agents.father_agent import FatherAgent
+from rl_src.shielding.shielding_options import ShieldingOptions
+from rl_src.tools.encoding_methods import *
 
 import tensorflow as tf
 
-from environment import tf_py_environment
+from rl_src.environment import tf_py_environment
 # from tf_agents.agents.ppo import ppo_agent
-from agents.tf_agents_modif import ppo_agent
+from rl_src.agents.tf_agents_modif import ppo_agent
 
 
-from environment.environment_wrapper import Environment_Wrapper
+from rl_src.environment.environment_wrapper import Environment_Wrapper
 
-from agents.policies.policy_mask_wrapper import PolicyMaskWrapper
+from rl_src.agents.policies.policy_mask_wrapper import PolicyMaskWrapper
 
-from agents.networks.value_networks import create_recurrent_value_net_demasked
-from agents.networks.actor_networks import create_recurrent_actor_net_demasked
-from agents.networks.fsc_like_network import FSCLikeNetwork
+from rl_src.agents.networks.value_networks import create_recurrent_value_net_demasked
+from rl_src.agents.networks.actor_networks import create_recurrent_actor_net_demasked
+from rl_src.agents.networks.fsc_like_network import FSCLikeNetwork
 
 from tf_agents.networks.value_rnn_network import ValueRnnNetwork
-from agents.tf_agents_modif.actor_distribution_rnn_network import ActorDistributionRnnNetwork
+from rl_src.agents.tf_agents_modif.actor_distribution_rnn_network import ActorDistributionRnnNetwork
 
 from tf_agents.policies.py_tf_eager_policy import PyTFEagerPolicy
 
-from agents.alternative_training.active_pretraining import EntropyRewardGenerator
+from rl_src.agents.alternative_training.active_pretraining import EntropyRewardGenerator
 
-from tools.args_emulator import ArgsEmulator, ReplayBufferOptions
+from rl_src.tools.args_emulator import ArgsEmulator, ReplayBufferOptions
 from paynt.quotient.fsc import FscFactored
 
 from keras.optimizers import Adam
-from shielding.shield_processor import ShieldProcessor
-from shielding.shielded_dynamic_step_driver import ShieldedDynamicStepDriver
+from rl_src.shielding.shield_processor import ShieldProcessor
+from rl_src.shielding.shielded_dynamic_step_driver import ShieldedDynamicStepDriver
 
 import sys
 sys.path.append("../")

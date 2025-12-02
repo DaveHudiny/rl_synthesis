@@ -12,11 +12,11 @@ from tf_agents.trajectories import policy_step
 import tensorflow_probability as tfp
 
 
-from tools.encoding_methods import observation_and_action_constraint_splitter
+from rl_src.tools.encoding_methods import observation_and_action_constraint_splitter
 
 import logging
 
-from reward_machines.predicate_automata import PredicateAutomata
+from rl_src.reward_machines.predicate_automata import PredicateAutomata
 
 logger = logging.getLogger(__name__)
 

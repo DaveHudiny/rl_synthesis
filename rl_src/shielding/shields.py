@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from shielding.model_info import ModelInfo
+from rl_src.shielding.model_info import ModelInfo
 import random
 import numpy as np
 from scipy.spatial import ConvexHull

@@ -1,6 +1,6 @@
 from vec_storm.storm_vec_env import StormVecEnv
 
-from environment.renderers.mba_renderer import MBARenderer
+from rl_src.environment.renderers.mba_renderer import MBARenderer
 
 import stormpy.pomdp
 

@@ -1,6 +1,6 @@
 from tf_agents.trajectories.policy_step import PolicyStep
 from tf_agents.trajectories.time_step import TimeStep
-from agents.policies.fsc_copy import FSC
+from rl_src.agents.policies.fsc_copy import FSC
 
 from tf_agents.policies import TFPolicy
 from tf_agents.specs.tensor_spec import TensorSpec

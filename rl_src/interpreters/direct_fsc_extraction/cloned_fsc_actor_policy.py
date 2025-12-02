@@ -13,16 +13,16 @@ from tf_agents.environments.tf_py_environment import TFPyEnvironment
 
 from keras import optimizers
 
-from interpreters.direct_fsc_extraction.networks.fsc_like_actor_network import FSCLikeActorNetwork
-from interpreters.direct_fsc_extraction.networks.fsc_like_dict_actor_network import FSCLikeDictActorNetwork
-from tools.evaluation_results_class import EvaluationResults
-from tools.specification_check import SpecificationChecker
-from tools.args_emulator import ArgsEmulator
-from environment.environment_wrapper_vec import EnvironmentWrapperVec
-from tools.evaluators import evaluate_policy_in_model
-from interpreters.direct_fsc_extraction.extraction_stats import ExtractionStats
+from rl_src.interpreters.direct_fsc_extraction.networks.fsc_like_actor_network import FSCLikeActorNetwork
+from rl_src.interpreters.direct_fsc_extraction.networks.fsc_like_dict_actor_network import FSCLikeDictActorNetwork
+from rl_src.tools.evaluation_results_class import EvaluationResults
+from rl_src.tools.specification_check import SpecificationChecker
+from rl_src.tools.args_emulator import ArgsEmulator
+from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
+from rl_src.tools.evaluators import evaluate_policy_in_model
+from rl_src.interpreters.direct_fsc_extraction.extraction_stats import ExtractionStats
 
-from interpreters.direct_fsc_extraction .networks.lstm_actor_network import LSTMActorNetwork
+from rl_src.interpreters.direct_fsc_extraction .networks.lstm_actor_network import LSTMActorNetwork
 
 DEBUG = True
 

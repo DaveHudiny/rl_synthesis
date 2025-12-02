@@ -1,8 +1,8 @@
-from tools.args_emulator import ArgsEmulator
+from rl_src.tools.args_emulator import ArgsEmulator
 import tensorflow as tf
 
-from shielding.model_info import ModelInfo
-import shielding.shields
+from rl_src.shielding.model_info import ModelInfo
+import rl_src.shielding.shields
 
 import stormpy
 import numpy as np
@@ -58,23 +58,23 @@ class ShieldProcessor:
         model_info = ModelInfo(model=model, observation_to_state=observation_to_state, bad_state="bad", vmin=vmin, vmax=vmax)
 
         if shield_type == 'identity':
-            self.shield = shielding.shields.IdentityShield(model_info=model_info, actions=self.actions)
+            self.shield = rl_src.shielding.shields.IdentityShield(model_info=model_info, actions=self.actions)
         elif shield_type == 'standard':
-            self.shield = shielding.shields.StandardShield(model_info=model_info, actions=self.actions)
+            self.shield = rl_src.shielding.shields.StandardShield(model_info=model_info, actions=self.actions)
         elif shield_type == 'pessimistic':
-            self.shield = shielding.shields.PessimisticShield(model_info=model_info, actions=self.actions, nu=nu)
+            self.shield = rl_src.shielding.shields.PessimisticShield(model_info=model_info, actions=self.actions, nu=nu)
         elif shield_type == 'optimistic':
-            self.shield = shielding.shields.OptimisticShield(model_info=model_info, actions=self.actions, nu=nu)
+            self.shield = rl_src.shielding.shields.OptimisticShield(model_info=model_info, actions=self.actions, nu=nu)
         elif shield_type == 'delta':
-            self.shield = shielding.shields.DeltaShield(model_info=model_info, actions=self.actions, delta=nu)
+            self.shield = rl_src.shielding.shields.DeltaShield(model_info=model_info, actions=self.actions, delta=nu)
         elif shield_type == 'self-constructing':
-            self.shield = shielding.shields.SelfConstructingShield(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
+            self.shield = rl_src.shielding.shields.SelfConstructingShield(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
         elif shield_type == 'self-constructing-simple':
-            self.shield = shielding.shields.SelfConstructingShieldDeterministic(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
+            self.shield = rl_src.shielding.shields.SelfConstructingShieldDeterministic(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
         elif shield_type == 'self-constructing-unsafe':
-            self.shield = shielding.shields.SelfConstructingShieldUnsafe(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
+            self.shield = rl_src.shielding.shields.SelfConstructingShieldUnsafe(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
         elif shield_type == 'self-constructing-simple-unsafe':
-            self.shield = shielding.shields.SelfConstructingShieldDeterministicUnsafe(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
+            self.shield = rl_src.shielding.shields.SelfConstructingShieldDeterministicUnsafe(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
         else:
             raise ValueError(f"Unknown shield type: {shield_type}")
     
