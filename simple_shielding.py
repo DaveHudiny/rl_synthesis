@@ -1,3 +1,4 @@
+from shielding.shielding_options import ShieldingOptions
 from robust_rl.robust_rl_tools import load_sketch
 
 import os
