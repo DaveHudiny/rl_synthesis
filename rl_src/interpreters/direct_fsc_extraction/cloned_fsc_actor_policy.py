@@ -46,7 +46,8 @@ class ClonedFSCActorPolicy(TFPolicy):
                  observation_length: int = 0,
                  orig_env_use_stacked_observations: bool = True,
                  use_gumbel_softmax: bool = False,
-                 seed=42):
+                 seed=42,
+                 fsrs_learning: bool = True):
         self.original_policy = original_policy
         self.use_one_hot = use_one_hot
         policy_state_spec = BoundedArraySpec(
@@ -56,12 +57,14 @@ class ClonedFSCActorPolicy(TFPolicy):
                                                    policy_state_spec=policy_state_spec,
                                                    observation_and_action_constraint_splitter=observation_and_action_constrint_splitter)
         self.memory_size = memory_size
+        self.fsrs_learning = fsrs_learning
         self.fsc_actor = FSCLikeActorNetwork(
             observation_length,
             original_policy.action_spec.maximum + 1,
             memory_size,
             use_one_hot=use_one_hot,
-            gumbel_softmax_one_hot=use_gumbel_softmax,)
+            gumbel_softmax_one_hot=use_gumbel_softmax,
+            fsrs_learning=fsrs_learning)
         self.model_name = model_name
         self.optimization_specification = optimization_specification
         self.find_best_policy = find_best_policy
@@ -224,20 +227,25 @@ class ClonedFSCActorPolicy(TFPolicy):
         neural_fsc : FSCLikeActorNetwork = cloned_actor.fsc_actor
         neural_fsc.add_noise_to_neural_weights(self.seed())
         optimizer = optimizers.Adam(learning_rate=1.6e-4, weight_decay=1e-5)
-
-        if learn_probs_regression:
-            # loss_fn = keras.losses.CategoricalCrossentropy(from_logits=True)
-            # loss_fn = keras.losses.MeanSquaredError()
-            loss_fn = keras.losses.KLDivergence()
-            # loss_fn = self.get_weighted_cross_entropy_loss(
-            #     weights_normalized, len(environment.action_keywords))
-            accuracy_metric = keras.metrics.CategoricalAccuracy(
-                name="accuracy"
-            )
+        
+        if self.fsrs_learning:
+            loss_fn = keras.losses.MeanSquaredError()
+            accuracy_metric = keras.metrics.MeanSquaredError(
+                name="mse_accuracy")
         else:
-            loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-            accuracy_metric = keras.metrics.SparseCategoricalAccuracy(
-                name="accuracy")
+            if learn_probs_regression:
+                # loss_fn = keras.losses.CategoricalCrossentropy(from_logits=True)
+                # loss_fn = keras.losses.MeanSquaredError()
+                loss_fn = keras.losses.KLDivergence()
+                # loss_fn = self.get_weighted_cross_entropy_loss(
+                #     weights_normalized, len(environment.action_keywords))
+                accuracy_metric = keras.metrics.CategoricalAccuracy(
+                    name="accuracy"
+                )
+            else:
+                loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+                accuracy_metric = keras.metrics.SparseCategoricalAccuracy(
+                    name="accuracy")
         loss_metric = keras.metrics.Mean(name="train_loss")
 
         self.evaluation_result = None
@@ -268,7 +276,17 @@ class ClonedFSCActorPolicy(TFPolicy):
             with tf.GradientTape() as tape:
                 total_loss = 0.0
                 for t in range(T):
+                    if t == T - 1:
+                        break
                     current_obs = observations[:, t, :]
+                    if self.fsrs_learning:
+                        # Append gt action to the observation for FSRS learning
+                        act = gt_actions[:, t]
+                        act = tf.reshape(act, (act.shape[0], 1))
+                        act = tf.cast(act, tf.float32)
+                        current_obs = tf.concat([current_obs, act], axis=-1)
+                    next_obs = observations[:, (t + 1), :]
+                    next_obs = tf.reshape(next_obs, (next_obs.shape[0], -1))
                     current_step_type = step_types[:, t, :]
                     current_obs = tf.reshape(current_obs, (current_obs.shape[0], 1, -1))
                     current_step_type = tf.reshape(current_step_type, (current_step_type.shape[0], 1, -1))
@@ -280,13 +298,19 @@ class ClonedFSCActorPolicy(TFPolicy):
                     )
 
                     # Výpočet ztráty pro aktuální krok
-                    played_action_soft = keras.activations.softmax(played_action, axis=-1)
-                    accuracy_metric.update_state(gt_actions, played_action_soft)
-
-                    if not learn_probs_regression:
-                        current_loss = loss_fn(gt_actions[:, t], played_action)
+                    
+                    
+                    if self.fsrs_learning:
+                        accuracy_metric.update_state(next_obs, played_action)
+                        current_loss = loss_fn(next_obs, played_action)
                     else:
-                        current_loss = loss_fn(gt_actions[:, t, :], played_action)
+                        if not learn_probs_regression:
+                            played_action_soft = keras.activations.softmax(played_action, axis=-1)
+                            accuracy_metric.update_state(gt_actions[:, t], played_action_soft)
+                            current_loss = loss_fn(gt_actions[:, t], played_action)
+                        else:
+                            accuracy_metric.update_state(gt_actions[:, t, :], played_action)
+                            current_loss = loss_fn(gt_actions[:, t, :], played_action)
                     
                     total_loss += current_loss
 
@@ -295,7 +319,6 @@ class ClonedFSCActorPolicy(TFPolicy):
             grads, _ = tf.clip_by_global_norm(grads, 5.0)
             optimizer.apply_gradients(zip(grads, neural_fsc.trainable_variables))
 
-            # Aktualizace metrik
             loss_metric.update_state(total_loss)
                 
 
@@ -305,16 +328,11 @@ class ClonedFSCActorPolicy(TFPolicy):
         for i in range(num_epochs):
             try:
                 experience, _ = next(iterator)
-            except StopIteration:  # Reset iteratoru, pokud dojde dataset
+            except StopIteration:
                 iterator = iter(dataset)
                 experience, _ = next(iterator)
             loss = train_step_2(experience) # train_step(experience)
-            # Use the learning rate scheduler
 
-            # Apply the LR scheduler to Adam optimizer 
-            # Use the learning rate from the scheduler
-            
-            # print(neural_fsc.memory_dense.weights)
             if True:
                 self.schedule_gumbel_temperature(i, neural_fsc, total_epochs=num_epochs)
             self.periodical_evaluation(i, loss_metric, accuracy_metric, cloned_actor,
@@ -342,7 +360,7 @@ class ClonedFSCActorPolicy(TFPolicy):
             loss_metric.reset_states()
             accuracy_metric.reset_states()
             
-        if iteration_number % 500 == 0:
+        if False and iteration_number % 500 == 0:
             self.evaluation_result = evaluate_policy_in_model(
                 cloned_actor, None, environment, tf_environment, self.max_episode_length * 2, evaluation_result)
             extraction_stats.add_extraction_result(

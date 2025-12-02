@@ -14,7 +14,8 @@ class FSCLikeActorNetwork(models.Model):
                  use_residual_connection: bool = True,
                  gumbel_softmax_one_hot: bool = True,
                  stochastic_updates: bool = True,
-                 seed: int = 42):
+                 seed: int = 42,
+                 fsrs_learning: bool = False):
         super(FSCLikeActorNetwork, self).__init__()
         self.observation_shape = observation_shape
         self.action_range = action_range
@@ -35,7 +36,11 @@ class FSCLikeActorNetwork(models.Model):
         self.pre_action_dense = layers.Dense(64, activation='relu')
         self.pre_action_dense_2 = layers.Dense(32, activation='relu')
 
-        self.action = layers.Dense(self.action_range, activation=None)
+        if fsrs_learning:
+            self.action = layers.Dense(self.observation_shape, activation=None)
+        else:
+            self.action = layers.Dense(self.action_range, activation=None)
+            
         self.return_probs = True
         self.use_one_hot = use_one_hot
         self.gumbel_softmax_one_hot = gumbel_softmax_one_hot
@@ -43,7 +48,6 @@ class FSCLikeActorNetwork(models.Model):
         self.seed = seed
         if gumbel_softmax_one_hot:
             assert use_one_hot, "Gumbel softmax requires one-hot encoding."
-            self.projection_network = layers.Dense(memory_len, activation='relu')
             self.memory_function = layers.Lambda(
                 lambda x: self.gumbel_softmax(x, temperature=self.temperature, seed=self.seed))
             self.one_hot_constant = 1
