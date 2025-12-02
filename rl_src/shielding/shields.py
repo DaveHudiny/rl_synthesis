@@ -5,6 +5,8 @@ import numpy as np
 from scipy.spatial import ConvexHull
 from scipy.optimize import linprog
 
+import stormpy
+
 
 def clamp_distribution(distribution, allowed_actions):
     """Clamp a distribution to only allowed actions."""
@@ -264,9 +266,9 @@ class Node:
             count += succ.number_of_tree_nodes()
         return count
 
-class SelfConstructingShield(Shield):
+class SelfConstructingShieldDeterministicUnsafe(Shield):
 
-    def __init__(self, model_info: ModelInfo, actions, nu: float):
+    def __init__(self, model_info: ModelInfo, actions, nu: float, memory: int = 0):
         super().__init__(model_info, actions)
         self.nu = nu
 
@@ -391,9 +393,9 @@ class SelfConstructingShield(Shield):
     
 
 # # TODO think about nice implementation where you could easily parameterize the behaviour anywhere between the two version of the self-constructing shield
-class SelfConstructingShieldDistributions(SelfConstructingShield):
-    def __init__(self, model_info: ModelInfo, actions, nu: float):
-        super().__init__(model_info, actions, nu)
+class SelfConstructingShieldUnsafe(SelfConstructingShieldDeterministicUnsafe):
+    def __init__(self, model_info: ModelInfo, actions, nu: float, memory: int = 0):
+        super().__init__(model_info, actions, nu, memory)
 
         self.last_distribution_indices = [None]
 
@@ -474,9 +476,9 @@ class SelfConstructingShieldDistributions(SelfConstructingShield):
 
 
 
-class SelfConstructingShieldSafe(Shield):
+class SelfConstructingShieldDeterministic(Shield):
 
-    def __init__(self, model_info: ModelInfo, actions, nu: float):
+    def __init__(self, model_info: ModelInfo, actions, nu: float, memory: int = 0):
         super().__init__(model_info, actions)
         self.nu = nu
 
@@ -493,6 +495,26 @@ class SelfConstructingShieldSafe(Shield):
         self.vmin_actions = []
         self.initialize_vmin_actions()
 
+        # handle memory limitation
+        self.memory = memory
+        if self.memory > 0:
+            self.safety_property = stormpy.parse_properties("Pmax=? [ F \"bad\" ]")
+
+            assert self.memory == 1, "Currently only memory<=1 limitation is supported."
+            self.memory_unfolded_model = model_info.model # TODO implement memory unfolding
+            self.memory_state_to_original_mapping = [s for s in range(self.memory_unfolded_model.nr_states)] # TODO implement memory unfolding
+
+            self.allowed_choices = []
+            for state in range(self.memory_unfolded_model.nr_states):
+                original_state = self.memory_state_to_original_mapping[state]
+                row_start = self.memory_unfolded_model.transition_matrix.get_row_group_start(state)
+
+                for vmin_action in self.vmin_actions[original_state]:
+                    choice_index = row_start + vmin_action
+                    self.allowed_choices.append(choice_index)
+                
+
+    # TODO careful here with the float comparisons!
     def initialize_vmin_actions(self):
         for state in range(self.model_info.model.nr_states):
             actions_count = self.model_info.model.get_nr_available_actions(state)
@@ -616,9 +638,9 @@ class SelfConstructingShieldSafe(Shield):
 
 
 # # TODO think about nice implementation where you could easily parameterize the behaviour anywhere between the two version of the self-constructing shield
-class SelfConstructingShieldDistributionsSafe(SelfConstructingShieldSafe):
-    def __init__(self, model_info: ModelInfo, actions, nu: float):
-        super().__init__(model_info, actions, nu)
+class SelfConstructingShield(SelfConstructingShieldDeterministic):
+    def __init__(self, model_info: ModelInfo, actions, nu: float, memory: int = 0):
+        super().__init__(model_info, actions, nu, memory)
 
         self.last_distribution_indices = [None]
 

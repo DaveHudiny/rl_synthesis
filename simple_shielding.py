@@ -1,4 +1,4 @@
-from shielding.shielding_options import ShieldingOptions
+from rl_src.shielding.shielding_options import ShieldingOptions
 from robust_rl.robust_rl_tools import load_sketch
 
 import os
@@ -9,14 +9,14 @@ import tensorflow as tf
 import random
 
 # RL implementation imports
-from environment.environment_wrapper_vec import EnvironmentWrapperVec
-from environment.tf_py_environment import TFPyEnvironment
-from agents.recurrent_ppo_agent import Recurrent_PPO_agent
-from tools.args_emulator import ArgsEmulator
-from tools.evaluators import evaluate_policy_in_model
-from tests.general_test_tools import init_args
-from shielding.shield_processor import ShieldProcessor
-import shielding.shields
+from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
+from rl_src.environment.tf_py_environment import TFPyEnvironment
+from rl_src.agents.recurrent_ppo_agent import Recurrent_PPO_agent
+from rl_src.tools.args_emulator import ArgsEmulator
+from rl_src.tools.evaluators import evaluate_policy_in_model
+from rl_src.tests.general_test_tools import init_args
+from rl_src.shielding.shield_processor import ShieldProcessor
+import rl_src.shielding.shields
 
 # PAYNT implementation imports
 from paynt.parser.sketch import Sketch
@@ -81,7 +81,8 @@ def set_global_seeds(seed):
 @click.option("--shield", type=click.Choice([None, 'identity', 'standard', 'pessimistic', 'optimistic', 'delta', 'self-constructing', 'self-constructing-simple', 'self-constructing-unsafe', 'self-constructing-simple-unsafe']), default=None, help="Shielding method to use.")
 @click.option("--agent-folder", type=str, default="", help="Suffix of folder containing the trained agent.")
 @click.option("--agent-training", is_flag=True, default=False, help="Whether to perform agent training.")
-def main(project, nu, shield, agent_folder, agent_training):
+@click.option("--shield-memory", type=int, default=0, help="Memory size for self-constructing shields. If 0, no memory constraint is applied.")
+def main(project, nu, shield, agent_folder, agent_training, shield_memory):
     project_path = project
     project_name = os.path.basename(os.path.normpath(project_path))
     prism_path = os.path.join(project_path, "sketch.templ")
@@ -109,7 +110,7 @@ def main(project, nu, shield, agent_folder, agent_training):
         model, args, num_envs=args.num_environments, enforce_compilation=True)
     
     if shield is not None:
-        shield_processor = ShieldProcessor(environment.action_keywords, model, nu, shield, args=args) # Placeholder for your implementation.
+        shield_processor = ShieldProcessor(environment.action_keywords, model, nu, shield, args=args, shield_memory=shield_memory) # Placeholder for your implementation.
     else:
         shield_processor = None
 
@@ -136,7 +137,7 @@ def main(project, nu, shield, agent_folder, agent_training):
         print("Shield stats:")
         print(f"Shield calls: {shield_processor.shield.shield_calls}")
         print(f"Blocked actions: {shield_processor.shield.blocked_actions}")
-        if type(shield_processor.shield) in [shielding.shields.SelfConstructingShield, shielding.shields.SelfConstructingShieldDistributions, shielding.shields.SelfConstructingShieldSafe, shielding.shields.SelfConstructingShieldDistributionsSafe]:
+        if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShield, rl_src.shielding.shields.SelfConstructingShieldDeterministic, rl_src.shielding.shields.SelfConstructingShieldUnsafe, rl_src.shielding.shields.SelfConstructingShieldDeterministicUnsafe]:
             for node in shield_processor.shield.current_nodes:
                 shield_processor.shield.back_propagate_values(node)
             print(f"Tree size: {shield_processor.shield.initial_node.number_of_tree_nodes()}")

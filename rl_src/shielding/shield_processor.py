@@ -8,7 +8,7 @@ import stormpy
 import numpy as np
 
 class ShieldProcessor:
-    def __init__(self, actions : int, model : stormpy.storage.SparsePomdp, nu : float, shield_type : str, args : ArgsEmulator = None):
+    def __init__(self, actions : int, model : stormpy.storage.SparsePomdp, nu : float, shield_type : str, args : ArgsEmulator = None, shield_memory : int = 0):
         self.args = args
         self.actions = actions
 
@@ -68,13 +68,13 @@ class ShieldProcessor:
         elif shield_type == 'delta':
             self.shield = shielding.shields.DeltaShield(model_info=model_info, actions=self.actions, delta=nu)
         elif shield_type == 'self-constructing':
-            self.shield = shielding.shields.SelfConstructingShieldDistributionsSafe(model_info=model_info, actions=self.actions, nu=nu)
+            self.shield = shielding.shields.SelfConstructingShield(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
         elif shield_type == 'self-constructing-simple':
-            self.shield = shielding.shields.SelfConstructingShieldSafe(model_info=model_info, actions=self.actions, nu=nu)
+            self.shield = shielding.shields.SelfConstructingShieldDeterministic(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
         elif shield_type == 'self-constructing-unsafe':
-            self.shield = shielding.shields.SelfConstructingShieldDistributions(model_info=model_info, actions=self.actions, nu=nu)
+            self.shield = shielding.shields.SelfConstructingShieldUnsafe(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
         elif shield_type == 'self-constructing-simple-unsafe':
-            self.shield = shielding.shields.SelfConstructingShield(model_info=model_info, actions=self.actions, nu=nu)
+            self.shield = shielding.shields.SelfConstructingShieldDeterministicUnsafe(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
         else:
             raise ValueError(f"Unknown shield type: {shield_type}")
     
