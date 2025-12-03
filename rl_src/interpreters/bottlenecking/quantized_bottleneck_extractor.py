@@ -16,7 +16,7 @@ from rl_src.tools.evaluators import *
 from rl_src.tools.saving_tools import *
 
 from rl_src.tests.general_test_tools import *
-from rl_src.agents.recurrent_ppo_agent import Recurrent_PPO_agent
+from rl_src.agents.recurrent_ppo_agent import Recurrent_PPO_Agent
 from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
 
 from rl_src.interpreters.bottlenecking.bottlenecked_actor_network import BottleneckedActor
