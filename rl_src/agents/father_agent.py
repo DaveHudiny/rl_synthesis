@@ -372,8 +372,6 @@ class FatherAgent(AbstractAgent):
         Args:
             experience: The experience for training the agent.
         """
-        print(experience)
-        exit(0)
         train_loss = self.agent.train(experience)
         train_loss = train_loss.loss
         
@@ -633,7 +631,7 @@ class FatherAgent(AbstractAgent):
             self.set_agent_stochastic()
         else:
             self.set_agent_greedy()
-        self.set_policy_masking()
+        self.unset_policy_masking()
         if not vectorized:
             if last:
                 evaluation_episodes = self.evaluation_episodes * 2
@@ -652,7 +650,7 @@ class FatherAgent(AbstractAgent):
             if last:
 
                 logger.info("Evaluating agent with greedy masked policy.")
-                self.set_policy_masking()
+                self.unset_policy_masking()
                 if self.args.render_if_possible and self.environment.grid_like_renderer:
                     self.render_agent_behavior(self.get_evaluation_policy())
             self.vec_driver.run()

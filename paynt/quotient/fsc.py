@@ -118,6 +118,7 @@ class FscFactored:
         fsc = FscFactored(num_nodes,num_observations)
         fsc.action_function = json["action_function"]
         fsc.update_function = json["update_function"]
+        fsc.action_labels = json["action_labels"] if "action_labels" in json else None
         return fsc
 
     def reorder_nodes(self, node_old_to_new):
@@ -171,6 +172,7 @@ class FscFactored:
                     except:
                         # raise AssertionError("in observation {} FSC chooses invalid action {}. Available actions: {}".format(obs,action,observation_to_actions[obs]))
                         print("observation_to_actions[{}] = {}".format(obs, observation_to_actions[obs]))
+                        print("it wants to play action {}".format(action))
                         if self.is_deterministic:
                             assert action in observation_to_actions[obs], "in observation {} FSC chooses invalid action {}".format(obs,action)
                         else:

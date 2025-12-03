@@ -18,6 +18,7 @@ from paynt.quotient.pomdp_family import PomdpFamilyQuotient
 
 
 from rl_src.agents.recurrent_ppo_agent import Recurrent_PPO_Agent
+from rl_src.tools.args_emulator import EvaluationOptions
 
 import tensorflow as tf
 import random
@@ -32,6 +33,26 @@ from paynt.verification.property import construct_property
 from paynt.quotient.fsc import FscFactored
 
 logger = logging.getLogger(__name__)
+
+class EvaluationOptionResult:
+    def __init__(self, seed):
+        self.seed = seed
+        self.returns_per_evaluation_option = {}
+        self.reachabilities_per_evaluation_option = {}
+
+    def set_option_result(self, evaluation_option: EvaluationOptions, returns: list[float], reachabilities: list[float]):
+        self.returns_per_evaluation_option[evaluation_option.name] = returns
+        self.reachabilities_per_evaluation_option[evaluation_option.name] = reachabilities
+
+    def save_to_json(self, json_path):
+        import json
+        data = {
+            "seed": self.seed,
+            "returns_per_evaluation_option": {option: str(self.returns_per_evaluation_option[option]) for option in self.returns_per_evaluation_option},
+            "reachabilities_per_evaluation_option": {option: str(self.reachabilities_per_evaluation_option[option]) for option in self.reachabilities_per_evaluation_option},
+        }
+        with open(json_path, 'w') as f:
+            json.dump(data, f, indent=4)
 
 def set_global_seeds(seed):
     """Set the global random seeds for reproducibility."""
@@ -52,6 +73,8 @@ def convert_all_fsc_keys_to_int(fsc: FscFactored):
             fsc.update_function[n][z] = {
                 int(n_new): prob for n_new, prob in fsc.update_function[n][z].items()}
     return fsc
+
+
 
 
 def generate_table_based_fsc_from_paynt_fsc(paynt_fsc: FscFactored, original_action_space: str, agent: Recurrent_PPO_Agent):

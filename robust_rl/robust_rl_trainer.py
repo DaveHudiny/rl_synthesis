@@ -1,5 +1,6 @@
 # using Paynt for POMDP sketches
 
+import pickle
 from robust_rl.robust_rl_tools import create_json_file_name, assignment_to_pomdp
 import paynt.quotient.fsc
 import paynt.synthesizer.synthesizer_ar
@@ -33,9 +34,45 @@ from robust_rl.benchmark_stats import BenchmarkStats
 from paynt.quotient.fsc import FscFactored
 
 from robust_rl.config_file import Config
+from rl_src.agents.policies.policy_mask_wrapper import PolicyMaskWrapper
+from rl_src.tools.evaluation_results_class import EvaluationResults
+from robust_rl.robust_rl_tools import EvaluationOptions, EvaluationOptionResult
+from rl_src.tools.evaluators import evaluate_policy_in_model
+import json
 
 
 logger = logging.getLogger(__name__)
+
+def evaluate_in_all_options(policy: PolicyMaskWrapper, args: ArgsEmulator, environment: EnvironmentWrapperVec, tf_env: TFPyEnvironment, evaluation_results: dict[int, EvaluationResults] = None):
+    policy.set_policy_masker()
+    for eval_option in EvaluationOptions:
+        if eval_option == EvaluationOptions.FULL_STOCHASTIC:
+            policy.set_random_selector()
+        elif eval_option == EvaluationOptions.ARGMAX:
+            policy.set_argmax_selector()
+        elif eval_option == EvaluationOptions.PRUNING_0DOT05:
+            policy.set_prune_zero_dot_zero_five_probs_selector()
+        elif eval_option == EvaluationOptions.PRUNING_0DOT1:
+            policy.set_prune_zero_dot_one_probs_selector()
+        elif eval_option == EvaluationOptions.UNIFORM_PRUNING_0DOT1:
+            policy.set_prune_below_zero_dot_one_uniform_selector()
+        elif eval_option == EvaluationOptions.UNIFORM_TOP_THREE:
+            policy.set_uniform_top_three_selector()
+        elif eval_option == EvaluationOptions.UNIFORM_TOP_TWO:
+            policy.set_uniform_top_two_selector()
+        else:
+            raise ValueError(f"Unknown evaluation option: {eval_option}")
+        if eval_option not in evaluation_results:
+            evaluation_results[eval_option] = None
+        evaluation_results[eval_option] = evaluate_policy_in_model(
+            policy,
+            args,
+            environment,
+            tf_env,
+            evaluation_result=evaluation_results[eval_option]
+        )
+    policy.set_identity_masker()  # Reset the masker after evaluation
+    policy.set_random_selector()  # Reset to random selector for next training
 
 
 class RobustTrainer:
@@ -123,6 +160,9 @@ class RobustTrainer:
         paynt_fsc = ConstructorFSC.construct_fsc_from_table_based_policy(
             fsc, quotient, family_quotient_numpy=self.family_quotient_numpy, cut_probs=self.cut_probs)
         self.fscs_extracted.append(paynt_fsc)
+        with open (f"{self.model_name}_extracted_fsc.pkl", "wb") as f:
+            pickle.dump(paynt_fsc, f)
+        
 
         available_nodes = paynt_fsc.compute_available_updates(0)
         self.benchmark_stats.available_nodes_in_fsc.append(available_nodes)
@@ -200,10 +240,21 @@ class RobustTrainer:
             f"{project_path}", seed=f"{self.args.seed}")
 
         hole_assignment = pomdp_sketch.family.pick_random()
+        evaluation_results = {}
+        
 
         pomdp, _, _ = assignment_to_pomdp(pomdp_sketch, hole_assignment)
         if nr_initial_pomdps:  # Add nr_initial_pomdps random POMDPs to the environment
             self.add_initial_pomdps(pomdp, pomdp_sketch, nr_initial_pomdps)
+        # evaluate_in_all_options(self.agent.get_policy(False, True), self.args, self.agent.environment, self.tf_env, evaluation_results)
+        # evaluation_option_result = EvaluationOptionResult(args_emulated.seed)
+        # for eval_option in evaluation_results:
+        #     evaluation_option_result.set_option_result(
+        #         eval_option,
+        #         evaluation_results[eval_option].returns,
+        #         evaluation_results[eval_option].reach_probs
+        #     )
+        # evaluation_option_result.save_to_json(json_path.replace(".json", "_evaluation.json"))
         nr_iterations = config.nr_initial_iter
         # Upper limit of the outer iterations. In practice, we are stopped by an external timeout.
         for i in range(101):
@@ -212,7 +263,7 @@ class RobustTrainer:
             if args_emulated.single_pomdp_experiment:
                 pomdp = None
             self.train_on_new_pomdp(  # Train the agent on multiple POMDPs
-                pomdp, self.agent, nr_iterations=nr_iterations)
+                pomdp, self.agent, nr_iterations=301)
 
             # Analysis of the dormant neurons. Not mentioned in the paper, but used during the tuning.
             nr_clusters = rnn_analyzer.analyze(self.agent, self.tf_env)
@@ -239,7 +290,7 @@ class RobustTrainer:
                 f"Extracted FSC for hole assignment: {hole_assignment}")
             self.benchmark_stats.add_family_performance(
                 synthesizer.best_assignment_value)
-
+            
             if not self.extraction_less:
                 pomdp, _, _ = assignment_to_pomdp(
                     pomdp_sketch, hole_assignment)
@@ -247,11 +298,33 @@ class RobustTrainer:
                 hole_assignment = pomdp_sketch.family.pick_random()
                 pomdp, _, _ = assignment_to_pomdp(
                     pomdp_sketch, hole_assignment)
+                
+            single_env = EnvironmentWrapperVec(pomdp, self.args, num_envs=512, enforce_compilation=True,
+                                               obs_evaluator=self.obs_evaluator,
+                                               quotient_state_valuations=self.quotient_state_valuations,
+                                               observation_to_actions=self.pomdp_sketch.observation_to_actions)
+            tf_single_env = TFPyEnvironment(single_env)
+            evaluate_policy_in_model(
+                table_based_fsc,
+                args_emulated,
+                single_env,
+                tf_single_env,
+            )
+            exit(0)
 
             self.benchmark_stats.shrink_and_perturb_activated.append(False)
 
             self.agent.evaluation_result.save_to_json(
                 json_path, new_pomdp=True)
+            
+            # evaluate_in_all_options(self.agent.get_policy(False, True), self.args, self.agent.environment, self.tf_env, evaluation_results)
+            # for eval_option in evaluation_results:
+            #     evaluation_option_result.set_option_result(
+            #         eval_option,
+            #         evaluation_results[eval_option].returns,
+            #         evaluation_results[eval_option].reach_probs
+            #     )
+            # evaluation_option_result.save_to_json(json_path.replace(".json", "_evaluation.json"))
 
             self.save_stats(json_path)
             if self.args.periodic_restarts:

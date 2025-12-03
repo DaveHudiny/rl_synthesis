@@ -12,6 +12,8 @@ def load_all_benchmarks_from_folder(folder_path):
     benchmark_data = []
     for filename in os.listdir(folder_path):
         if filename.endswith(".json"):
+            if "evaluation" not in filename:
+                continue
             file_path = os.path.join(folder_path, filename)
             with open(file_path, 'r') as f:
                 data = json.load(f)
@@ -36,6 +38,9 @@ def plot_single_convergence_curve(data, model_name, output_path, metric_name):
     plt.figure(figsize=(10, 6))
     for eval_option, runs in data.items():
         mean_values = pd.DataFrame(runs).mean()
+        upper_values = pd.DataFrame(runs).quantile(0.95)
+        lower_values = pd.DataFrame(runs).quantile(0.05)
+        plt.fill_between(range(len(mean_values)), lower_values, upper_values, alpha=0.2)
         plt.plot(mean_values, label=eval_option)
     
     plt.title(f"{metric_name} Convergence Curve for {model_name}")
@@ -66,7 +71,7 @@ def generate_evaluation_type_curves(models_folder, output_path):
         plot_evaluation_curves(processed_data, model_name, output_path)
     
 if __name__ == "__main__":
-    models_folder = "models/models_distribution_experiments/"
+    models_folder = "models/models_robust/"
     output_path = "plots/evaluation_type_curves/"
     os.makedirs(output_path, exist_ok=True)
     generate_evaluation_type_curves(models_folder, output_path)

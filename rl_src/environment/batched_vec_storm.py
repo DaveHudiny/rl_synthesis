@@ -21,7 +21,7 @@ class BatchedVecStorm(StormVecEnv):
     This class extends the StormVecEnv to mainain the same interface while allowing for batch processing.
     Initially, it is just the StormVecEnv with a different name, but you can add more POMDPs and then the simulator will play them in parallel.
     """
-    def __init__(self, get_scalarized_reward: Dict[str, np.array], num_envs=1, seed=42, metalabels=None, random_init=False, max_steps=100,
+    def __init__(self, pomdp, get_scalarized_reward: Dict[str, np.array], num_envs=1, seed=42, metalabels=None, random_init=False, max_steps=100,
                  obs_evaluator=None, quotient_state_valuations=None, observation_to_actions=None, args: ArgsEmulator = None):
         super().__init__(pomdp, get_scalarized_reward, num_envs=num_envs, seed=seed, metalabels=metalabels,
                          random_init=random_init, max_steps=max_steps, obs_evaluator=obs_evaluator,

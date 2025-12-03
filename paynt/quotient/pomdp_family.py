@@ -87,13 +87,14 @@ class PomdpFamilyQuotient(paynt.quotient.mdp_family.MdpFamilyQuotient):
 
         # create the product
         fsc.check(self.observation_to_actions)
-        
+
         self.fsc_unfolder = payntbind.synthesis.FscUnfolder(
             self.quotient_mdp, self.state_to_observation, self.num_actions, self.choice_to_action
         )
         if isinstance(fsc,paynt.quotient.fsc.Fsc):
             self.fsc_unfolder.applyFsc(fsc.transitions)
         elif isinstance(fsc,paynt.quotient.fsc.FscFactored):
+            
             self.fsc_unfolder.applyFscFactored(fsc.action_function, fsc.update_function)
         else:
             raise ValueError("unknown FSC class")
