@@ -11,7 +11,7 @@ from tf_agents.utils import common
 import logging
 import tf_agents
 
-from tools.encoding_methods import *
+from rl_src.tools.encoding_methods import *
 
 logger = logging.getLogger(__name__)
 

@@ -5,11 +5,11 @@ import tensorflow as tf
 from tf_agents.specs.tensor_spec import TensorSpec
 import numpy as np
 
-from interpreters.extracted_fsc.extracted_fsc_policy import ExtractedFSCPolicy
+from rl_src.interpreters.extracted_fsc.extracted_fsc_policy import ExtractedFSCPolicy
 
-from tests.general_test_tools import init_args, init_environment
-from agents.recurrent_ppo_agent import Recurrent_PPO_agent
-from tools.evaluators import evaluate_policy_in_model
+from rl_src.tests.general_test_tools import init_args, init_environment
+from rl_src.agents.recurrent_ppo_agent import Recurrent_PPO_agent
+from rl_src.tools.evaluators import evaluate_policy_in_model
 
 from tf_agents.policies.py_tf_eager_policy import PyTFEagerPolicy
 

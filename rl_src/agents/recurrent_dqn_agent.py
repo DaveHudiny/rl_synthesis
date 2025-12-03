@@ -1,18 +1,18 @@
 
 import tensorflow as tf
 
-from environment import tf_py_environment
+from rl_src.environment import tf_py_environment
 
-from environment.environment_wrapper import Environment_Wrapper
-from tools.encoding_methods import *
+from rl_src.environment.environment_wrapper import Environment_Wrapper
+from rl_src.tools.encoding_methods import *
 
 import tensorflow as tf
 from tf_agents.agents.dqn import dqn_agent
 from tf_agents.environments import tf_py_environment
 from tf_agents.networks import sequential
 
-from agents.father_agent import *
-from tools.args_emulator import *
+from rl_src.agents.father_agent import *
+from rl_src.tools.args_emulator import *
 
 import logging
 

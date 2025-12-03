@@ -7,9 +7,9 @@ from tf_agents.replay_buffers.tf_uniform_replay_buffer import TFUniformReplayBuf
 from tf_agents.trajectories.time_step import TimeStep
 from tf_agents.policies.py_tf_eager_policy import PyTFEagerPolicy
 
-from environment.environment_wrapper_vec import EnvironmentWrapperVec
+from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
 
-from interpreters.direct_fsc_extraction.encoding_functions import get_encoding_functions
+from rl_src.interpreters.direct_fsc_extraction.encoding_functions import get_encoding_functions
 
 
 def compare_two_policies(policy1: TFPolicy, policy2: TFPolicy, buffer: TFUniformReplayBuffer, memory_encode, memory_decode, mem_size, environment : EnvironmentWrapperVec = None):

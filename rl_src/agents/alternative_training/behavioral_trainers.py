@@ -1,27 +1,27 @@
 import tensorflow as tf
 from tf_agents.trajectories.trajectory import Trajectory
 from tf_agents.replay_buffers.tf_uniform_replay_buffer import TFUniformReplayBuffer
-from tools.trajectory_buffer import TrajectoryBuffer
-from tools.evaluation_results_class import EvaluationResults
+from rl_src.tools.trajectory_buffer import TrajectoryBuffer
+from rl_src.tools.evaluation_results_class import EvaluationResults
 
-from environment.tf_py_environment import TFPyEnvironment
+from rl_src.environment.tf_py_environment import TFPyEnvironment
 from tf_agents.policies.py_tf_eager_policy import PyTFEagerPolicy
 from tf_agents.drivers.dynamic_episode_driver import DynamicEpisodeDriver
 from tf_agents.drivers.dynamic_step_driver import DynamicStepDriver
 
-from agents.networks.actor_networks import create_recurrent_actor_net_demasked
-from agents.networks.value_networks import create_recurrent_value_net_demasked
-from agents.tf_agents_modif.actor_distribution_rnn_network import ActorDistributionRnnNetwork
+from rl_src.agents.networks.actor_networks import create_recurrent_actor_net_demasked
+from rl_src.agents.networks.value_networks import create_recurrent_value_net_demasked
+from rl_src.agents.tf_agents_modif.actor_distribution_rnn_network import ActorDistributionRnnNetwork
 from tf_agents.policies.actor_policy import ActorPolicy
 from tf_agents.networks.value_rnn_network import ValueRnnNetwork
 
-from tools.args_emulator import ArgsEmulator
-from agents.policies.parallel_fsc_policy import FSC_Policy
-from agents.policies.simple_fsc_policy import SimpleFSCPolicy, fsc_action_constraint_splitter
-from agents.policies.policy_mask_wrapper import PolicyMaskWrapper
-from environment.environment_wrapper import Environment_Wrapper
-from tools.encoding_methods import observation_and_action_constraint_splitter, observation_and_action_constraint_splitter_no_mask
-from tools.evaluators import *
+from rl_src.tools.args_emulator import ArgsEmulator
+from rl_src.agents.policies.parallel_fsc_policy import FSC_Policy
+from rl_src.agents.policies.simple_fsc_policy import SimpleFSCPolicy, fsc_action_constraint_splitter
+from rl_src.agents.policies.policy_mask_wrapper import PolicyMaskWrapper
+from rl_src.environment.environment_wrapper import Environment_Wrapper
+from rl_src.tools.encoding_methods import observation_and_action_constraint_splitter, observation_and_action_constraint_splitter_no_mask
+from rl_src.tools.evaluators import *
 
 from tf_agents.trajectories import Trajectory
 from tf_agents.trajectories import from_transition
@@ -29,7 +29,7 @@ from tf_agents.policies.py_tf_eager_policy import PyTFEagerPolicy
 from tf_agents.agents.tf_agent import TFAgent
 from tf_agents.specs import TensorSpec
 
-from agents.policies.fsc_copy import FSC
+from rl_src.agents.policies.fsc_copy import FSC
 
 from tf_agents.networks.network import get_state_spec
 

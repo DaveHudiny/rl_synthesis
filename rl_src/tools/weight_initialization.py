@@ -1,8 +1,8 @@
-from tools.args_emulator import ReplayBufferOptions
-from environment.tf_py_environment import TFPyEnvironment
-from tools.args_emulator import ArgsEmulator
-from tools.evaluators import compute_average_return
-from agents.father_agent import FatherAgent
+from rl_src.tools.args_emulator import ReplayBufferOptions
+from rl_src.environment.tf_py_environment import TFPyEnvironment
+from rl_src.tools.args_emulator import ArgsEmulator
+from rl_src.tools.evaluators import compute_average_return
+from rl_src.agents.father_agent import FatherAgent
 import logging
 
 logger = logging.getLogger(__name__)

@@ -7,16 +7,16 @@ from tf_agents.replay_buffers.tf_uniform_replay_buffer import TFUniformReplayBuf
 from tf_agents.trajectories import trajectory
 from tf_agents.policies import PyTFEagerPolicy
 
-from environment.tf_py_environment import TFPyEnvironment
-from environment.environment_wrapper_vec import EnvironmentWrapperVec
-from tools.args_emulator import ArgsEmulator
-from interpreters.extracted_fsc.table_based_policy import TableBasedPolicy
-from tools.evaluators import evaluate_policy_in_model
-from agents.recurrent_ppo_agent import Recurrent_PPO_agent
+from rl_src.environment.tf_py_environment import TFPyEnvironment
+from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
+from rl_src.tools.args_emulator import ArgsEmulator
+from rl_src.interpreters.extracted_fsc.table_based_policy import TableBasedPolicy
+from rl_src.tools.evaluators import evaluate_policy_in_model
+from rl_src.agents.recurrent_ppo_agent import Recurrent_PPO_agent
 
-from interpreters.aalpy_extraction.mealy_automata_learner import MealyAutomataLearner
+from rl_src.interpreters.aalpy_extraction.mealy_automata_learner import MealyAutomataLearner
 
-from tests.general_test_tools import *
+from rl_src.tests.general_test_tools import *
 
 
 class AALpyExtractor:

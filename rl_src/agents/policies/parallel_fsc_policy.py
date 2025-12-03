@@ -1,7 +1,7 @@
 import random
 
-from tools.encoding_methods import *
-from environment import tf_py_environment
+from rl_src.tools.encoding_methods import *
+from rl_src.environment import tf_py_environment
 from tf_agents.policies.tf_policy import TFPolicy
 from tf_agents.trajectories.policy_step import PolicyStep
 from tf_agents.specs.tensor_spec import TensorSpec
@@ -13,7 +13,7 @@ import tensorflow_probability as tfp
 
 import tensorflow as tf
 
-from agents.policies.fsc_copy import FSC
+from rl_src.agents.policies.fsc_copy import FSC
 
 
 import logging

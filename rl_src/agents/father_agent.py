@@ -1,10 +1,10 @@
 from tf_agents.policies import py_tf_eager_policy
 
 
-from environment import tf_py_environment
+from rl_src.environment import tf_py_environment
 
-from environment.sparse_reward_shaper import SparseRewardShaper, RewardShaperMethods, ObservationLevel
-from agents.alternative_training.active_pretraining import EntropyRewardGenerator
+from rl_src.environment.sparse_reward_shaper import SparseRewardShaper, RewardShaperMethods, ObservationLevel
+from rl_src.agents.alternative_training.active_pretraining import EntropyRewardGenerator
 
 from tf_agents.replay_buffers import tf_uniform_replay_buffer
 from tf_agents.utils import common
@@ -14,21 +14,21 @@ from tf_agents.trajectories import Trajectory
 import tensorflow as tf
 import tf_agents
 
-from tools.trajectory_buffer import TrajectoryBuffer
-from tools.encoding_methods import *
-from agents.abstract_agent import AbstractAgent
-from agents.random_agent import RandomAgent
-from tools.evaluation_results_class import EvaluationResults
-from tools.evaluators import *
-from agents.policies.fsc_copy import FSC
-from agents.policies.combination_policy import CombinationPolicy, CombinationSettings
-from tools.args_emulator import ArgsEmulator, ReplayBufferOptions
+from rl_src.tools.trajectory_buffer import TrajectoryBuffer
+from rl_src.tools.encoding_methods import *
+from rl_src.agents.abstract_agent import AbstractAgent
+from rl_src.agents.random_agent import RandomAgent
+from rl_src.tools.evaluation_results_class import EvaluationResults
+from rl_src.tools.evaluators import *
+from rl_src.agents.policies.fsc_copy import FSC
+from rl_src.agents.policies.combination_policy import CombinationPolicy, CombinationSettings
+from rl_src.tools.args_emulator import ArgsEmulator, ReplayBufferOptions
 
-from agents.policies.policy_mask_wrapper import PolicyMaskWrapper
-from agents.policies.simple_fsc_policy import *
+from rl_src.agents.policies.policy_mask_wrapper import PolicyMaskWrapper
+from rl_src.agents.policies.simple_fsc_policy import *
 from tf_agents.drivers.dynamic_step_driver import DynamicStepDriver
 
-from agents.reward_driver import DynamicRewardDriver
+from rl_src.agents.reward_driver import DynamicRewardDriver
 
 import logging
 
