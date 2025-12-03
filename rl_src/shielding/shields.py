@@ -292,11 +292,13 @@ class SelfConstructingShieldUnsafe(Shield):
         self.memory = memory
         if self.memory > 0:
             self.safety_property = stormpy.parse_properties("Pmax=? [ F \"bad\" ]")
-            self.current_sliding_windows = [[initial_state] + [None] * (self.memory - 1)]
+            self.current_sliding_windows = [[initial_state] + [-1] * (self.memory - 1)]
 
-            assert self.memory == 1, "Currently only memory<=1 limitation is supported."
-            self.memory_unfolded_model = model_info.model # TODO implement memory unfolding
-            self.memory_state_to_sliding_window = [[s] for s in range(self.memory_unfolded_model.nr_states)] # TODO implement memory unfolding
+            if self.memory > 1:
+                self.memory_unfolded_model, self.memory_state_to_sliding_window = payntbind.synthesis.createSlidingWindowMemoryMdp(self.model_info.model, self.memory)
+            else:
+                self.memory_unfolded_model = model_info.model
+                self.memory_state_to_sliding_window = [[s] for s in range(self.memory_unfolded_model.nr_states)]
             # Build a reverse lookup dictionary for fast index finding
             self.sliding_window_to_memory_state = {tuple(window): idx for idx, window in enumerate(self.memory_state_to_sliding_window)}
 
@@ -382,7 +384,7 @@ class SelfConstructingShieldUnsafe(Shield):
 
         if trace_index >= len(self.current_nodes):
             if self.memory > 0:
-                self.current_sliding_windows.append([current_state] + [None] * (self.memory - 1))
+                self.current_sliding_windows.append([current_state] + [-1] * (self.memory - 1))
             else:
                 self.current_nodes.append(self.initial_node)
             self.last_distribution_indices.append(None)
@@ -391,7 +393,7 @@ class SelfConstructingShieldUnsafe(Shield):
             self.trace_count += 1
             # we are looking at a different trace now, so we need to update the values on the previous trace
             if self.memory > 0:
-                self.current_sliding_windows[trace_index] = [current_state] + [None] * (self.memory - 1)
+                self.current_sliding_windows[trace_index] = [current_state] + [-1] * (self.memory - 1)
                 memory_state_index = self.sliding_window_to_memory_state[tuple(self.current_sliding_windows[trace_index])]
             else:
                 if len(self.initial_node.successors) > 0:
@@ -478,11 +480,13 @@ class SelfConstructingShield(Shield):
         self.memory = memory
         if self.memory > 0:
             self.safety_property = stormpy.parse_properties("Pmax=? [ F \"bad\" ]")
-            self.current_sliding_windows = [[initial_state] + [None] * (self.memory - 1)]
+            self.current_sliding_windows = [[initial_state] + [-1] * (self.memory - 1)]
 
-            assert self.memory == 1, "Currently only memory<=1 limitation is supported."
-            self.memory_unfolded_model = model_info.model # TODO implement memory unfolding
-            self.memory_state_to_sliding_window = [[s] for s in range(self.memory_unfolded_model.nr_states)] # TODO implement memory unfolding
+            if self.memory > 1:
+                self.memory_unfolded_model, self.memory_state_to_sliding_window = payntbind.synthesis.createSlidingWindowMemoryMdp(self.model_info.model, self.memory)
+            else:
+                self.memory_unfolded_model = model_info.model
+                self.memory_state_to_sliding_window = [[s] for s in range(self.memory_unfolded_model.nr_states)]
             # Build a reverse lookup dictionary for fast index finding
             self.sliding_window_to_memory_state = {tuple(window): idx for idx, window in enumerate(self.memory_state_to_sliding_window)}
 
@@ -596,7 +600,7 @@ class SelfConstructingShield(Shield):
 
         if trace_index >= len(self.current_nodes):
             if self.memory > 0:
-                self.current_sliding_windows.append([current_state] + [None] * (self.memory - 1))
+                self.current_sliding_windows.append([current_state] + [-1] * (self.memory - 1))
             else:
                 self.current_nodes.append(self.initial_node)
                 self.last_distribution_indices.append(None)
@@ -609,7 +613,7 @@ class SelfConstructingShield(Shield):
             self.blocked_distributions[trace_index] = []
 
             if self.memory > 0:
-                self.current_sliding_windows[trace_index] = [current_state] + [None] * (self.memory - 1)
+                self.current_sliding_windows[trace_index] = [current_state] + [-1] * (self.memory - 1)
                 memory_state_index = self.sliding_window_to_memory_state[tuple(self.current_sliding_windows[trace_index])]
             else:
                 self.current_nodes[trace_index] = self.initial_node
