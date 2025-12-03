@@ -6,14 +6,14 @@ import sys
 import pickle as pkl
 import re
 
-from environment.batched_vec_storm import BatchedVecStorm
+from rl_src.environment.batched_vec_storm import BatchedVecStorm
 
 import logging
 logger = logging.getLogger(__name__)
 
 storm_vec_env_constructor = vec_storm.StormVecEnv
 
-from tools.args_emulator import ArgsEmulator
+from rl_src.tools.args_emulator import ArgsEmulator
 
 
 class SimulatorInitializer:

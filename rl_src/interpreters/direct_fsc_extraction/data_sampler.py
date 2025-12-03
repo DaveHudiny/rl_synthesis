@@ -7,9 +7,9 @@ from tf_agents.policies.tf_policy import TFPolicy
 from tf_agents.replay_buffers.tf_uniform_replay_buffer import TFUniformReplayBuffer
 from tf_agents.environments.tf_py_environment import TFPyEnvironment
 
-from environment.environment_wrapper_vec import EnvironmentWrapperVec
+from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
 
-from tools.trajectory_buffer import TrajectoryBuffer
+from rl_src.tools.trajectory_buffer import TrajectoryBuffer
 
 def sample_data_with_policy(policy: TFPolicy, num_samples=100,
                             environment: EnvironmentWrapperVec = None,

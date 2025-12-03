@@ -1,6 +1,6 @@
 import numpy as np
 
-from reward_machines.predicate_automata import PredicateAutomata, create_dummy_predicate_automata
+from rl_src.reward_machines.predicate_automata import PredicateAutomata, create_dummy_predicate_automata
 
 
 class GoExploreManager:

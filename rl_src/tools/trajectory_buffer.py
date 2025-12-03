@@ -1,5 +1,5 @@
 import numpy as np
-from environment.environment_wrapper_vec import EnvironmentWrapperVec
+from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
 from tf_agents.trajectories import Trajectory
 
 

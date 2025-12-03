@@ -31,7 +31,7 @@ from tf_agents.trajectories import trajectory
 from tf_agents.utils import common
 from tf_agents.utils import nest_utils
 
-from shielding.shield_processor import ShieldProcessor
+from rl_src.shielding.shield_processor import ShieldProcessor
 
 def is_bandit_env(env):
   actual_env = env

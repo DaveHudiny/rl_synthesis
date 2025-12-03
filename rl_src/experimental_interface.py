@@ -1,24 +1,24 @@
-from agents.father_agent import FatherAgent
-from tools.trajectory_buffer import TrajectoryBuffer
-from tools.evaluation_results_class import EvaluationResults
+from rl_src.agents.father_agent import FatherAgent
+from rl_src.tools.trajectory_buffer import TrajectoryBuffer
+from rl_src.tools.evaluation_results_class import EvaluationResults
 from rl_src.agents.policies.parallel_fsc_policy import FSC_Policy, FSC
-from interpreters.tracing_interpret import TracingInterpret
+from rl_src.interpreters.tracing_interpret import TracingInterpret
 
-from agents.recurrent_ppo_agent import Recurrent_PPO_agent
-from agents.recurrent_ddqn_agent import Recurrent_DDQN_agent
-from agents.recurrent_dqn_agent import Recurrent_DQN_agent
+from rl_src.agents.recurrent_ppo_agent import Recurrent_PPO_agent
+from rl_src.agents.recurrent_ddqn_agent import Recurrent_DDQN_agent
+from rl_src.agents.recurrent_dqn_agent import Recurrent_DQN_agent
 
 from tf_agents.policies.py_tf_eager_policy import PyTFEagerPolicy
 from tf_agents.drivers.dynamic_step_driver import DynamicStepDriver
 
-from environment import tf_py_environment
+from rl_src.environment import tf_py_environment
 from rl_src.tools.saving_tools import save_dictionaries, save_statistics_to_new_json
-from tools.evaluators import *
-from environment.environment_wrapper import *
-from environment.environment_wrapper_vec import *
-from environment.pomdp_builder import *
-from tools.args_emulator import ArgsEmulator, ReplayBufferOptions
-from tools.weight_initialization import WeightInitializationMethods
+from rl_src.tools.evaluators import *
+from rl_src.environment.environment_wrapper import *
+from rl_src.environment.environment_wrapper_vec import *
+from rl_src.environment.pomdp_builder import *
+from rl_src.tools.args_emulator import ArgsEmulator, ReplayBufferOptions
+from rl_src.tools.weight_initialization import WeightInitializationMethods
 
 
 
