@@ -1,24 +1,24 @@
 import tensorflow as tf
 
-from environment.environment_wrapper import Environment_Wrapper
-from environment.environment_wrapper_vec import EnvironmentWrapperVec
-from environment import tf_py_environment
+from rl_src.environment.environment_wrapper import Environment_Wrapper
+from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
+from rl_src.environment import tf_py_environment
 
 from tf_agents.policies import TFPolicy
 
 from tf_agents.drivers.dynamic_step_driver import DynamicStepDriver
-from shielding.shielded_dynamic_step_driver import ShieldedDynamicStepDriver
+from rl_src.shielding.shielded_dynamic_step_driver import ShieldedDynamicStepDriver
 from tf_agents.policies.py_tf_eager_policy import PyTFEagerPolicy
 
-from tools.evaluators_non_vectorized import calculate_statistics, process_episode_results, run_single_episode
-from tools.trajectory_buffer import TrajectoryBuffer
-from tools.args_emulator import ArgsEmulator
+from rl_src.tools.evaluators_non_vectorized import calculate_statistics, process_episode_results, run_single_episode
+from rl_src.tools.trajectory_buffer import TrajectoryBuffer
+from rl_src.tools.args_emulator import ArgsEmulator
 
 import logging
 
-from tools.evaluation_results_class import EvaluationResults
+from rl_src.tools.evaluation_results_class import EvaluationResults
 
-from shielding.shield_processor import ShieldProcessor
+from rl_src.shielding.shield_processor import ShieldProcessor
 
 logger = logging.getLogger(__name__)
 

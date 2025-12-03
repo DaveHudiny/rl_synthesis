@@ -81,9 +81,7 @@ class PyEnvironment(object):
     Returns:
       A boolean indicating whether the environment is batched or not.
     """
-    if hasattr(self, "num_envs"):
-      return self.num_envs > 1
-    return False
+    return True
 
   @property
   def batch_size(self) -> Optional[int]:

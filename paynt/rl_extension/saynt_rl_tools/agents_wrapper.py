@@ -3,7 +3,7 @@ from rl_src.interpreters.tracing_interpret import TracingInterpret
 from rl_src.agents.policies.parallel_fsc_policy import FSC_Policy
 from rl_src.tools.saving_tools import save_statistics_to_new_json
 from rl_src.tools.encoding_methods import *
-from tools.evaluation_results_class import EvaluationResults
+from rl_src.tools.evaluation_results_class import EvaluationResults
 from paynt.quotient.fsc import FscFactored
 from rl_src.agents.recurrent_ppo_agent import Recurrent_PPO_Agent
 

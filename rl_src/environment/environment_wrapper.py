@@ -6,16 +6,16 @@ import tensorflow_probability as tfp
 from stormpy import simulator
 import stormpy
 
-from environment import py_environment
+from rl_src.environment import py_environment
 
 
 from tf_agents.trajectories import time_step as ts
 import tensorflow as tf
 from tf_agents.specs import tensor_spec
 from tf_agents.trajectories import time_step_spec
-from tools.encoding_methods import *
+from rl_src.tools.encoding_methods import *
 
-from tools.args_emulator import ArgsEmulator
+from rl_src.tools.args_emulator import ArgsEmulator
 
 import json
 OBSERVATION_SIZE = 0  # Constant for valuation encoding

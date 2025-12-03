@@ -84,7 +84,7 @@ from tf_agents.utils import object_identity
 from tf_agents.utils import tensor_normalizer
 from tf_agents.utils import value_ops
 
-from agents.tf_agents_modif.log_prob_loss import *
+from rl_src.agents.tf_agents_modif.log_prob_loss import *
 
 PPOLossInfo = collections.namedtuple(
     'PPOLossInfo',

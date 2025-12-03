@@ -1,6 +1,6 @@
-from agents.tf_agents_modif import actor_distribution_rnn_network
+from rl_src.agents.tf_agents_modif import actor_distribution_rnn_network
 from tf_agents.networks import actor_distribution_network
-from environment import tf_py_environment
+from rl_src.environment import tf_py_environment
 
 import tensorflow as tf
 import numpy as np

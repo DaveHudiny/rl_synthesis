@@ -1,0 +1,7 @@
+import enum
+
+class ShieldingOptions(enum.Enum):
+    NO_SHIELDING = 0
+    NAIVE_TRAINING_SHIELDING = 1
+    LOSSY_TRAINING_SHIELDING = 2
+    EVALUATION_ONLY_SHIELDING = 3

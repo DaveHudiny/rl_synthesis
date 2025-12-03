@@ -239,7 +239,8 @@ def main():
     tf_env = TFPyEnvironment(environment)
     agent = Recurrent_PPO_Agent(
         environment=environment, tf_environment=tf_env, args=args, load=False, agent_folder="trained_agents")
-    agent.train_agent(iterations=2000)
+    agent.train_agent(iterations=500)
+    
     policy = agent.get_policy(False, True)
     evaluate_policy_in_model(policy, args, environment, tf_env)
     json_path = create_json_file_name(project_path, seed=args.seed)

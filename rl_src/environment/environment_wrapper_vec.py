@@ -1,4 +1,4 @@
-from environment.renderers.grid_like_renderer import GridLikeRenderer
+from rl_src.environment.renderers.grid_like_renderer import GridLikeRenderer
 import os
 from vec_storm.storm_vec_env import StepInfo
 import logging
@@ -7,29 +7,29 @@ import tensorflow as tf
 
 from stormpy import simulator
 
-from environment import py_environment
+from rl_src.environment import py_environment
 
 
 from tf_agents.trajectories import time_step as ts
 import tensorflow as tf
 from tf_agents.specs import tensor_spec
 from tf_agents.trajectories import time_step_spec
-from tools.encoding_methods import *
+from rl_src.tools.encoding_methods import *
 
-from tools.args_emulator import ArgsEmulator
-from environment.vectorized_sim_initializer import SimulatorInitializer
-from tools.specification_check import SpecificationChecker
+from rl_src.tools.args_emulator import ArgsEmulator
+from rl_src.environment.vectorized_sim_initializer import SimulatorInitializer
+from rl_src.tools.specification_check import SpecificationChecker
 
 from vec_storm.storm_vec_env import StormVecEnv
 
-from tools.state_estimators import LSTMStateEstimator
+from rl_src.tools.state_estimators import LSTMStateEstimator
 
 import json
 
 import tf_agents.policies.tf_policy as TFPolicy
 
-from reward_machines.predicate_automata import PredicateAutomata, create_dummy_predicate_automata
-from environment.go_explore_manager import GoExploreManager
+from rl_src.reward_machines.predicate_automata import PredicateAutomata, create_dummy_predicate_automata
+from rl_src.environment.go_explore_manager import GoExploreManager
 
 import time
 
@@ -742,6 +742,11 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         )
         return new_actions.numpy(), tf.logical_not(is_action_allowed)
     
+    def restrict_allowed_actions(self, restriction_mask: tf.Tensor):
+        """Sets the allowed actions to be restricted by the given mask."""
+        self.allowed_actions = tf.logical_and(
+            self.allowed_actions, restriction_mask)
+
     def restrict_allowed_actions(self, restriction_mask: tf.Tensor):
         """Sets the allowed actions to be restricted by the given mask."""
         self.allowed_actions = tf.logical_and(

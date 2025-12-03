@@ -31,7 +31,7 @@ from tf_agents.trajectories import trajectory
 from tf_agents.utils import common
 from tf_agents.utils import nest_utils
 
-from shielding.shield_processor import ShieldProcessor
+from rl_src.shielding.shield_processor import ShieldProcessor
 
 def is_bandit_env(env):
   actual_env = env
@@ -72,6 +72,7 @@ class ShieldedDynamicStepDriver(driver.Driver):
       transition_observers=None,
       num_steps=1,
       shield_processor: ShieldProcessor = None,
+      shielded_training: bool = False
   ):
     """Creates a ShieldedDynamicStepDriver.
 
@@ -100,6 +101,7 @@ class ShieldedDynamicStepDriver(driver.Driver):
     self._is_bandit_env = is_bandit_env(env)
     assert shield_processor is not None, "Shield processor must be provided."
     self.shield_processor = shield_processor
+    self.shielded_training = shielded_training
 
   def _loop_condition_fn(self):
     """Returns a function with the condition needed for tf.while_loop."""
@@ -141,6 +143,14 @@ class ShieldedDynamicStepDriver(driver.Driver):
       # Shielding process to modify the action logits.
       # ----------------------------------------------
       logits = action_step.info["dist_params"]["logits"]
+      if self.shielded_training:
+        # mask the illegal actions for the new logit computation
+        mask = time_step.observation["mask"]
+        logits = tf.where(
+            mask, logits,
+            tf.fill(tf.shape(input=logits),
+                    -1e20)
+        )
       logits = self.shield_processor.compute_new_logits(
           valuations=time_step.observation["observation"].numpy().tolist(),
           integers=time_step.observation["integer"].numpy().tolist(),
@@ -148,8 +158,16 @@ class ShieldedDynamicStepDriver(driver.Driver):
           played_logits=logits,
           resets=time_step.is_first().numpy().tolist()
       )
-      played_action = tf.random.categorical(logits, 1)
-      action_step = action_step._replace(action=tf.squeeze(played_action, axis=-1))
+      if not self.shielded_training:
+          played_action = tf.random.categorical(logits, 1)
+          self.prev_actions = played_action
+          action_step = action_step._replace(action=tf.squeeze(played_action, axis=-1))
+      else:
+        probabilities = tf.nn.softmax(logits)
+        legal_actions = tf.where(
+            tf.greater(probabilities, 1e-5), tf.ones_like(probabilities, dtype=tf.bool), tf.zeros_like(probabilities, dtype=tf.bool)
+        )
+        self.env.restrict_allowed_actions(legal_actions)
       # ----------------------------------------------
 
       policy_state = action_step.state

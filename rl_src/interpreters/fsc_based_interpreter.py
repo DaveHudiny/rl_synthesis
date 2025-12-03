@@ -7,10 +7,10 @@ from tf_agents.specs.tensor_spec import TensorSpec
 
 from tf_agents.policies.py_tf_eager_policy import PyTFEagerPolicy
 
-from environment.environment_wrapper_vec import EnvironmentWrapperVec
+from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
 
-from agents.policies.policy_mask_wrapper import PolicyMaskWrapper
-from interpreters.extracted_fsc.extracted_fsc_policy import ExtractedFSCPolicy
+from rl_src.agents.policies.policy_mask_wrapper import PolicyMaskWrapper
+from rl_src.interpreters.extracted_fsc.extracted_fsc_policy import ExtractedFSCPolicy
 
 import numpy as np
 import tensorflow as tf
@@ -18,7 +18,7 @@ import tensorflow as tf
 import logging
 import pickle as pkl
 
-from tools.args_emulator import ArgsEmulator
+from rl_src.tools.args_emulator import ArgsEmulator
 
 import os
 

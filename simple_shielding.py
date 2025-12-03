@@ -1,3 +1,4 @@
+from shielding.shielding_options import ShieldingOptions
 from robust_rl.robust_rl_tools import load_sketch
 
 import os
@@ -99,8 +100,10 @@ def main():
 
     tf_env = TFPyEnvironment(environment)
     agent = Recurrent_PPO_Agent(
-        environment=environment, tf_environment=tf_env, args=args, load=True, agent_folder="trained_agents")
+        environment=environment, tf_environment=tf_env, args=args, load=False, agent_folder="trained_agents")
     # agent.train_agent(iterations=500)
+    agent.train_agent_shielded(iterations=500, shield_processor=shield_processor,
+                              shielded_option=ShieldingOptions.NAIVE_TRAINING_SHIELDING)
     policy = agent.get_policy(False, True)
     policy.set_greedy(False)
     policy.set_policy_masker()
