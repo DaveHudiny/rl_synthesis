@@ -6,6 +6,7 @@ from scipy.spatial import ConvexHull
 from scipy.optimize import linprog
 
 import stormpy
+import payntbind
 
 
 def clamp_distribution(distribution, allowed_actions):
@@ -265,9 +266,10 @@ class Node:
         for succ in self.successors.values():
             count += succ.number_of_tree_nodes()
         return count
+    
 
-class SelfConstructingShieldDeterministicUnsafe(Shield):
 
+class SelfConstructingShieldUnsafe(Shield):
     def __init__(self, model_info: ModelInfo, actions, nu: float, memory: int = 0):
         super().__init__(model_info, actions)
         self.nu = nu
@@ -283,6 +285,35 @@ class SelfConstructingShieldDeterministicUnsafe(Shield):
         self.vmin_actions_distributions = []
         self.vmin_actions = []
         self.initialize_vmin_actions()
+
+        self.last_distribution_indices = [None]
+
+        # handle memory limitation
+        self.memory = memory
+        if self.memory > 0:
+            self.safety_property = stormpy.parse_properties("Pmax=? [ F \"bad\" ]")
+            self.current_sliding_windows = [[initial_state] + [None] * (self.memory - 1)]
+
+            assert self.memory == 1, "Currently only memory<=1 limitation is supported."
+            self.memory_unfolded_model = model_info.model # TODO implement memory unfolding
+            self.memory_state_to_sliding_window = [[s] for s in range(self.memory_unfolded_model.nr_states)] # TODO implement memory unfolding
+            # Build a reverse lookup dictionary for fast index finding
+            self.sliding_window_to_memory_state = {tuple(window): idx for idx, window in enumerate(self.memory_state_to_sliding_window)}
+
+            self.full_transition_matrix_vector = payntbind.synthesis.getVectorFromMatrix(self.memory_unfolded_model.transition_matrix)
+
+            vmin_matrix_vector = []
+            self.current_action_distributions = [[] for _ in range(self.memory_unfolded_model.nr_states)]
+            for state in range(self.memory_unfolded_model.nr_states):
+                original_state = self.memory_state_to_sliding_window[state][0]
+                state_vmin_vector = []
+                for index, action in enumerate(self.vmin_actions[original_state]):
+                    state_vmin_vector.append(self.full_transition_matrix_vector[state][action])
+                    self.current_action_distributions[state].append(self.vmin_actions_distributions[original_state][index])
+                vmin_matrix_vector.append(state_vmin_vector)
+
+            self.current_matrix_vector = vmin_matrix_vector
+            self.current_allow_mdp = payntbind.synthesis.createMdpFromVectorMatrix(self.memory_unfolded_model, self.current_matrix_vector)
 
     def initialize_vmin_actions(self):
         for state in range(self.model_info.model.nr_states):
@@ -302,32 +333,6 @@ class SelfConstructingShieldDeterministicUnsafe(Shield):
             self.vmin_actions_distributions.append(vmin_actions_distributions)
             self.vmin_actions.append(vmin_actions)
 
-    # this can be optimized probably?
-    def back_propagate_values(self, node: Node):
-        while node is not None:
-            # compute value from successors
-            best_value = float('-inf')
-            # points of the convex set
-            all_distributions = node.distributions + self.vmin_actions_distributions[node.state_index]
-            for distr in all_distributions:
-                q_value = 0.0
-                for action_index, action_prob in enumerate(distr):
-                    if action_prob == 0:
-                        continue
-                    row_index = self.model_info.model.transition_matrix.get_row_group_start(node.state_index) + action_index
-                    row = self.model_info.model.transition_matrix.get_row(row_index)
-                    for entry in row:
-                        if (entry.column, action_index) not in node.successors.keys():
-                            q_value += action_prob * entry.value() * self.model_info.vmin[entry.column]
-                        else:
-                            q_value += action_prob * entry.value() * node.successors[(entry.column, action_index)].value
-                if q_value > best_value:
-                    best_value = q_value
-            assert best_value != float('-inf')
-            # print(best_value)
-            node.value = best_value
-            node = node.predecessor
-
     def point_in_convex_hull(self, hull_vertices, point, tolerance=1e-12):
         vertices = np.array([tuple(v) for v in hull_vertices])
         p = np.array(point)
@@ -345,59 +350,6 @@ class SelfConstructingShieldDeterministicUnsafe(Shield):
         if not np.isclose(np.sum(res.x), 1, atol=tolerance):
             return False
         return True
-
-    def correct(self, last_action, current_state, distribution, reset, trace_index=0):
-        self.shield_calls += 1
-
-        if trace_index >= len(self.current_nodes):
-            self.current_nodes.append(self.initial_node)
-
-        if reset:
-            self.trace_count += 1
-            # we are looking at a different trace now, so we need to update the values on the previous trace
-            if len(self.initial_node.successors) > 0:
-                self.back_propagate_values(self.current_nodes[trace_index]) # TODO THIS DOES NOT WORK PROPERLY IF MULTIPLE TRACES ARE USED SIMULTANEOUSLY
-            self.current_nodes[trace_index] = self.initial_node
-            last_action = None
-        else:
-            last_action = last_action[0]
-            last_action_label = self.actions[last_action]
-
-            prev_state_choice_labels = []
-            for choice in range(self.model_info.model.transition_matrix.get_row_group_start(self.current_nodes[trace_index].state_index), self.model_info.model.transition_matrix.get_row_group_end(self.current_nodes[trace_index].state_index)):
-                prev_state_choice_labels.append(self.model_info.model.choice_labeling.get_labels_of_choice(choice).pop())
-
-            last_choice_index = prev_state_choice_labels.index(last_action_label)
-            last_action = last_choice_index
-
-            if (current_state, last_action) not in self.current_nodes[trace_index].successors.keys():
-                self.current_nodes[trace_index].successors[(current_state, last_action)] = Node({}, self.current_nodes[trace_index], last_action, [], current_state, self.model_info.vmin[current_state])
-                self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, last_action)]
-            else:
-                self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, last_action)]
-
-        output_distribution = distribution
-
-        # check if current distribution is inside the convex set
-        if not self.point_in_convex_hull(self.current_nodes[trace_index].distributions + self.vmin_actions_distributions[current_state], distribution):
-            self.current_nodes[trace_index].distributions.append(distribution)
-
-            self.back_propagate_values(self.current_nodes[trace_index])
-
-            if self.initial_node.value > self.nu:
-                self.blocked_actions += 1
-                self.current_nodes[trace_index].distributions.pop()
-                output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
-
-        return output_distribution
-    
-
-# # TODO think about nice implementation where you could easily parameterize the behaviour anywhere between the two version of the self-constructing shield
-class SelfConstructingShieldUnsafe(SelfConstructingShieldDeterministicUnsafe):
-    def __init__(self, model_info: ModelInfo, actions, nu: float, memory: int = 0):
-        super().__init__(model_info, actions, nu, memory)
-
-        self.last_distribution_indices = [None]
 
     # this can be optimized probably?
     def back_propagate_values(self, node: Node):
@@ -429,55 +381,80 @@ class SelfConstructingShieldUnsafe(SelfConstructingShieldDeterministicUnsafe):
         self.shield_calls += 1
 
         if trace_index >= len(self.current_nodes):
-            self.current_nodes.append(self.initial_node)
+            if self.memory > 0:
+                self.current_sliding_windows.append([current_state] + [None] * (self.memory - 1))
+            else:
+                self.current_nodes.append(self.initial_node)
             self.last_distribution_indices.append(None)
 
         if reset:
             self.trace_count += 1
             # we are looking at a different trace now, so we need to update the values on the previous trace
-            if len(self.initial_node.successors) > 0:
-                self.back_propagate_values(self.current_nodes[trace_index]) # TODO THIS DOES NOT WORK PROPERLY IF MULTIPLE TRACES ARE USED SIMULTANEOUSLY
-            self.current_nodes[trace_index] = self.initial_node
+            if self.memory > 0:
+                self.current_sliding_windows[trace_index] = [current_state] + [None] * (self.memory - 1)
+                memory_state_index = self.sliding_window_to_memory_state[tuple(self.current_sliding_windows[trace_index])]
+            else:
+                if len(self.initial_node.successors) > 0:
+                    self.back_propagate_values(self.current_nodes[trace_index]) # TODO THIS (maybe???) DOES NOT WORK PROPERLY IF MULTIPLE TRACES ARE USED SIMULTANEOUSLY
+                self.current_nodes[trace_index] = self.initial_node
             self.last_distribution_indices[trace_index] = None
         else:
-            # Change compared to parent class: last_played_action now stores the index of the played distribution
-            if (current_state, self.last_distribution_indices[trace_index]) not in self.current_nodes[trace_index].successors.keys():
-                all_dist = self.vmin_actions_distributions[self.current_nodes[trace_index].state_index] + self.current_nodes[trace_index].distributions
-                assert self.last_distribution_indices[trace_index] is None and len(all_dist) == 0 or self.last_distribution_indices[trace_index] < len(all_dist)
-                self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])] = Node({}, self.current_nodes[trace_index], self.last_distribution_indices[trace_index], [], current_state, self.model_info.vmin[current_state])
-                self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])]
+            if self.memory > 0:
+                # update sliding window
+                self.current_sliding_windows[trace_index] = [current_state] + self.current_sliding_windows[trace_index][:-1]
+                memory_state_index = self.sliding_window_to_memory_state[tuple(self.current_sliding_windows[trace_index])]
             else:
-                self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])]
+                # Change compared to parent class: last_played_action now stores the index of the played distribution
+                if (current_state, self.last_distribution_indices[trace_index]) not in self.current_nodes[trace_index].successors.keys():
+                    all_dist = self.vmin_actions_distributions[self.current_nodes[trace_index].state_index] + self.current_nodes[trace_index].distributions
+                    assert self.last_distribution_indices[trace_index] is None and len(all_dist) == 0 or self.last_distribution_indices[trace_index] < len(all_dist)
+                    self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])] = Node({}, self.current_nodes[trace_index], self.last_distribution_indices[trace_index], [], current_state, self.model_info.vmin[current_state])
+                    self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])]
+                else:
+                    self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])]
 
         output_distribution = distribution
 
-        # check if current distribution is inside the convex set
-        if not self.point_in_convex_hull(self.current_nodes[trace_index].distributions + self.vmin_actions_distributions[current_state], distribution):
-            self.current_nodes[trace_index].distributions.append(distribution)
-
-            self.back_propagate_values(self.current_nodes[trace_index])
-
-            if self.initial_node.value > self.nu:
-                self.blocked_actions += 1
-                self.current_nodes[trace_index].distributions.pop()
-                output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
-
-        # Change compared to parent class: last_played_action now stores the index of the played distribution
-        if output_distribution in self.vmin_actions_distributions[current_state]:
-            self.last_distribution_indices[trace_index] = self.vmin_actions_distributions[current_state].index(output_distribution)
-        elif output_distribution in self.current_nodes[trace_index].distributions:
-            self.last_distribution_indices[trace_index] = len(self.vmin_actions_distributions[current_state]) + self.current_nodes[trace_index].distributions.index(output_distribution)
+        if self.memory > 0:
+            if not self.point_in_convex_hull(self.current_action_distributions[memory_state_index], distribution):
+                weighted_row = payntbind.synthesis.createCombinationOfRows(self.full_transition_matrix_vector[memory_state_index], distribution)
+                self.current_matrix_vector[memory_state_index].append(weighted_row)
+                self.current_allow_mdp = payntbind.synthesis.createMdpFromVectorMatrix(self.memory_unfolded_model, self.current_matrix_vector)
+                result = stormpy.model_checking(self.current_allow_mdp, self.safety_property[0])
+                if result.at(self.current_allow_mdp.initial_states[0]) > self.nu:
+                    self.blocked_actions += 1
+                    self.current_matrix_vector[memory_state_index].pop()
+                    output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
+                else:
+                    self.current_action_distributions[memory_state_index].append(distribution)
+                    self.added_nonoptimal_actions += 1
         else:
-            self.added_nonoptimal_actions += 1
-            self.current_nodes[trace_index].distributions.append(output_distribution)
-            self.last_distribution_indices[trace_index] = len(self.vmin_actions_distributions[current_state]) + len(self.current_nodes[trace_index].distributions) - 1
+            # check if current distribution is inside the convex set
+            if not self.point_in_convex_hull(self.current_nodes[trace_index].distributions + self.vmin_actions_distributions[current_state], distribution):
+                self.current_nodes[trace_index].distributions.append(distribution)
+
+                self.back_propagate_values(self.current_nodes[trace_index])
+
+                if self.initial_node.value > self.nu:
+                    self.blocked_actions += 1
+                    self.current_nodes[trace_index].distributions.pop()
+                    output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
+                else:
+                    self.added_nonoptimal_actions += 1
+
+            # Change compared to parent class: last_played_action now stores the index of the played distribution
+            if output_distribution in self.vmin_actions_distributions[current_state]:
+                self.last_distribution_indices[trace_index] = self.vmin_actions_distributions[current_state].index(output_distribution)
+            elif output_distribution in self.current_nodes[trace_index].distributions:
+                self.last_distribution_indices[trace_index] = len(self.vmin_actions_distributions[current_state]) + self.current_nodes[trace_index].distributions.index(output_distribution)
+            else:                
+                self.current_nodes[trace_index].distributions.append(output_distribution)
+                self.last_distribution_indices[trace_index] = len(self.vmin_actions_distributions[current_state]) + len(self.current_nodes[trace_index].distributions) - 1
 
         return output_distribution
 
 
-
-class SelfConstructingShieldDeterministic(Shield):
-
+class SelfConstructingShield(Shield):
     def __init__(self, model_info: ModelInfo, actions, nu: float, memory: int = 0):
         super().__init__(model_info, actions)
         self.nu = nu
@@ -495,24 +472,34 @@ class SelfConstructingShieldDeterministic(Shield):
         self.vmin_actions = []
         self.initialize_vmin_actions()
 
+        self.last_distribution_indices = [None]
+
         # handle memory limitation
         self.memory = memory
         if self.memory > 0:
             self.safety_property = stormpy.parse_properties("Pmax=? [ F \"bad\" ]")
+            self.current_sliding_windows = [[initial_state] + [None] * (self.memory - 1)]
 
             assert self.memory == 1, "Currently only memory<=1 limitation is supported."
             self.memory_unfolded_model = model_info.model # TODO implement memory unfolding
-            self.memory_state_to_original_mapping = [s for s in range(self.memory_unfolded_model.nr_states)] # TODO implement memory unfolding
+            self.memory_state_to_sliding_window = [[s] for s in range(self.memory_unfolded_model.nr_states)] # TODO implement memory unfolding
+            # Build a reverse lookup dictionary for fast index finding
+            self.sliding_window_to_memory_state = {tuple(window): idx for idx, window in enumerate(self.memory_state_to_sliding_window)}
 
-            self.allowed_choices = []
+            self.full_transition_matrix_vector = payntbind.synthesis.getVectorFromMatrix(self.memory_unfolded_model.transition_matrix)
+
+            vmin_matrix_vector = []
+            self.current_action_distributions = [[] for _ in range(self.memory_unfolded_model.nr_states)]
             for state in range(self.memory_unfolded_model.nr_states):
-                original_state = self.memory_state_to_original_mapping[state]
-                row_start = self.memory_unfolded_model.transition_matrix.get_row_group_start(state)
+                original_state = self.memory_state_to_sliding_window[state][0]
+                state_vmin_vector = []
+                for index, action in enumerate(self.vmin_actions[original_state]):
+                    state_vmin_vector.append(self.full_transition_matrix_vector[state][action])
+                    self.current_action_distributions[state].append(self.vmin_actions_distributions[original_state][index])
+                vmin_matrix_vector.append(state_vmin_vector)
 
-                for vmin_action in self.vmin_actions[original_state]:
-                    choice_index = row_start + vmin_action
-                    self.allowed_choices.append(choice_index)
-                
+            self.current_matrix_vector = vmin_matrix_vector
+            self.current_allow_mdp = payntbind.synthesis.createMdpFromVectorMatrix(self.memory_unfolded_model, self.current_matrix_vector)
 
     # TODO careful here with the float comparisons!
     def initialize_vmin_actions(self):
@@ -533,32 +520,6 @@ class SelfConstructingShieldDeterministic(Shield):
             self.vmin_actions_distributions.append(vmin_actions_distributions)
             self.vmin_actions.append(vmin_actions)
 
-    # this can be optimized probably?
-    def back_propagate_values(self, node: Node):
-        while node is not None:
-            # compute value from successors
-            best_value = float('-inf')
-            # points of the convex set
-            all_distributions = node.distributions + self.vmin_actions_distributions[node.state_index]
-            for distr in all_distributions:
-                q_value = 0.0
-                for action_index, action_prob in enumerate(distr):
-                    if action_prob == 0:
-                        continue
-                    row_index = self.model_info.model.transition_matrix.get_row_group_start(node.state_index) + action_index
-                    row = self.model_info.model.transition_matrix.get_row(row_index)
-                    for entry in row:
-                        if (entry.column, action_index) not in node.successors.keys():
-                            q_value += action_prob * entry.value() * self.model_info.vmin[entry.column]
-                        else:
-                            q_value += action_prob * entry.value() * node.successors[(entry.column, action_index)].value
-                if q_value > best_value:
-                    best_value = q_value
-            assert best_value != float('-inf')
-            # print(best_value)
-            node.value = best_value
-            node = node.predecessor
-
     def point_in_convex_hull(self, hull_vertices, point, tolerance=1e-12):
         vertices = np.array([tuple(v) for v in hull_vertices])
         p = np.array(point)
@@ -578,72 +539,33 @@ class SelfConstructingShieldDeterministic(Shield):
         return True
     
     def explore_blocked_distributions(self, blocked_distributions):
-        value_restore_needed = False
-        for node, distribution in blocked_distributions:
-            node.distributions.append(distribution)
-            self.back_propagate_values(node)
-            if self.initial_node.value > self.nu:
-                node.distributions.pop()
-                value_restore_needed = True
-            else:
-                self.added_nonoptimal_actions += 1
-                value_restore_needed = False
-
-        # if for the last node the action was not allowed, we need to perform one more back-propagation to have the correct values in the tree
-        if value_restore_needed:
-            self.back_propagate_values(blocked_distributions[-1][0])
-
-
-    def correct(self, last_action, current_state, distribution, reset, trace_index=0):
-        self.shield_calls += 1
-
-        if trace_index >= len(self.current_nodes):
-            self.current_nodes.append(self.initial_node)
-            self.blocked_distributions.append([])
-
-        if reset:
-            self.trace_count += 1
-            # we are looking at a different trace now, so we are going to update the shield we are using
-            self.explore_blocked_distributions(self.blocked_distributions[trace_index])
-            self.blocked_distributions[trace_index] = []
-            self.current_nodes[trace_index] = self.initial_node
-            last_action = None
+        if self.memory > 0:
+            for memory_state_index, distribution in blocked_distributions:
+                weighted_row = payntbind.synthesis.createCombinationOfRows(self.full_transition_matrix_vector[memory_state_index], distribution)
+                self.current_matrix_vector[memory_state_index].append(weighted_row)
+                self.current_allow_mdp = payntbind.synthesis.createMdpFromVectorMatrix(self.memory_unfolded_model, self.current_matrix_vector)
+                result = stormpy.model_checking(self.current_allow_mdp, self.safety_property[0])
+                if result.at(self.current_allow_mdp.initial_states[0]) > self.nu:
+                    self.current_matrix_vector[memory_state_index].pop()
+                else:
+                    self.current_action_distributions[memory_state_index].append(distribution)
+                    self.added_nonoptimal_actions += 1
         else:
-            last_action = last_action[0]
-            last_action_label = self.actions[last_action]
+            value_restore_needed = False
+            for node, distribution in blocked_distributions:
+                node.distributions.append(distribution)
+                self.back_propagate_values(node)
+                if self.initial_node.value > self.nu:
+                    node.distributions.pop()
+                    value_restore_needed = True
+                else:
+                    self.added_nonoptimal_actions += 1
+                    value_restore_needed = False
 
-            prev_state_choice_labels = []
-            for choice in range(self.model_info.model.transition_matrix.get_row_group_start(self.current_nodes[trace_index].state_index), self.model_info.model.transition_matrix.get_row_group_end(self.current_nodes[trace_index].state_index)):
-                prev_state_choice_labels.append(self.model_info.model.choice_labeling.get_labels_of_choice(choice).pop())
-
-            last_choice_index = prev_state_choice_labels.index(last_action_label)
-            last_action = last_choice_index
-
-            if (current_state, last_action) not in self.current_nodes[trace_index].successors.keys():
-                self.current_nodes[trace_index].successors[(current_state, last_action)] = Node({}, self.current_nodes[trace_index], last_action, [], current_state, self.model_info.vmin[current_state])
-                self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, last_action)]
-            else:
-                self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, last_action)]
-
-        output_distribution = distribution
-
-        # check if current distribution is inside the convex set
-        if not self.point_in_convex_hull(self.current_nodes[trace_index].distributions + self.vmin_actions_distributions[current_state], distribution):
-            self.blocked_actions += 1
-            self.blocked_distributions[trace_index].append((self.current_nodes[trace_index], distribution))
-            output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
-
-        return output_distribution
+            # if for the last node the action was not allowed, we need to perform one more back-propagation to have the correct values in the tree
+            if value_restore_needed:
+                self.back_propagate_values(blocked_distributions[-1][0])
     
-
-
-# # TODO think about nice implementation where you could easily parameterize the behaviour anywhere between the two version of the self-constructing shield
-class SelfConstructingShield(SelfConstructingShieldDeterministic):
-    def __init__(self, model_info: ModelInfo, actions, nu: float, memory: int = 0):
-        super().__init__(model_info, actions, nu, memory)
-
-        self.last_distribution_indices = [None]
-
     # this can be optimized probably?
     def back_propagate_values(self, node: Node):
         while node is not None:
@@ -673,8 +595,11 @@ class SelfConstructingShield(SelfConstructingShieldDeterministic):
         self.shield_calls += 1
 
         if trace_index >= len(self.current_nodes):
-            self.current_nodes.append(self.initial_node)
-            self.last_distribution_indices.append(None)
+            if self.memory > 0:
+                self.current_sliding_windows.append([current_state] + [None] * (self.memory - 1))
+            else:
+                self.current_nodes.append(self.initial_node)
+                self.last_distribution_indices.append(None)
             self.blocked_distributions.append([])
 
         if reset:
@@ -682,33 +607,49 @@ class SelfConstructingShield(SelfConstructingShieldDeterministic):
             # we are looking at a different trace now, so we are going to update the shield we are using
             self.explore_blocked_distributions(self.blocked_distributions[trace_index])
             self.blocked_distributions[trace_index] = []
-            self.current_nodes[trace_index] = self.initial_node
-            self.last_distribution_indices[trace_index] = None
-        else:
-            # Change compared to parent class: last_played_action now stores the index of the played distribution
-            if (current_state, self.last_distribution_indices[trace_index]) not in self.current_nodes[trace_index].successors.keys():
-                all_dist = self.vmin_actions_distributions[self.current_nodes[trace_index].state_index] + self.current_nodes[trace_index].distributions
-                assert self.last_distribution_indices[trace_index] is None and len(all_dist) == 0 or self.last_distribution_indices[trace_index] < len(all_dist)
-                self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])] = Node({}, self.current_nodes[trace_index], self.last_distribution_indices[trace_index], [], current_state, self.model_info.vmin[current_state])
-                self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])]
+
+            if self.memory > 0:
+                self.current_sliding_windows[trace_index] = [current_state] + [None] * (self.memory - 1)
+                memory_state_index = self.sliding_window_to_memory_state[tuple(self.current_sliding_windows[trace_index])]
             else:
-                self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])]
+                self.current_nodes[trace_index] = self.initial_node
+                self.last_distribution_indices[trace_index] = None
+        else:
+            if self.memory > 0:
+                # update sliding window
+                self.current_sliding_windows[trace_index] = [current_state] + self.current_sliding_windows[trace_index][:-1]
+                memory_state_index = self.sliding_window_to_memory_state[tuple(self.current_sliding_windows[trace_index])]
+            else:
+                # Change compared to parent class: last_played_action now stores the index of the played distribution
+                if (current_state, self.last_distribution_indices[trace_index]) not in self.current_nodes[trace_index].successors.keys():
+                    all_dist = self.vmin_actions_distributions[self.current_nodes[trace_index].state_index] + self.current_nodes[trace_index].distributions
+                    assert self.last_distribution_indices[trace_index] is None and len(all_dist) == 0 or self.last_distribution_indices[trace_index] < len(all_dist)
+                    self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])] = Node({}, self.current_nodes[trace_index], self.last_distribution_indices[trace_index], [], current_state, self.model_info.vmin[current_state])
+                    self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])]
+                else:
+                    self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])]
 
         output_distribution = distribution
 
         # check if current distribution is inside the convex set
-        if not self.point_in_convex_hull(self.current_nodes[trace_index].distributions + self.vmin_actions_distributions[current_state], distribution):
-            self.blocked_actions += 1
-            self.blocked_distributions[trace_index].append((self.current_nodes[trace_index], distribution))
-            output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
-
-        # Change compared to parent class: last_played_action now stores the index of the played distribution
-        if output_distribution in self.vmin_actions_distributions[current_state]:
-            self.last_distribution_indices[trace_index] = self.vmin_actions_distributions[current_state].index(output_distribution)
-        elif output_distribution in self.current_nodes[trace_index].distributions:
-            self.last_distribution_indices[trace_index] = len(self.vmin_actions_distributions[current_state]) + self.current_nodes[trace_index].distributions.index(output_distribution)
+        if self.memory > 0:
+            if not self.point_in_convex_hull(self.current_action_distributions[memory_state_index], distribution):
+                self.blocked_actions += 1
+                self.blocked_distributions[trace_index].append((memory_state_index, distribution))
+                output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
         else:
-            self.current_nodes[trace_index].distributions.append(output_distribution)
-            self.last_distribution_indices[trace_index] = len(self.vmin_actions_distributions[current_state]) + len(self.current_nodes[trace_index].distributions) - 1
+            if not self.point_in_convex_hull(self.current_nodes[trace_index].distributions + self.vmin_actions_distributions[current_state], distribution):
+                self.blocked_actions += 1
+                self.blocked_distributions[trace_index].append((self.current_nodes[trace_index], distribution))
+                output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
+
+            # Change compared to parent class: last_played_action now stores the index of the played distribution
+            if output_distribution in self.vmin_actions_distributions[current_state]:
+                self.last_distribution_indices[trace_index] = self.vmin_actions_distributions[current_state].index(output_distribution)
+            elif output_distribution in self.current_nodes[trace_index].distributions:
+                self.last_distribution_indices[trace_index] = len(self.vmin_actions_distributions[current_state]) + self.current_nodes[trace_index].distributions.index(output_distribution)
+            else:
+                self.current_nodes[trace_index].distributions.append(output_distribution)
+                self.last_distribution_indices[trace_index] = len(self.vmin_actions_distributions[current_state]) + len(self.current_nodes[trace_index].distributions) - 1
 
         return output_distribution

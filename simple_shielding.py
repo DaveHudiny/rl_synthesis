@@ -22,6 +22,8 @@ import rl_src.shielding.shields
 from paynt.parser.sketch import Sketch
 from paynt.rl_extension.self_interpretable_interface.black_box_extraction import BlackBoxExtractor
 
+import payntbind
+import stormpy
 
 def load_sketch(project_path):
     project_path = os.path.abspath(project_path)
@@ -78,7 +80,7 @@ def set_global_seeds(seed):
 @click.command()
 @click.argument('project', type=click.Path(exists=True))
 @click.option("--nu", type=float, default=0.05, help="Safety threshold for the shielding.")
-@click.option("--shield", type=click.Choice([None, 'identity', 'standard', 'pessimistic', 'optimistic', 'delta', 'self-constructing', 'self-constructing-simple', 'self-constructing-unsafe', 'self-constructing-simple-unsafe']), default=None, help="Shielding method to use.")
+@click.option("--shield", type=click.Choice([None, 'identity', 'standard', 'pessimistic', 'optimistic', 'delta', 'self-constructing', 'self-constructing-unsafe']), default=None, help="Shielding method to use.")
 @click.option("--agent-folder", type=str, default="", help="Suffix of folder containing the trained agent.")
 @click.option("--agent-training", is_flag=True, default=False, help="Whether to perform agent training.")
 @click.option("--shield-memory", type=int, default=0, help="Memory size for self-constructing shields. If 0, no memory constraint is applied.")
@@ -137,11 +139,16 @@ def main(project, nu, shield, agent_folder, agent_training, shield_memory):
         print("Shield stats:")
         print(f"Shield calls: {shield_processor.shield.shield_calls}")
         print(f"Blocked actions: {shield_processor.shield.blocked_actions}")
-        if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShield, rl_src.shielding.shields.SelfConstructingShieldDeterministic, rl_src.shielding.shields.SelfConstructingShieldUnsafe, rl_src.shielding.shields.SelfConstructingShieldDeterministicUnsafe]:
-            for node in shield_processor.shield.current_nodes:
-                shield_processor.shield.back_propagate_values(node)
-            print(f"Tree size: {shield_processor.shield.initial_node.number_of_tree_nodes()}")
-            print(f"Initial node values: {shield_processor.shield.initial_node.value}")
+        if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShield, rl_src.shielding.shields.SelfConstructingShieldUnsafe]:
+            if shield_processor.shield.memory > 0:
+                final_allow_mdp = payntbind.synthesis.createMdpFromVectorMatrix(shield_processor.shield.memory_unfolded_model, shield_processor.shield.current_matrix_vector)
+                result = stormpy.model_checking(final_allow_mdp, shield_processor.shield.safety_property[0])
+                print(f"Initial state value of allow MDP: {result.get_values()[final_allow_mdp.initial_states[0]]}")
+            else:
+                for node in shield_processor.shield.current_nodes:
+                    shield_processor.shield.back_propagate_values(node)
+                print(f"Tree size: {shield_processor.shield.initial_node.number_of_tree_nodes()}")
+                print(f"Initial node values: {shield_processor.shield.initial_node.value}")
             print(f"Added non-optimal actions: {shield_processor.shield.added_nonoptimal_actions}")
 
 

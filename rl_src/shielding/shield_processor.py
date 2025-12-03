@@ -69,12 +69,8 @@ class ShieldProcessor:
             self.shield = rl_src.shielding.shields.DeltaShield(model_info=model_info, actions=self.actions, delta=nu)
         elif shield_type == 'self-constructing':
             self.shield = rl_src.shielding.shields.SelfConstructingShield(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
-        elif shield_type == 'self-constructing-simple':
-            self.shield = rl_src.shielding.shields.SelfConstructingShieldDeterministic(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
         elif shield_type == 'self-constructing-unsafe':
             self.shield = rl_src.shielding.shields.SelfConstructingShieldUnsafe(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
-        elif shield_type == 'self-constructing-simple-unsafe':
-            self.shield = rl_src.shielding.shields.SelfConstructingShieldDeterministicUnsafe(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
         else:
             raise ValueError(f"Unknown shield type: {shield_type}")
     
