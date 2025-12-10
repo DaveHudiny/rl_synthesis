@@ -258,7 +258,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
     def set_basic_rewards(self):
         self.reward_multiplier = 1.0
         self.antigoal_values_vector = tf.constant(
-            [0.0] * self.num_envs, dtype=tf.float32)
+            [-100.0] * self.num_envs, dtype=tf.float32)
         self.goal_values_vector = tf.constant(
             [100.0] * self.num_envs, dtype=tf.float32)
 

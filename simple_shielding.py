@@ -1,3 +1,4 @@
+import pickle
 from rl_src.shielding.shielding_options import ShieldingOptions
 from robust_rl.robust_rl_tools import load_sketch
 
@@ -84,14 +85,20 @@ def set_global_seeds(seed):
 @click.option("--agent-folder", type=str, default="", help="Suffix of folder containing the trained agent.")
 @click.option("--agent-training", is_flag=True, default=False, help="Whether to perform agent training.")
 @click.option("--shield-memory", type=int, default=0, help="Memory size for self-constructing shields. If 0, no memory constraint is applied.")
-def main(project, nu, shield, agent_folder, agent_training, shield_memory):
+@click.option("--training-iterations", type=int, default=500, help="Number of iterations for training.")
+@click.option("--episode-length", type=int, default=50, help="Maximum length of each episode.")
+@click.option("--num-environments", type=int, default=512, help="Number of environments to run in parallel.")
+@click.option("--model-debug", is_flag=True, default=False, help="Whether to debug the input model.")
+@click.option("--save-shield", type=click.Path(), default=None, help="Path to save the shield after evaluation.")
+@click.option("--load-shield", type=str, default=None, help="Path to load a pre-trained shield from.")
+def main(project, nu, shield, agent_folder, agent_training, shield_memory, training_iterations, episode_length, num_environments, model_debug, save_shield, load_shield):
     project_path = project
     project_name = os.path.basename(os.path.normpath(project_path))
     prism_path = os.path.join(project_path, "sketch.templ")
     properties_path = os.path.join(project_path, "sketch.props")
     args = init_args(prism_path=prism_path, properties_path=properties_path,
                      use_rnn_less=False, # Use RNN-less agent (if True, the policy should be completely memoryless)
-                     max_steps=50, # Max steps per episode
+                     max_steps=episode_length, # Max steps per episode
                      seed=None, # Random seed, for the reproducibility, set it to some integer value
                      prefer_stochastic=True, # Whether to prefer stochastic or deterministic actions during the evaluation
                     )
@@ -106,28 +113,43 @@ def main(project, nu, shield, agent_folder, agent_training, shield_memory):
 
     # TODO investigate this
     # args.batch_size = 1  # For evaluation, we use batch size 1
-    args.num_environments = 512
+    args.num_environments = num_environments
 
     environment = EnvironmentWrapperVec(
         model, args, num_envs=args.num_environments, enforce_compilation=True)
     
+    if save_shield is not None:
+        os.makedirs(f"trained_agents/shields/{project_name}", exist_ok=True)
+        shield_folder = f"trained_agents/shields/{project_name}/{save_shield}"
+    else:
+        shield_folder = None
+    
     if shield is not None:
-        shield_processor = ShieldProcessor(environment.action_keywords, model, nu, shield, args=args, shield_memory=shield_memory) # Placeholder for your implementation.
+        shield_processor = ShieldProcessor(environment.action_keywords, model, nu, shield, args=args, shield_memory=shield_memory, debug=model_debug, shield_folder=shield_folder)
     else:
         shield_processor = None
 
+    if load_shield is not None:
+        if shield is not None:
+            print(f"WARNING: Loading shield and therefore ignoring the provided shield type {shield}.")
+            shield_processor = None
+        shield_processor = ShieldProcessor(environment.action_keywords, model, nu, 'self-constructing-static', args=args, shield_memory=shield_memory, debug=model_debug, shield_folder=None)
+        shield_processor.load_shield(f"trained_agents/shields/{project_name}/{load_shield}")
+
     tf_env = TFPyEnvironment(environment)
     agent = Recurrent_PPO_agent(
-        environment=environment, tf_environment=tf_env, args=args, load=True, agent_folder=f"trained_agents/{project_name}-{agent_folder}")
+        environment=environment, tf_environment=tf_env, args=args, load=True, agent_folder=f"trained_agents/{project_name}/" + (f"{agent_folder}" if not agent_training else ""))
     
     if agent_training:
-        agent.train_agent(iterations=300)
+        agent.train_agent(iterations=training_iterations)
+        print("Training completed.")
+        exit()
 
     policy = agent.get_policy(False, True)
     policy.set_greedy(False)
     policy.set_policy_masker()
     policy.set_return_real_logits(True)
-    evaluate_policy_in_model(policy, args, environment, tf_env, max_steps=100, shield_processor=shield_processor)
+    eval_result = evaluate_policy_in_model(policy, args, environment, tf_env, max_steps=episode_length, shield_processor=shield_processor)
     # ---------------------------------------------------------
 
     # Save the results. Now the results are stored in the same folder as the processed models, but you can change it as needed.
@@ -135,11 +157,14 @@ def main(project, nu, shield, agent_folder, agent_training, shield_memory):
     # agent.evaluation_result.save_to_json(json_path, new_pomdp=False)
 
     if shield_processor:
+        if shield_processor.shield_folder is not None:
+            shield_processor.save_shield(shield_processor.shield_folder, iteration=shield_processor.finished_episodes)
         print()
         print("Shield stats:")
         print(f"Shield calls: {shield_processor.shield.shield_calls}")
         print(f"Blocked actions: {shield_processor.shield.blocked_actions}")
-        if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShield, rl_src.shielding.shields.SelfConstructingShieldUnsafe]:
+        print(f"Bad episodes encountered during evaluation: {shield_processor.bad_epsisodes} ({shield_processor.bad_epsisodes / eval_result.counted_episodes[-1]})")
+        if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShield, rl_src.shielding.shields.SelfConstructingShieldConstructionSafe, rl_src.shielding.shields.SelfConstructingShieldConstructionUnsafe]:
             if shield_processor.shield.memory > 0:
                 final_allow_mdp = payntbind.synthesis.createMdpFromVectorMatrix(shield_processor.shield.memory_unfolded_model, shield_processor.shield.current_matrix_vector)
                 result = stormpy.model_checking(final_allow_mdp, shield_processor.shield.safety_property[0])
@@ -150,6 +175,8 @@ def main(project, nu, shield, agent_folder, agent_training, shield_memory):
                 print(f"Tree size: {shield_processor.shield.initial_node.number_of_tree_nodes()}")
                 print(f"Initial node values: {shield_processor.shield.initial_node.value}")
             print(f"Added non-optimal actions: {shield_processor.shield.added_nonoptimal_actions}")
+            print(f"Backpropagation calls: {shield_processor.shield.backpropagation_calls}")
+            print(f"Model checking calls: {shield_processor.shield.model_checking_calls}")
 
 
 if __name__ == "__main__":

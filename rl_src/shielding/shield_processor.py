@@ -3,14 +3,18 @@ import tensorflow as tf
 
 from rl_src.shielding.model_info import ModelInfo
 import rl_src.shielding.shields
+from rl_src.shielding.constructed_shield_data import ShieldData
 
 import stormpy
 import numpy as np
 
+import pickle
+
 class ShieldProcessor:
-    def __init__(self, actions : int, model : stormpy.storage.SparsePomdp, nu : float, shield_type : str, args : ArgsEmulator = None, shield_memory : int = 0):
+    def __init__(self, actions : list[str], model : stormpy.storage.SparsePomdp, nu : float, shield_type : str, args : ArgsEmulator = None, shield_memory : int = 0, debug: bool = False, shield_folder: str = None):
         self.args = args
         self.actions = actions
+        self.shield_folder = shield_folder
 
         assert model.nr_states == model.nr_observations, "We currently only support shielding for MDPs."
         assert model.initial_states is not None and len(model.initial_states) == 1, "We currently only support single initial state models."
@@ -34,18 +38,27 @@ class ShieldProcessor:
         max_result = stormpy.model_checking(mdp, max_formula[0])
         vmin = min_result.get_values()
         vmax = max_result.get_values()
+        # Print vmin and vmax for the initial state
+        print("Vmin and Vmax for initial state:", vmin[mdp.initial_states[0]], vmax[mdp.initial_states[0]])
+
+        self.bad_states = mdp.labeling.get_states("bad")
+        self.bad_episode_list = []
+        self.bad_epsisodes = 0
+
+        self.finished_episodes = 0
 
         # model checking results for debugging
-        # reach_formula = stormpy.parse_properties("Pmax=? [ F \"goal\" ]")
-        # reward_formula = stormpy.parse_properties("Rmin=? [ F \"goal\" ]")
-        # until_formula = stormpy.parse_properties("Pmax=? [ !\"bad\" U \"goal\" ]")
-        # reach_result = stormpy.model_checking(mdp, reach_formula[0])
-        # reward_result = stormpy.model_checking(mdp, reward_formula[0])
-        # until_result = stormpy.model_checking(mdp, until_formula[0])
-        # print("Max reachability probabilities to goal from initial state:", reach_result.get_values()[mdp.initial_states[0]])
-        # print("Max expected rewards to goal from initial state:", reward_result.get_values()[mdp.initial_states[0]])
-        # print("Max until probabilities to goal from initial state:", until_result.get_values()[mdp.initial_states[0]])
-        # exit()
+        if debug:
+            reach_formula = stormpy.parse_properties("Pmax=? [ F \"goal\" ]")
+            reward_formula = stormpy.parse_properties("Rmax=? [ F \"goal\" ]")
+            until_formula = stormpy.parse_properties("Pmax=? [ !\"bad\" U \"goal\" ]")
+            reach_result = stormpy.model_checking(mdp, reach_formula[0])
+            reward_result = stormpy.model_checking(mdp, reward_formula[0])
+            until_result = stormpy.model_checking(mdp, until_formula[0])
+            print("Max reachability probabilities to goal from initial state:", reach_result.get_values()[mdp.initial_states[0]])
+            print("Max expected rewards to goal from initial state:", reward_result.get_values()[mdp.initial_states[0]])
+            print("Max until probabilities to goal from initial state:", until_result.get_values()[mdp.initial_states[0]])
+            exit()
 
 
         observation_to_state = [None] * model.nr_observations
@@ -67,12 +80,48 @@ class ShieldProcessor:
             self.shield = rl_src.shielding.shields.OptimisticShield(model_info=model_info, actions=self.actions, nu=nu)
         elif shield_type == 'delta':
             self.shield = rl_src.shielding.shields.DeltaShield(model_info=model_info, actions=self.actions, delta=nu)
-        elif shield_type == 'self-constructing':
+        elif shield_type == 'self-constructing-static':
             self.shield = rl_src.shielding.shields.SelfConstructingShield(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
+        elif shield_type == 'self-constructing-safe':
+            self.shield = rl_src.shielding.shields.SelfConstructingShieldConstructionSafe(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
         elif shield_type == 'self-constructing-unsafe':
-            self.shield = rl_src.shielding.shields.SelfConstructingShieldUnsafe(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
+            self.shield = rl_src.shielding.shields.SelfConstructingShieldConstructionUnsafe(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
         else:
             raise ValueError(f"Unknown shield type: {shield_type}")
+        
+        if self.shield_folder is not None:
+            assert type(self.shield) in [rl_src.shielding.shields.SelfConstructingShieldConstructionSafe, rl_src.shielding.shields.SelfConstructingShieldConstructionUnsafe], "Saving shield can only be used with self-constructing shields."
+        
+    def save_shield(self, path: str, iteration: int = None):
+        """Saves the shield to a file."""
+        shield_data = ShieldData(
+            actions=self.shield.actions,
+            original_model_nr_states=self.shield.model_info.model.nr_states,
+            observation_to_state=self.shield.model_info.observation_to_state,
+            memory=self.shield.memory,
+            initial_node=self.shield.initial_node,
+            current_action_distributions=self.shield.current_action_distributions
+        )
+        if iteration is not None:
+            path = path + f"-iter-{iteration}-shield.pickle"
+        else:
+            path = path + f"-shield.pickle"
+        with open(path, 'wb') as f:
+            pickle.dump(shield_data, f)
+        print(f"Shield saved to {path}")
+
+    def load_shield(self, path: str):
+        """Loads the shield from a file."""
+        with open(path, 'rb') as f:
+            shield_data : ShieldData = pickle.load(f)
+        assert self.shield.actions == shield_data.actions
+        assert self.shield.model_info.model.nr_states == shield_data.original_model_nr_states
+        assert self.shield.model_info.observation_to_state == shield_data.observation_to_state
+        assert self.shield.memory == shield_data.memory
+
+        self.shield.initial_node = shield_data.initial_node
+        self.shield.current_action_distributions = shield_data.current_action_distributions
+        print(f"Shield loaded from {path}")
     
     def fix_distribution(self, distribution):
         total_prob = sum(distribution)
@@ -100,8 +149,21 @@ class ShieldProcessor:
 
         for i in range(len(valuations)):
 
+            if resets[i]:
+                if i >= len(self.bad_episode_list):
+                    self.bad_episode_list.append(False)
+                else: 
+                    self.finished_episodes += 1
+                
+                if self.bad_episode_list[i]:
+                    self.bad_epsisodes += 1
+                    self.bad_episode_list[i] = False
+
             current_state = self.shield.model_info.observation_to_state[integers[i][0]]
             current_state_choice_labels = []
+
+            if current_state in self.bad_states:
+                self.bad_episode_list[i] = True
 
             for choice in range(self.shield.model_info.model.transition_matrix.get_row_group_start(current_state), self.shield.model_info.model.transition_matrix.get_row_group_end(current_state)):
                 current_state_choice_labels.append(self.shield.model_info.model.choice_labeling.get_labels_of_choice(choice).pop())
@@ -112,6 +174,10 @@ class ShieldProcessor:
             distribution = self.shield.correct(prev_actions[i], current_state, mapped_played_distribution, resets[i], i)
 
             distribution = [distribution[current_state_choice_labels.index(action)] if action in current_state_choice_labels else 0.0 for action in self.actions]
+
+            if self.finished_episodes % 100 == 0 and self.finished_episodes > 0:
+                if self.shield_folder is not None:
+                    self.save_shield(self.shield_folder, iteration=self.finished_episodes)
 
             # If the distribution is larger than 0, True, otherwise False.
             distributions.append(distribution)

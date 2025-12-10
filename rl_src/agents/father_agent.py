@@ -380,7 +380,7 @@ class FatherAgent(AbstractAgent):
         if train_iteration % 100 == 0 and train_iteration > 0:
             self.environment.set_random_starts_simulation(False)
             self.evaluate_agent(vectorized=vectorized,
-                                max_steps=self.args.max_steps * 2)
+                                max_steps=self.args.max_steps * 2, iteration=train_iteration)
             
             self.environment.set_random_starts_simulation(randomized)
             self.tf_environment.reset()
@@ -543,7 +543,7 @@ class FatherAgent(AbstractAgent):
         logger.info("Training finished.")
         self.environment.set_random_starts_simulation(False)
         self.evaluate_agent(vectorized=vectorized, last=True,
-                            max_steps=self.args.max_steps * 2)
+                            max_steps=self.args.max_steps * 2, iteration=iterations)
 
     def get_throw_away_driver(self, fsc: FSC):
 
@@ -610,7 +610,7 @@ class FatherAgent(AbstractAgent):
         """If PPO, this function sets the masking inactive for agent wrapper."""
         pass
 
-    def evaluate_agent(self, last=False, vectorized=False, max_steps: int = None):
+    def evaluate_agent(self, last=False, vectorized=False, max_steps: int = None, iteration: int = None):
         """Evaluate the agent. Used for evaluation of the agent during training.
 
         Args:
@@ -657,8 +657,8 @@ class FatherAgent(AbstractAgent):
                 self.evaluation_result.update)
             self.trajectory_buffer.clear()
         if self.evaluation_result.best_updated and self.agent_folder is not None:
-            self.save_agent(best=True)
-        self.save_agent(best=False)
+            self.save_agent(best=True, iteration=iteration)
+        self.save_agent(best=False, iteration=iteration)
         self.log_evaluation_info()
         if self.args.go_explore:
             self.environment.set_go_explore()
@@ -696,20 +696,22 @@ class FatherAgent(AbstractAgent):
         else:
             return self.agent.policy
 
-    def save_agent(self, best=False):
+    def save_agent(self, best=False, iteration=None):
         """Save the agent. Used for saving the agent after or during training training.
 
         Args:
             best: Whether this is the best agent. If true, the agent is saved in the best folder.
         """
+        if iteration is None:
+            return
         if self.agent is None or tf.train is None:
             logger.info("No agent for saving.")
             return
         checkpoint = tf.train.Checkpoint(agent=self.agent)
         if best:
-            agent_folder = self.agent_folder + "/best"
+            agent_folder = self.agent_folder + ("iter-" + str(iteration) if iteration is not None else "") + "/best"
         else:
-            agent_folder = self.agent_folder
+            agent_folder = self.agent_folder + ("iter-" + str(iteration) if iteration is not None else "")
         manager = tf.train.CheckpointManager(
             checkpoint, agent_folder, max_to_keep=5)
         manager.save()
