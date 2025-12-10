@@ -13,7 +13,7 @@ from tf_agents.environments.tf_py_environment import TFPyEnvironment
 
 from keras import optimizers
 
-from rl_src.interpreters.direct_fsc_extraction.networks.fsc_like_actor_network import FSCLikeActorNetwork
+from interpreters.direct_fsc_extraction.networks.discrete_gru_network import FSCLikeActorNetwork
 from rl_src.interpreters.direct_fsc_extraction.networks.fsc_like_dict_actor_network import FSCLikeDictActorNetwork
 from rl_src.tools.evaluation_results_class import EvaluationResults
 from rl_src.tools.specification_check import SpecificationChecker
@@ -252,7 +252,7 @@ class ClonedFSCActorPolicy(TFPolicy):
         observation_length = environment.observation_spec_len
         
         @tf.function
-        def train_step_2(experience):
+        def train_step(experience):
             observations = experience.observation["observation"]
             if environment.use_stacked_observations:
                 observations = observations[:, :, :observation_length]
@@ -269,9 +269,6 @@ class ClonedFSCActorPolicy(TFPolicy):
 
             batch_size, T, _ = observations.shape
             old_memory = None
-
-            # Add small noise to observations
-            # observations += tf.random.normal(shape=tf.shape(observations), mean=0.0, stddev=0.2, seed=self.seed())
 
             with tf.GradientTape() as tape:
                 total_loss = 0.0
@@ -296,9 +293,6 @@ class ClonedFSCActorPolicy(TFPolicy):
                         old_memory=old_memory,
                         seed=self.seed()
                     )
-
-                    # Výpočet ztráty pro aktuální krok
-                    
                     
                     if self.fsrs_learning:
                         accuracy_metric.update_state(next_obs, played_action)
@@ -331,7 +325,7 @@ class ClonedFSCActorPolicy(TFPolicy):
             except StopIteration:
                 iterator = iter(dataset)
                 experience, _ = next(iterator)
-            loss = train_step_2(experience) # train_step(experience)
+            loss = train_step(experience) # train_step(experience)
 
             if True:
                 self.schedule_gumbel_temperature(i, neural_fsc, total_epochs=num_epochs)

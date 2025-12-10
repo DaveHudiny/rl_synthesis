@@ -75,7 +75,7 @@ def init_extractor(model, args: ArgsEmulator, latent_dim=9, autlearn_extraction=
 
 def fsc_extraction(model, agent: FatherAgent) -> tuple[FscFactored, TableBasedPolicy]:
 
-    direct_extractor = init_extractor(model, agent.args, autlearn_extraction=False)
+    direct_extractor = init_extractor(model, agent.args, autlearn_extraction=False, latent_dim=100)
     policy = agent.get_policy(False, True)
     policy.set_greedy(True) # Ensures, that the agent selects argmax actions
     policy.set_policy_masker() # Ensures, that the agent respects the action masking during extraction
@@ -113,7 +113,7 @@ def main():
     tf_env = TFPyEnvironment(environment)
     agent = Recurrent_PPO_agent(
         environment=environment, tf_environment=tf_env, args=args, load=False, agent_folder="trained_agents")
-    # agent.train_agent(iterations=500)
+    agent.train_agent(iterations=101)
     
     policy = agent.get_policy(False, True)
     # evaluate_policy_in_model(policy, args, environment, tf_env)
