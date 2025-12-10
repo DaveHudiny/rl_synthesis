@@ -5,6 +5,10 @@ from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
 from rl_src.tools.args_emulator import ArgsEmulator
 from rl_src.environment.tf_py_environment import TFPyEnvironment
 
+import os
+
+from paynt.parser.sketch import Sketch
+
 
 def init_environment(args : ArgsEmulator) -> tuple[EnvironmentWrapperVec, TFPyEnvironment]:
     prism_model = initialize_prism_model(args.prism_model, args.prism_properties, args.constants)
@@ -24,6 +28,14 @@ def init_args(prism_path, properties_path, nr_runs=101, goal_value_multiplier = 
                             stacked_observations=False, batched_vec_storm=batched_vec_storm, masked_training=masked_training,
                             env_see_num_steps=False, env_see_last_action=False, env_see_reward=False, seed=seed)
     return args
+
+def load_sketch(project_path):
+    project_path = os.path.abspath(project_path)
+    sketch_path = os.path.join(project_path, "sketch.templ")
+    properties_path = os.path.join(project_path, "sketch.props")
+    pomdp_sketch = Sketch.load_sketch(
+        sketch_path, properties_path)
+    return pomdp_sketch
 
 
 def get_scalarized_reward(rewards, rewards_types):

@@ -55,11 +55,12 @@ def compute_average_return(policy: TFPolicy, tf_environment: tf_py_environment.T
 
 
 def get_new_vectorized_evaluation_driver(tf_environment: tf_py_environment.TFPyEnvironment, environment: EnvironmentWrapperVec,
-                                         custom_policy=None, num_steps=1000, shield_processor: ShieldProcessor = None) -> tuple[DynamicStepDriver, TrajectoryBuffer]:
+                                         custom_policy=None, num_steps=1000, shield_processor: ShieldProcessor = None,
+                                         use_tf_function = True) -> tuple[DynamicStepDriver, TrajectoryBuffer]:
     """Create a new vectorized evaluation driver and buffer."""
     trajectory_buffer = TrajectoryBuffer(environment)
     eager = PyTFEagerPolicy(
-        policy=custom_policy, use_tf_function=True, batch_time_steps=False)
+        policy=custom_policy, use_tf_function=use_tf_function, batch_time_steps=False)
     if shield_processor:
         vec_driver = ShieldedDynamicStepDriver(
             tf_environment,
@@ -93,7 +94,7 @@ def evaluate_policy_in_model(policy: TFPolicy, args: ArgsEmulator = None,
         evaluation_result = EvaluationResults()
     driver, buffer = get_new_vectorized_evaluation_driver(
         tf_environment, environment, custom_policy=policy, num_steps=max_steps, 
-        shield_processor=shield_processor)
+        shield_processor=shield_processor, use_tf_function=use_tf_function)
     environment.set_random_starts_simulation(False)
     tf_environment.reset()
     driver.run()
