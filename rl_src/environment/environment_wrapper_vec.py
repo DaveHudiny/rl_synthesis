@@ -206,6 +206,10 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         self.current_num_steps = tf.constant(
             [0] * self.num_envs, dtype=tf.float32)
         self.noisy_observations = args.noisy_observations
+        self.bad_states = np.zeros((self.vectorized_simulator.nr_states,), dtype=bool)
+
+    def set_bad_states(self, bad_states_indices: list):
+        self.bad_states[bad_states_indices] = True
 
     def add_new_pomdp(self, pomdp):
         """Adds a new POMDP to the environment. This is used with BatchedVecStorm to add new POMDPs to the batch of simulators.
@@ -509,8 +513,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         self.last_action = np.zeros((self.num_envs,), dtype=np.float32)
         self.virtual_reward = tf.zeros((self.num_envs,), dtype=tf.float32)
         self.dones = np.array(len(self.last_observation) * [False])
-        resets = np.array(len(self.last_observation) * [True])
-        actions = np.array(len(self.last_observation) * [0])
+        self.is_in_bad_state = np.zeros((self.num_envs,), dtype=bool)
         self.orig_reward = tf.constant(
             np.array(len(self.last_observation) * [0.0]), dtype=tf.float32)
         self.integers = self.vectorized_simulator.simulator_integer_observations
@@ -684,6 +687,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
             observations = self.add_noise_to_observation(observations, noise_level=0.1)
         self.last_observation = observations
         self.states = self.vectorized_simulator.simulator_states
+        self.is_in_bad_state = self.bad_states[self.states.vertices]
         self.allowed_actions = allowed_actions
         self.labels_mask = metalabels
         self.orig_reward = tf.constant(

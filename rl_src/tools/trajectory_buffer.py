@@ -5,7 +5,7 @@ from tf_agents.trajectories import Trajectory
 
 class TrajectoryBuffer:
     class EpisodeOutcomes:
-        def __init__(self, virtual_rewards: list = [], cumulative_rewards: list = [], goals_achieved: list = [], traps: list = [], discounted_reward: float = []):
+        def __init__(self, virtual_rewards: list = [], cumulative_rewards: list = [], goals_achieved: list = [], traps: list = [], discounted_reward: float = [], bad_outcomes: list = []):
             assert type(virtual_rewards) == list and type(cumulative_rewards) == list and type(
                 goals_achieved) == list and type(traps) == list, "All arguments must be lists."
             self.virtual_rewards = virtual_rewards
@@ -13,13 +13,15 @@ class TrajectoryBuffer:
             self.goals_achieved = goals_achieved
             self.traps_achieved = traps
             self.discounted_rewards = discounted_reward
+            self.bad_outcomes = bad_outcomes
 
-        def add_episode_outcome(self, virtual_reward, cumulative_reward, goal_achieved, trap_achieved, discounted_reward):
+        def add_episode_outcome(self, virtual_reward, cumulative_reward, goal_achieved, trap_achieved, discounted_reward, bad_outcome):
             self.virtual_rewards.append(virtual_reward)
             self.cumulative_rewards.append(cumulative_reward)
             self.goals_achieved.append(goal_achieved)
             self.traps_achieved.append(trap_achieved)
             self.discounted_rewards.append(discounted_reward)
+            self.bad_outcomes.append(bad_outcome)
 
         def clear(self):
             self.virtual_rewards = []
@@ -37,6 +39,7 @@ class TrajectoryBuffer:
         self.finished_truncated = []
         self.finished_traps = []
         self.tf_step_types = []
+        self.is_in_bad_state = []
         self.environment = environment
         self.episode_outcomes = self.EpisodeOutcomes([], [], [], [], [])
         self.average_episode_length = 0
@@ -52,6 +55,7 @@ class TrajectoryBuffer:
         self.finished_successfully.append(environment.goal_state_mask)
         self.finished_truncated.append(environment.truncated)
         self.finished_traps.append(environment.anti_goal_state_mask)
+        self.is_in_bad_state.append(environment.is_in_bad_state)
         self.discounts.append(traj.discount.numpy())
 
     def numpize_lists(self):
@@ -62,6 +66,7 @@ class TrajectoryBuffer:
         self.finished_truncated = np.array(self.finished_truncated).T
         self.finished_traps = np.array(self.finished_traps).T
         self.discounts = np.array(self.discounts).T
+        self.is_in_bad_state = np.array(self.is_in_bad_state).T
 
     def update_outcomes(self):
         self.numpize_lists()
@@ -83,9 +88,12 @@ class TrajectoryBuffer:
                 self.discounts[prev_index[0], prev_index[1]:index[1]+1])
             discounted_reward = np.sum(
                 self.virtual_rewards[prev_index[0], prev_index[1]:index[1]+1] * discount_cumprod)
+            in_episode_bad_state = np.any(
+                self.is_in_bad_state[prev_index[0], prev_index[1]:index[1]+1])
+            
 
             outcomes.add_episode_outcome(
-                in_episode_virtual_reward, in_episode_reward, goal_achieved, trap_achieved, discounted_reward)
+                in_episode_virtual_reward, in_episode_reward, goal_achieved, trap_achieved, discounted_reward, in_episode_bad_state)
             cumulative_length += index[1] - prev_index[1]
             prev_index = index
             prev_index[1] += 1
@@ -105,6 +113,7 @@ class TrajectoryBuffer:
         combined_variance = np.var(
             np.array(self.episode_outcomes.cumulative_rewards) + np.array(self.episode_outcomes.virtual_rewards))
         avg_discounted_reward = np.mean(self.episode_outcomes.discounted_rewards)
+        avg_bad_outcome_prob = np.mean(self.episode_outcomes.bad_outcomes)
         if updator:
             # updator(avg_return, avg_episode_return, reach_prob, returns, successes)
             updator(avg_return, avg_episode_return, reach_prob, episode_variance, 
@@ -113,7 +122,8 @@ class TrajectoryBuffer:
                     combined_variance=combined_variance, 
                     average_episode_length=self.average_episode_length,
                     counted_episodes=self.counted_episodes,
-                    discounted_rewards = avg_discounted_reward)
+                    discounted_rewards = avg_discounted_reward,
+                    average_bad_outcome_prob=avg_bad_outcome_prob)
         return avg_return, avg_episode_return, reach_prob
 
     def clear(self):
@@ -127,3 +137,4 @@ class TrajectoryBuffer:
         self.average_episode_length = 0
         self.counted_episodes = 0
         self.discounts = []
+        self.is_in_bad_state = []
