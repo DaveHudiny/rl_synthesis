@@ -12,8 +12,10 @@ from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
 from rl_src.environment.tf_py_environment import TFPyEnvironment
 from rl_src.tools.evaluators import evaluate_policy_in_model
 
+import tensorflow_probability as tfp
+
 def create_dummy_distribution():
-    def distribution_function(observation, mask, policy_state, seed):
+    def distribution_function(observation, mask, policy_state):
         batch_size = len(observation)
         num_actions = len(mask[0])
         probabilities = np.ones((batch_size, num_actions)) / num_actions
@@ -32,23 +34,25 @@ class CustomPolicy(TFPolicy):
     def _get_initial_state(self, batch_size):
         return super()._get_initial_state(batch_size)
 
-    def _distribution(self, time_step, policy_state, seed):
+    def _distribution(self, time_step, policy_state):
         observation, mask = self.observation_and_action_constraint_splitter(
             time_step.observation)
         observation = observation.numpy().tolist()
         mask = mask.numpy().tolist()
-        probabilities, next_state = self._distribution_function(observation, mask, policy_state, seed)
+        probabilities, next_state = self._distribution_function(observation, mask, policy_state)
         probabilities = tf.convert_to_tensor(probabilities, dtype=tf.float32)
         next_state = tf.convert_to_tensor(next_state, dtype=tf.float32) if next_state is not () else policy_state
-        return probabilities, next_state
+        # Policy_step with categorical actions
+        policy_step = PolicyStep(action=tfp.distributions.Categorical(logits=tf.math.log(probabilities)), state=next_state)
+        return policy_step
     
     def _action(self, time_step, policy_state, seed):
-        probabilities, next_state = self._distribution(time_step, policy_state, seed)
-        probabilities = tf.math.log(probabilities)
+        policy_step = self._distribution(time_step, policy_state)
+        probabilities = tf.math.log(policy_step.action.logits)
 
         action = tf.random.categorical(probabilities, 1, dtype=tf.int32)
         action = tf.reshape(action, (action.shape[0],))
-        policy_step = PolicyStep(action=action, state=next_state)
+        policy_step = PolicyStep(action=action, state=policy_step.state)
         return policy_step
     
 def test_custom_policy():

@@ -15,8 +15,8 @@ def custom_loop(policy : TFPolicy, environment : EnvironmentWrapperVec, num_para
     tf_environment = TFPyEnvironment(environment)
     
     # use tf_function for performance if needed -- remove, if the policy is not compatible with TF graph execution
-    policy_function = tf.function(policy.distribution)
-
+    # policy_function = tf.function(policy.distribution)
+    policy_function = policy.distribution
     # Time step is a structure that holds observation (triplet of observation, action mask, integer representing observation index), reward, step type and discount.
     time_step = tf_environment.reset()
     policy_state = policy.get_initial_state(batch_size=num_parallel_simulations)
@@ -27,6 +27,7 @@ def custom_loop(policy : TFPolicy, environment : EnvironmentWrapperVec, num_para
         policy_state = policy_step.state
         # Following operations represents identity, but you can modify it.
         probs = tf.nn.softmax(distribution.logits).numpy()
+        print(probs)
         # observation = time_step.observation["observation"].numpy().tolist()
         # mask = time_step.observation["mask"].numpy().tolist()
         # observation_integer = time_step.observation["observation_integer"].numpy().tolist()
@@ -62,5 +63,10 @@ def test_custom_loop():
         time_step_spec=tf_env.time_step_spec(),
         distribution_function=create_dummy_distribution())
 
-    evaluate_policy_in_model(custom_policy, args, environment, tf_env, use_tf_function=False)
+    custom_loop(
+        policy=custom_policy,
+        environment=environment,
+        num_parallel_simulations=5,
+        num_steps=50
+    )
     
