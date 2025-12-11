@@ -93,7 +93,6 @@ def fsc_extraction(model, agent: FatherAgent) -> tuple[FscFactored, TableBasedPo
 
 
 def main():
-    from rl_src.shielding.custom_loop import test_custom_loop
 
     project_path = "models/models_pomdp_no_family/network-3-8-20"
     prism_path = os.path.join(project_path, "sketch.templ")

@@ -8,11 +8,19 @@ from rl_src.environment.tf_py_environment import TFPyEnvironment
 
 from rl_src.tests.general_test_tools import init_args, load_sketch
 from rl_src.tools.evaluators import evaluate_policy_in_model
+from rl_src.tools.evaluation_results_class import EvaluationResults
 from rl_src.shielding.custom_policy import create_dummy_distribution, CustomPolicy
+
+from rl_src.tools.trajectory_buffer import TrajectoryBuffer
+
+from tf_agents.trajectories import Trajectory
 
 def custom_loop(policy : TFPolicy, environment : EnvironmentWrapperVec, num_parallel_simulations: int, num_steps: int):
     environment.temporarily_set_num_envs(num_parallel_simulations)
     tf_environment = TFPyEnvironment(environment)
+
+    trajectory_buffer = TrajectoryBuffer(environment)
+    evaluation_result = EvaluationResults()
     
     # use tf_function for performance if needed -- remove, if the policy is not compatible with TF graph execution
     # policy_function = tf.function(policy.distribution)
@@ -27,7 +35,6 @@ def custom_loop(policy : TFPolicy, environment : EnvironmentWrapperVec, num_para
         policy_state = policy_step.state
         # Following operations represents identity, but you can modify it.
         probs = tf.nn.softmax(distribution.logits).numpy()
-        print(probs)
         # observation = time_step.observation["observation"].numpy().tolist()
         # mask = time_step.observation["mask"].numpy().tolist()
         # observation_integer = time_step.observation["observation_integer"].numpy().tolist()
@@ -35,10 +42,25 @@ def custom_loop(policy : TFPolicy, environment : EnvironmentWrapperVec, num_para
         logits = tf.math.log(probs)
         # End of an identity block.
 
+
+
         action = tf.random.categorical(logits, 1, dtype=tf.int32)
         action = tf.reshape(action, (action.shape[0],))
-        time_step = tf_environment.step(action)
+        new_time_step = tf_environment.step(action)
+        trajectory = Trajectory(
+            step_type=time_step.step_type,
+            observation=time_step.observation,
+            action=action,
+            policy_info=policy_step.info,
+            reward=new_time_step.reward,
+            discount=new_time_step.discount,
+            next_step_type=new_time_step.step_type
+        )
+        trajectory_buffer.add_batched_step(trajectory)
+        time_step = new_time_step
 
+    trajectory_buffer.final_update_of_results(evaluation_result.update)
+    evaluation_result.log_evaluation_info() # Ensure, that the number of finished episodes is at least 1!
     environment.reset_num_envs() # Sets the number of environments back to original value.
 
 def test_custom_loop():
@@ -67,6 +89,6 @@ def test_custom_loop():
         policy=custom_policy,
         environment=environment,
         num_parallel_simulations=5,
-        num_steps=50
+        num_steps=500
     )
     
