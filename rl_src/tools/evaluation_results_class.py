@@ -46,6 +46,7 @@ class EvaluationResults:
         self.discounted_rewards = []
         self.new_pomdp_iteration_numbers = []
         self.dormant_neurons_percentages = []
+        self.average_bad_outcome_prob = []
         self.args = args
 
     def add_artificial_reward(self, artificial_rewards_buffer : list[np.ndarray]):
@@ -104,7 +105,7 @@ class EvaluationResults:
         return str(self.__dict__)
 
     def update(self, avg_return, avg_episodic_return, reach_prob, episodes_variance=None, num_episodes=1, trap_reach_prob=0.0, virtual_variance=None, combined_variance=None,
-                 average_episode_length=None, counted_episodes=None, discounted_rewards=None):
+                 average_episode_length=None, counted_episodes=None, discounted_rewards=None, average_bad_outcome_prob=None):
         """Update the evaluation results in the object of EvaluationResults.
 
         Args:
@@ -119,6 +120,7 @@ class EvaluationResults:
         self.each_episode_variance.append(episodes_variance)
         self.num_episodes.append(num_episodes)
         self.trap_reach_probs.append(trap_reach_prob)
+        self.average_bad_outcome_prob.append(average_bad_outcome_prob)
         if avg_return > self.best_return:
             self.best_return = avg_return
             if avg_episodic_return >= self.best_episode_return:
@@ -164,6 +166,8 @@ class EvaluationResults:
             self.average_episode_length[-1]))
         logger.info('Counted Episodes = {0}'.format(
             self.counted_episodes[-1]))
+        logger.info('Percentage of bad outcomes = {0}'.format(
+            self.average_bad_outcome_prob[-1]))
         
 
 
