@@ -709,9 +709,9 @@ class FatherAgent(AbstractAgent):
             return
         checkpoint = tf.train.Checkpoint(agent=self.agent)
         if best:
-            agent_folder = self.agent_folder + ("iter-" + str(iteration) if iteration is not None else "") + "/best"
+            agent_folder = self.agent_folder + ("-iter-" + str(iteration) if iteration is not None else "") + "/best"
         else:
-            agent_folder = self.agent_folder + ("iter-" + str(iteration) if iteration is not None else "")
+            agent_folder = self.agent_folder + ("-iter-" + str(iteration) if iteration is not None else "")
         manager = tf.train.CheckpointManager(
             checkpoint, agent_folder, max_to_keep=5)
         manager.save()

@@ -503,7 +503,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
 
     def _reset(self) -> ts.TimeStep:
         """Resets the environment. Important for TF-Agents, since we have to restart environment many times."""
-        logger.info("Resetting the environment.")
+        # logger.info("Resetting the environment.")
         self.last_observation, self.allowed_actions, self.labels_mask = self._restart_simulator()
         if self.use_stacked_observations:
             self.stacked_observations = tf.zeros(

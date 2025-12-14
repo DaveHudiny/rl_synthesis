@@ -41,11 +41,7 @@ class ShieldProcessor:
         # Print vmin and vmax for the initial state
         print("Vmin and Vmax for initial state:", vmin[mdp.initial_states[0]], vmax[mdp.initial_states[0]])
 
-        self.bad_states = mdp.labeling.get_states("bad")
-        self.bad_episode_list = []
-        self.bad_epsisodes = 0
-
-        self.finished_episodes = 0
+        self.bad_states = list(mdp.labeling.get_states("bad"))
 
         # model checking results for debugging
         if debug:
@@ -58,6 +54,7 @@ class ShieldProcessor:
             print("Max reachability probabilities to goal from initial state:", reach_result.get_values()[mdp.initial_states[0]])
             print("Max expected rewards to goal from initial state:", reward_result.get_values()[mdp.initial_states[0]])
             print("Max until probabilities to goal from initial state:", until_result.get_values()[mdp.initial_states[0]])
+            print(vmin)
             exit()
 
 
@@ -92,8 +89,10 @@ class ShieldProcessor:
         if self.shield_folder is not None:
             assert type(self.shield) in [rl_src.shielding.shields.SelfConstructingShieldConstructionSafe, rl_src.shielding.shields.SelfConstructingShieldConstructionUnsafe], "Saving shield can only be used with self-constructing shields."
         
-    def save_shield(self, path: str, iteration: int = None):
+    def save_shield(self, path: str, iteration = None):
         """Saves the shield to a file."""
+        if not type(self.shield) in [rl_src.shielding.shields.SelfConstructingShieldConstructionSafe, rl_src.shielding.shields.SelfConstructingShieldConstructionUnsafe]:
+            return
         shield_data = ShieldData(
             actions=self.shield.actions,
             original_model_nr_states=self.shield.model_info.model.nr_states,
@@ -144,26 +143,11 @@ class ShieldProcessor:
         """
         played_probs = tf.nn.softmax(played_logits).numpy().tolist()
         distributions = []
-        # print(len(valuations))
-        # exit()
 
         for i in range(len(valuations)):
 
-            if resets[i]:
-                if i >= len(self.bad_episode_list):
-                    self.bad_episode_list.append(False)
-                else: 
-                    self.finished_episodes += 1
-                
-                if self.bad_episode_list[i]:
-                    self.bad_epsisodes += 1
-                    self.bad_episode_list[i] = False
-
             current_state = self.shield.model_info.observation_to_state[integers[i][0]]
             current_state_choice_labels = []
-
-            if current_state in self.bad_states:
-                self.bad_episode_list[i] = True
 
             for choice in range(self.shield.model_info.model.transition_matrix.get_row_group_start(current_state), self.shield.model_info.model.transition_matrix.get_row_group_end(current_state)):
                 current_state_choice_labels.append(self.shield.model_info.model.choice_labeling.get_labels_of_choice(choice).pop())
@@ -175,11 +159,6 @@ class ShieldProcessor:
 
             distribution = [distribution[current_state_choice_labels.index(action)] if action in current_state_choice_labels else 0.0 for action in self.actions]
 
-            if self.finished_episodes % 100 == 0 and self.finished_episodes > 0:
-                if self.shield_folder is not None:
-                    self.save_shield(self.shield_folder, iteration=self.finished_episodes)
-
-            # If the distribution is larger than 0, True, otherwise False.
             distributions.append(distribution)
         
         distributions = np.array(distributions, dtype=np.float_)

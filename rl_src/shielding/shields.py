@@ -280,6 +280,8 @@ class SelfConstructingShield(Shield):
         super().__init__(model_info, actions)
         self.nu = nu
 
+        self.static_shield_clamp_to_existing_distributions = True # default True, if True then distributions that are not existing in the tree will be clamped to the existing ones allowing for the shield to follow existing nodes for longer but basically blocking the current action
+
         # assumption
         initial_state = model_info.model.initial_states[0]
 
@@ -352,6 +354,7 @@ class SelfConstructingShield(Shield):
             self.vmin_actions.append(vmin_actions)
 
     def point_in_convex_hull(self, hull_vertices, point, tolerance=1e-12):
+        self.convex_point_max_index = None
         vertices = np.array([tuple(v) for v in hull_vertices])
         p = np.array(point)
         # Use coordinates directly to check if point is in the convex hull (i.e. the point is linear combination of the basis vectors with non-negative coefficients summing to 1)
@@ -369,6 +372,8 @@ class SelfConstructingShield(Shield):
             return False
         if res.x is not None:
             self.convex_point_max_index = np.argmax(res.x)
+        else:
+            return False
         return True
     
     # this can be optimized probably?
@@ -376,7 +381,7 @@ class SelfConstructingShield(Shield):
         self.backpropagation_calls += 1
         while node is not None:
             # compute value from successors
-            best_value = float('-inf')
+            best_value = self.model_info.vmin[node.state_index]
             # points of the convex set
             all_distributions = self.vmin_actions_distributions[node.state_index] + node.distributions
             for distr_index, distr in enumerate(all_distributions):
@@ -393,7 +398,6 @@ class SelfConstructingShield(Shield):
                             q_value += action_prob * entry.value() * node.successors[(entry.column, distr_index)].value
                 if q_value > best_value:
                     best_value = q_value
-            assert best_value != float('-inf')
             node.value = best_value
             node = node.predecessor
 
@@ -421,13 +425,11 @@ class SelfConstructingShield(Shield):
                 self.current_sliding_windows[trace_index] = [current_state] + self.current_sliding_windows[trace_index][:-1]
                 memory_state_index = self.sliding_window_to_memory_state[tuple(self.current_sliding_windows[trace_index])]
             else:
-                if (current_state, self.last_distribution_indices[trace_index]) not in self.current_nodes[trace_index].successors.keys():
-                    all_dist = self.vmin_actions_distributions[self.current_nodes[trace_index].state_index] + self.current_nodes[trace_index].distributions
-                    assert self.last_distribution_indices[trace_index] is None and len(all_dist) == 0 or self.last_distribution_indices[trace_index] < len(all_dist)
-                    self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])] = Node({}, self.current_nodes[trace_index], self.last_distribution_indices[trace_index], [], current_state, self.model_info.vmin[current_state])
-                    self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])]
-                else:
-                    self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])]
+                if self.current_nodes[trace_index] is not None:
+                    if (current_state, self.last_distribution_indices[trace_index]) not in self.current_nodes[trace_index].successors.keys():
+                        self.current_nodes[trace_index] = None
+                    else:
+                        self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])]
 
         output_distribution = distribution
 
@@ -437,19 +439,25 @@ class SelfConstructingShield(Shield):
                 output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
         else:
             # check if current distribution is inside the convex set
-            all_allowed_ditributions = self.vmin_actions_distributions[current_state] + self.current_nodes[trace_index].distributions
+            if self.current_nodes[trace_index] is None:
+                all_allowed_ditributions = self.vmin_actions_distributions[current_state]
+            else:
+                all_allowed_ditributions = self.vmin_actions_distributions[current_state] + self.current_nodes[trace_index].distributions
             if not self.point_in_convex_hull(all_allowed_ditributions, distribution):
                 self.blocked_actions += 1
                 output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
-
-            if output_distribution not in all_allowed_ditributions:
+                if self.static_shield_clamp_to_existing_distributions and output_distribution not in all_allowed_ditributions:
+                    self.point_in_convex_hull(all_allowed_ditributions, output_distribution) # to get the max index
+                    output_distribution = all_allowed_ditributions[self.convex_point_max_index]
+            elif self.static_shield_clamp_to_existing_distributions and output_distribution not in all_allowed_ditributions:
                 self.blocked_actions += 1
                 output_distribution = all_allowed_ditributions[self.convex_point_max_index]
 
             if output_distribution in all_allowed_ditributions:
                 self.last_distribution_indices[trace_index] = all_allowed_ditributions.index(output_distribution)
             else:
-                assert False, "This should not happen, as the distribution was clamped to allowed distributions."
+                assert not self.static_shield_clamp_to_existing_distributions, "This should not happen, as the distribution was clamped to allowed distributions."
+                self.last_distribution_indices[trace_index] = len(all_allowed_ditributions)
 
         return output_distribution
 
@@ -539,6 +547,11 @@ class SelfConstructingShieldConstructionSafe(SelfConstructingShield):
     def __init__(self, model_info: ModelInfo, actions, nu: float, memory: int = 0):
         super().__init__(model_info, actions, nu, memory=memory)
         self.blocked_distributions = [[]]
+
+    def finalize_all_unfinished_traces(self):
+        for trace_index in range(len(self.blocked_distributions)):
+            self.explore_blocked_distributions(self.blocked_distributions[trace_index])
+            self.blocked_distributions[trace_index] = []
     
     def explore_blocked_distributions(self, blocked_distributions):
         if self.memory > 0:
