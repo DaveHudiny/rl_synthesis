@@ -30,7 +30,7 @@ class TrajectoryBuffer:
             self.traps_achieved = []
             self.discounted_rewards = []
 
-    def __init__(self, environment: EnvironmentWrapperVec = None):
+    def __init__(self, environment: EnvironmentWrapperVec = None, truncation_point: int = None):
         self.virtual_rewards = []
         self.real_rewards = []
         self.discounts = []
@@ -41,6 +41,7 @@ class TrajectoryBuffer:
         self.tf_step_types = []
         self.is_in_bad_state = []
         self.environment = environment
+        self.truncation_point = truncation_point if truncation_point is not None else (environment.args.max_steps if environment else None)
         self.episode_outcomes = self.EpisodeOutcomes([], [], [], [], [])
         self.average_episode_length = 0
         self.counted_episodes = 0
@@ -68,16 +69,19 @@ class TrajectoryBuffer:
         self.discounts = np.array(self.discounts).T
         self.is_in_bad_state = np.array(self.is_in_bad_state).T
 
-    def update_outcomes(self):
+    def update_outcomes(self, truncate : bool = True):
         self.numpize_lists()
         outcomes = self.episode_outcomes
         finished_true_indices = np.argwhere(self.finished == True)
         prev_index = np.array([0, 0])
         cumulative_length = 0
         counted_episodes = 0
+        number_of_sampled_steps = self.finished.shape[1]
         for index in finished_true_indices:
             if index[0] != prev_index[0]:
                 prev_index = np.array([index[0], 0])
+            if truncate and number_of_sampled_steps - prev_index[1] <= self.truncation_point:
+                continue
             in_episode_reward = np.sum(
                 self.real_rewards[prev_index[0], prev_index[1]:index[1]+1])
             in_episode_virtual_reward = np.sum(
@@ -101,8 +105,8 @@ class TrajectoryBuffer:
         self.average_episode_length = cumulative_length / counted_episodes
         self.counted_episodes = counted_episodes
 
-    def final_update_of_results(self, updator: callable = None):
-        self.update_outcomes()
+    def final_update_of_results(self, updator: callable = None, truncate: bool = True):
+        self.update_outcomes(truncate=truncate)
         # print(self.episode_outcomes.cumulative_rewards)
         avg_return = np.mean(self.episode_outcomes.cumulative_rewards)
         avg_episode_return = np.mean(self.episode_outcomes.virtual_rewards)
