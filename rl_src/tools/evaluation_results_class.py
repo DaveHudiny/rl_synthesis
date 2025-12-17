@@ -169,6 +169,27 @@ class EvaluationResults:
         logger.info('Percentage of bad outcomes = {0}'.format(
             self.average_bad_outcome_prob[-1]))
         
+    def compute_weighted_evaluation_info(self):
+        """Computes the same values as log_evaluation_info, but averaged and weighted by the number of episodes."""
+        total_episodes = sum(self.num_episodes)
+        evaluated_data = {
+            "returns": self.returns,
+            "virtual_returns": self.returns_episodic,
+            "reach_probs": self.reach_probs,
+            "trap_reach_probs": self.trap_reach_probs,
+            "variances": self.each_episode_variance,
+            "average_episode_length": self.average_episode_length,
+            "counted_episodes": self.counted_episodes,
+            "average_bad_outcome_prob": self.average_bad_outcome_prob
+        }
+        weighted_averages = {}
+        for key, values in evaluated_data.items():
+            weighted_sum = sum(value * num_ep for value, num_ep in zip(values, self.num_episodes))
+            weighted_average = weighted_sum / total_episodes if total_episodes > 0 else float("nan")
+            weighted_averages[key] = weighted_average
+        return weighted_averages
+    
+        
 
 
 def set_fsc_values_to_evaluation_result(external_evaluation_result : EvaluationResults, evaluation_result : EvaluationResults):
