@@ -25,6 +25,9 @@ from tf_agents.policies.tf_policy import TFPolicy
 from rl_src.tools.evaluation_results_class import EvaluationResults
 from tf_agents.trajectories import Trajectory
 
+from rl_src.tools.memoryless_fsc_extraction import extract_memory_less_fsc_actions
+from rl_src.shielding.shielded_model_checking import model_check_given_policy_and_shield
+
 from tqdm import tqdm
 
 # PAYNT implementation imports
@@ -106,14 +109,16 @@ def custom_loop(policy : TFPolicy, environment : EnvironmentWrapperVec, shield_p
 
         # logits = tf.math.log(probs)
         # End of an identity block.
-
-        logits = shield_processor.compute_new_logits(
-            valuations=time_step.observation["observation"].numpy().tolist(),
-            integers=time_step.observation["integer"].numpy().tolist(),
-            prev_actions=prev_actions.numpy().tolist(),
-            played_logits=distribution.logits,
-            resets=time_step.is_first().numpy().tolist()
-        )
+        if shield_processor is not None:
+            logits = shield_processor.compute_new_logits(
+                valuations=time_step.observation["observation"].numpy().tolist(),
+                integers=time_step.observation["integer"].numpy().tolist(),
+                prev_actions=prev_actions.numpy().tolist(),
+                played_logits=distribution.logits,
+                resets=time_step.is_first().numpy().tolist()
+            )
+        else:
+            logits = distribution.logits
 
         action = tf.random.categorical(logits, 1, dtype=tf.int32, seed=seed)
         prev_actions = action
@@ -155,8 +160,9 @@ def set_global_seeds(seed):
 @click.option("--load-shield", type=str, default=None, help="Path to load a pre-trained shield from.")
 @click.option("--uniform-random-policy", is_flag=True, default=False, help="Whether to use a uniform random policy for evaluation instead of a trained agent.")
 @click.option("--eval-file", type=str, default=None, help="File to save evaluation results.")
+@click.option("--model-checking-eval", is_flag=True, default=False, help="Whether to perform model checking based evaluation.")
 @click.option("--seed", type=int, default=None, help="Random seed for reproducibility.")
-def main(project, nu, shield, load_agent, save_agent, agent_training, shield_memory, training_iterations, episode_length, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, uniform_random_policy, eval_file, seed):
+def main(project, nu, shield, load_agent, save_agent, agent_training, shield_memory, training_iterations, episode_length, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, uniform_random_policy, eval_file, model_checking_eval, seed):
     project_path = project
     project_name = os.path.basename(os.path.normpath(project_path))
     prism_path = os.path.join(project_path, "sketch.templ")
@@ -232,23 +238,44 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, shield_mem
         policy.set_greedy(False)
         policy.set_policy_masker()
         policy.set_return_real_logits(True)
+        # _, obs_to_action = extract_memory_less_fsc_actions(environment, policy, get_probs = True, compile_policy=True)
+        # from rl_src.shielding.custom_policy import create_custom_policy
+        # policy = create_custom_policy(environment, obs_to_action)
         compile_policy = True
 
     # Custom simulation loop for evaluation
-    trajectory_buffer = TrajectoryBuffer(environment)
-    evaluation_result = EvaluationResults()
-    num_eval_iterations = math.ceil(num_environments / num_parallel_environments)
-    environment.temporarily_set_num_envs(num_parallel_environments)
-    start_time = time.time()
-    for eval_iteration in tqdm(range(num_eval_iterations)):
-        custom_loop(policy, environment, shield_processor, num_parallel_environments, episode_length, trajectory_buffer, compile_policy=compile_policy, seed=seed)
-        if save_shield is not None and shield_processor is not None:
-            shield_processor.save_shield(shield_processor.shield_folder, iteration=eval_iteration)
-    eval_elapsed_time = time.time() - start_time
-    environment.reset_num_envs() # Sets the number of environments back to original value.
-    print(f"Evaluation loop took {eval_elapsed_time:.2f} seconds.")
-    trajectory_buffer.final_update_of_results(evaluation_result.update)
-    evaluation_result.log_evaluation_info()
+    if model_checking_eval:
+        assert shield_processor is not None, "Shield processor must be provided for model checking evaluation."
+        actions, _ = extract_memory_less_fsc_actions(environment, policy, get_probs = True, compile_policy=compile_policy)
+
+        mapped_actions = []
+        state_choice_labels= []
+        for state in range(shield_processor.shield.model_info.model.nr_states):
+            obs = shield_processor.shield.model_info.observation_to_state.index(state)
+            mapped_distribution, choice_labels = shield_processor.map_played_distribution(actions[obs], state)
+            mapped_actions.append(mapped_distribution)
+            state_choice_labels.append(choice_labels)
+
+        model_check_given_policy_and_shield(mapped_actions, shield_processor.shield, episode_length=episode_length)        
+
+
+
+        exit()
+    else:
+        trajectory_buffer = TrajectoryBuffer(environment)
+        evaluation_result = EvaluationResults()
+        num_eval_iterations = math.ceil(num_environments / num_parallel_environments)
+        environment.temporarily_set_num_envs(num_parallel_environments)
+        start_time = time.time()
+        for eval_iteration in tqdm(range(num_eval_iterations)):
+            custom_loop(policy, environment, shield_processor, num_parallel_environments, episode_length, trajectory_buffer, compile_policy=compile_policy, seed=seed)
+            if save_shield is not None and shield_processor is not None:
+                shield_processor.save_shield(shield_processor.shield_folder, iteration=eval_iteration)
+        eval_elapsed_time = time.time() - start_time
+        environment.reset_num_envs() # Sets the number of environments back to original value.
+        print(f"Evaluation loop took {eval_elapsed_time:.2f} seconds.")
+        trajectory_buffer.final_update_of_results(evaluation_result.update)
+        evaluation_result.log_evaluation_info()
 
     # Simulator
     # evaluation_result = evaluate_policy_in_model(policy, args, environment, tf_env, max_steps=episode_length, shield_processor=shield_processor)

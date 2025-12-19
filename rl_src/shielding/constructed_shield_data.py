@@ -13,6 +13,7 @@ class ShieldData:
     original_model_nr_states: int
     observation_to_state: list[int]
     memory: int
+    rounding_precision: int
     
     initial_node: Node # no memory bound shield
     current_action_distributions : list[list[float]] # memory bounded shield

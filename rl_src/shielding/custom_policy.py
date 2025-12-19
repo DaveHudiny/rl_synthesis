@@ -63,3 +63,17 @@ def create_uniform_random_policy(environment):
     )
 
     return custom_policy
+
+def create_custom_policy(environment, observation_to_action):
+
+    tf_env = TFPyEnvironment(environment)
+    custom_policy = CustomPolicy(
+        action_spec=tf_env.action_spec(),
+        time_step_spec=tf_env.time_step_spec(),
+        distribution_function=lambda observation, mask, policy_state: (
+            np.array([observation_to_action[tuple(obs)] for obs in observation]), policy_state
+        )
+    )
+
+    return custom_policy
+    

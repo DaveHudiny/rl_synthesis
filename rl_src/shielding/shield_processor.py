@@ -46,17 +46,19 @@ class ShieldProcessor:
         # model checking results for debugging
         if debug:
             reach_formula = stormpy.parse_properties("Pmax=? [ F \"goal\" ]")
-            reward_formula = stormpy.parse_properties("Rmax=? [ F \"goal\" ]")
+            reward_formula = stormpy.parse_properties("Rmax=? [ C<=50 ]")
             until_formula = stormpy.parse_properties("Pmax=? [ !\"bad\" U \"goal\" ]")
+            goal_formula = stormpy.parse_properties("Pmax=? [ F \"goal\" ]")
             reach_result = stormpy.model_checking(mdp, reach_formula[0])
             reward_result = stormpy.model_checking(mdp, reward_formula[0])
             until_result = stormpy.model_checking(mdp, until_formula[0])
+            goal_result = stormpy.model_checking(mdp, goal_formula[0])
             print("Max reachability probabilities to goal from initial state:", reach_result.get_values()[mdp.initial_states[0]])
             print("Max expected rewards to goal from initial state:", reward_result.get_values()[mdp.initial_states[0]])
             print("Max until probabilities to goal from initial state:", until_result.get_values()[mdp.initial_states[0]])
-            print(vmin)
+            # print(vmin)
+            # print(self.bad_states)
             exit()
-
 
         observation_to_state = [None] * model.nr_observations
         for state in range(model.nr_states):
@@ -86,6 +88,8 @@ class ShieldProcessor:
         else:
             raise ValueError(f"Unknown shield type: {shield_type}")
         
+        self.shield.rounding_precision = 6
+        
         if self.shield_folder is not None:
             assert type(self.shield) in [rl_src.shielding.shields.SelfConstructingShieldConstructionSafe, rl_src.shielding.shields.SelfConstructingShieldConstructionUnsafe], "Saving shield can only be used with self-constructing shields."
         
@@ -98,6 +102,7 @@ class ShieldProcessor:
             original_model_nr_states=self.shield.model_info.model.nr_states,
             observation_to_state=self.shield.model_info.observation_to_state,
             memory=self.shield.memory,
+            rounding_precision=self.shield.rounding_precision,
             initial_node=self.shield.initial_node,
             current_action_distributions=self.shield.current_action_distributions
         )
@@ -117,6 +122,7 @@ class ShieldProcessor:
         assert self.shield.model_info.model.nr_states == shield_data.original_model_nr_states
         assert self.shield.model_info.observation_to_state == shield_data.observation_to_state
         assert self.shield.memory == shield_data.memory
+        assert self.shield.rounding_precision == shield_data.rounding_precision
 
         self.shield.initial_node = shield_data.initial_node
         self.shield.current_action_distributions = shield_data.current_action_distributions
@@ -129,6 +135,19 @@ class ShieldProcessor:
         else:
             uniform_prob = 1.0 / len(distribution)
             return [uniform_prob for _ in distribution]
+        
+    def map_played_distribution(self, played_probs, current_state):
+        current_state_choice_labels = []
+
+        for choice in range(self.shield.model_info.model.transition_matrix.get_row_group_start(current_state), self.shield.model_info.model.transition_matrix.get_row_group_end(current_state)):
+            current_state_choice_labels.append(self.shield.model_info.model.choice_labeling.get_labels_of_choice(choice).pop())
+
+        mapped_played_distribution = [played_probs[self.actions.index(action)] for action in current_state_choice_labels]
+        mapped_played_distribution = self.fix_distribution(mapped_played_distribution)
+
+        mapped_played_distribution = [round(prob, self.shield.rounding_precision) for prob in mapped_played_distribution]
+
+        return mapped_played_distribution, current_state_choice_labels
 
     def compute_new_logits(self, valuations : list, integers : list, prev_actions : list, played_logits : tf.Tensor, resets : list) -> tf.Tensor:
         """ A dummy shielding method that always allows the action.
@@ -147,20 +166,14 @@ class ShieldProcessor:
         for i in range(len(valuations)):
 
             current_state = self.shield.model_info.observation_to_state[integers[i][0]]
-            current_state_choice_labels = []
-
-            for choice in range(self.shield.model_info.model.transition_matrix.get_row_group_start(current_state), self.shield.model_info.model.transition_matrix.get_row_group_end(current_state)):
-                current_state_choice_labels.append(self.shield.model_info.model.choice_labeling.get_labels_of_choice(choice).pop())
-
-            mapped_played_distribution = [played_probs[i][self.actions.index(action)] for action in current_state_choice_labels]
-            mapped_played_distribution = self.fix_distribution(mapped_played_distribution)
+            mapped_played_distribution, current_state_choice_labels = self.map_played_distribution(played_probs[i], current_state)
 
             distribution = self.shield.correct(prev_actions[i], current_state, mapped_played_distribution, resets[i], i)
 
             distribution = [distribution[current_state_choice_labels.index(action)] if action in current_state_choice_labels else 0.0 for action in self.actions]
 
             distributions.append(distribution)
-        
+
         distributions = np.array(distributions, dtype=np.float_)
         # Convert the boolean mask to logits.
         masked_logits = tf.math.log(distributions + 1e-10)

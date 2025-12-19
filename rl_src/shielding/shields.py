@@ -30,6 +30,8 @@ class Shield:
         self.added_nonoptimal_actions = 0
         self.trace_count = 0
 
+        self.rounding_precision = 6
+
     def reset_stats(self):
         self.shield_calls = 0
         self.blocked_actions = 0
@@ -267,12 +269,43 @@ class Node:
     distributions: list[list[float]]
     state_index: int
     value: float
+    node_index: int
 
     def number_of_tree_nodes(self) -> int:
         count = 1
         for succ in self.successors.values():
             count += succ.number_of_tree_nodes()
         return count
+
+    def get_node(self, id) -> "Node":
+        if self.node_index == id:
+            return self
+        for succ in self.successors.values():
+            node = succ.get_node(id)
+            if node is not None:
+                return node
+        return None
+    
+    def get_index_to_node_map(self, index_map={}) -> dict[int, "Node"]:
+        index_map[self.node_index] = self
+        for succ in self.successors.values():
+            succ.get_index_to_node_map(index_map)
+        return index_map
+    
+    def get_state_indices_map(self, index_map={}) -> dict[int, int]:
+        index_map[self.node_index] = self.state_index
+        for succ in self.successors.values():
+            succ.get_state_indices_map(index_map)
+        return index_map
+
+    def get_node_to_successor_index_to_state_map(self, node_map={}) -> dict[int, dict[tuple[int, int], int]]:
+        succ_map = {}
+        for (state, distribution_index), succ in self.successors.items():
+            succ_map[(state, distribution_index)] = succ.node_index
+        node_map[self.node_index] = succ_map
+        for succ in self.successors.values():
+            succ.get_node_to_successor_index_to_state_map(node_map)
+        return node_map
     
 
 class SelfConstructingShield(Shield):
@@ -286,7 +319,8 @@ class SelfConstructingShield(Shield):
         initial_state = model_info.model.initial_states[0]
 
         # get vmin
-        self.initial_node = Node({}, None, None, [], initial_state, self.model_info.vmin[initial_state])
+        self.initial_node = Node({}, None, None, [], initial_state, self.model_info.vmin[initial_state], 0)
+        self.num_nodes = 1
 
         self.current_nodes = [self.initial_node]
 
@@ -353,16 +387,21 @@ class SelfConstructingShield(Shield):
             self.vmin_actions_distributions.append(vmin_actions_distributions)
             self.vmin_actions.append(vmin_actions)
 
-    def point_in_convex_hull(self, hull_vertices, point, tolerance=1e-12):
+    def point_in_convex_hull(self, hull_vertices, point, tolerance=1e-6):
+        if point in hull_vertices:
+            self.convex_point_max_index = hull_vertices.index(point)
+            return True
         self.convex_point_max_index = None
         vertices = np.array([tuple(v) for v in hull_vertices])
+        point = [val if val >= tolerance else 0.0 for val in point]
         p = np.array(point)
         # Use coordinates directly to check if point is in the convex hull (i.e. the point is linear combination of the basis vectors with non-negative coefficients summing to 1)
         c = np.zeros(len(vertices))
         A_eq = np.vstack([vertices.T, np.ones(len(vertices))])
-        b_eq = np.append(p, 1)
+        b_eq = np.append(p / np.sum(p), 1)
         bounds = [(0, 1)] * len(vertices)
         res = linprog(c, A_eq=A_eq, b_eq=b_eq, bounds=bounds, method='highs')
+        # print(res.x, res.success, res.status, res.message)
         # Check if the solution coefficients are all within bounds and sum to 1
         if not (res.success and res.status == 0):
             return False
@@ -400,6 +439,34 @@ class SelfConstructingShield(Shield):
                     best_value = q_value
             node.value = best_value
             node = node.predecessor
+
+    def correct_for_given_node(self, last_action, current_state, distribution, reset, node):
+
+        # TODO handle memory
+
+        output_distribution = distribution
+
+        if node is None:
+            all_allowed_ditributions = self.vmin_actions_distributions[current_state]
+        else:
+            all_allowed_ditributions = self.vmin_actions_distributions[current_state] + node.distributions
+
+        if not self.point_in_convex_hull(all_allowed_ditributions, distribution):
+            output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
+            if self.static_shield_clamp_to_existing_distributions and output_distribution not in all_allowed_ditributions:
+                self.point_in_convex_hull(all_allowed_ditributions, output_distribution) # to get the max index
+                output_distribution = all_allowed_ditributions[self.convex_point_max_index]
+        elif self.static_shield_clamp_to_existing_distributions and output_distribution not in all_allowed_ditributions:
+            output_distribution = all_allowed_ditributions[self.convex_point_max_index]
+
+        if output_distribution in all_allowed_ditributions:
+            last_distribution_index = all_allowed_ditributions.index(output_distribution)
+        else:
+            assert not self.static_shield_clamp_to_existing_distributions, "This should not happen, as the distribution was clamped to allowed distributions."
+            last_distribution_index = len(all_allowed_ditributions)
+
+        return output_distribution, last_distribution_index
+
 
     def correct(self, last_action, current_state, distribution, reset, trace_index=0):
         self.shield_calls += 1
@@ -495,7 +562,8 @@ class SelfConstructingShieldConstructionUnsafe(SelfConstructingShield):
                 if (current_state, self.last_distribution_indices[trace_index]) not in self.current_nodes[trace_index].successors.keys():
                     all_dist = self.vmin_actions_distributions[self.current_nodes[trace_index].state_index] + self.current_nodes[trace_index].distributions
                     assert self.last_distribution_indices[trace_index] is None and len(all_dist) == 0 or self.last_distribution_indices[trace_index] < len(all_dist)
-                    self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])] = Node({}, self.current_nodes[trace_index], self.last_distribution_indices[trace_index], [], current_state, self.model_info.vmin[current_state])
+                    self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])] = Node({}, self.current_nodes[trace_index], self.last_distribution_indices[trace_index], [], current_state, self.model_info.vmin[current_state], self.num_nodes)
+                    self.num_nodes += 1
                     self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])]
                 else:
                     self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])]
@@ -619,7 +687,8 @@ class SelfConstructingShieldConstructionSafe(SelfConstructingShield):
                 if (current_state, self.last_distribution_indices[trace_index]) not in self.current_nodes[trace_index].successors.keys():
                     all_dist = self.vmin_actions_distributions[self.current_nodes[trace_index].state_index] + self.current_nodes[trace_index].distributions
                     assert self.last_distribution_indices[trace_index] is None and len(all_dist) == 0 or self.last_distribution_indices[trace_index] < len(all_dist)
-                    self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])] = Node({}, self.current_nodes[trace_index], self.last_distribution_indices[trace_index], [], current_state, self.model_info.vmin[current_state])
+                    self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])] = Node({}, self.current_nodes[trace_index], self.last_distribution_indices[trace_index], [], current_state, self.model_info.vmin[current_state], self.num_nodes)
+                    self.num_nodes += 1
                     self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])]
                 else:
                     self.current_nodes[trace_index] = self.current_nodes[trace_index].successors[(current_state, self.last_distribution_indices[trace_index])]
