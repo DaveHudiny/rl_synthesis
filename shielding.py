@@ -84,7 +84,7 @@ def init_extractor(model, args: ArgsEmulator, latent_dim=9, autlearn_extraction=
     return direct_extractor
 
 
-def custom_loop(policy : TFPolicy, environment : EnvironmentWrapperVec, shield_processor : ShieldProcessor, num_parallel_simulations: int, num_steps: int, trajectory_buffer: TrajectoryBuffer, compile_policy: bool = False, seed: int = None):
+def custom_loop(policy : TFPolicy, environment : EnvironmentWrapperVec, shield_processor : ShieldProcessor, num_parallel_simulations: int, num_steps: int, min_episodes_per_environment: int, trajectory_buffer: TrajectoryBuffer, compile_policy: bool = False, seed: int = None):
     tf_environment = TFPyEnvironment(environment)
     
     # use tf_function for performance if needed -- remove, if the policy is not compatible with TF graph execution
@@ -97,7 +97,7 @@ def custom_loop(policy : TFPolicy, environment : EnvironmentWrapperVec, shield_p
     policy_state = policy.get_initial_state(batch_size=num_parallel_simulations)
     prev_actions = tf.zeros((num_parallel_simulations,), dtype=tf.int32)
 
-    for step in range(num_steps):
+    for step in range(num_steps*min_episodes_per_environment):
         policy_step = policy_function(time_step, policy_state)
         distribution = policy_step.action
         policy_state = policy_step.state
@@ -153,6 +153,7 @@ def set_global_seeds(seed):
 @click.option("--shield-memory", type=int, default=0, help="Memory size for self-constructing shields. If 0, no memory constraint is applied.")
 @click.option("--training-iterations", type=int, default=500, help="Number of iterations for training.")
 @click.option("--episode-length", type=int, default=50, help="Maximum length of each episode.")
+@click.option("--min-episodes-per-environment", type=int, default=4, help="Minimum number of episodes per parallel environment during evaluation.")
 @click.option("--num-environments", type=int, default=512, help="Number of environments to run overall.")
 @click.option("--num-parallel-environments", type=int, default=16, help="Number of environments to run in parallel during evaluation.")
 @click.option("--model-debug", is_flag=True, default=False, help="Whether to debug the input model.")
@@ -162,7 +163,7 @@ def set_global_seeds(seed):
 @click.option("--eval-file", type=str, default=None, help="File to save evaluation results.")
 @click.option("--model-checking-eval", is_flag=True, default=False, help="Whether to perform model checking based evaluation.")
 @click.option("--seed", type=int, default=None, help="Random seed for reproducibility.")
-def main(project, nu, shield, load_agent, save_agent, agent_training, shield_memory, training_iterations, episode_length, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, uniform_random_policy, eval_file, model_checking_eval, seed):
+def main(project, nu, shield, load_agent, save_agent, agent_training, shield_memory, training_iterations, episode_length, min_episodes_per_environment, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, uniform_random_policy, eval_file, model_checking_eval, seed):
     project_path = project
     project_name = os.path.basename(os.path.normpath(project_path))
     prism_path = os.path.join(project_path, "sketch.templ")
@@ -262,20 +263,27 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, shield_mem
 
         exit()
     else:
-        trajectory_buffer = TrajectoryBuffer(environment)
+        trajectory_buffer = TrajectoryBuffer(environment, truncation_point=episode_length)
         evaluation_result = EvaluationResults()
         num_eval_iterations = math.ceil(num_environments / num_parallel_environments)
         environment.temporarily_set_num_envs(num_parallel_environments)
         start_time = time.time()
         for eval_iteration in tqdm(range(num_eval_iterations)):
-            custom_loop(policy, environment, shield_processor, num_parallel_environments, episode_length, trajectory_buffer, compile_policy=compile_policy, seed=seed)
+            custom_loop(policy, environment, shield_processor, num_parallel_environments, episode_length, min_episodes_per_environment, trajectory_buffer, compile_policy=compile_policy, seed=seed)
             if save_shield is not None and shield_processor is not None:
                 shield_processor.save_shield(shield_processor.shield_folder, iteration=eval_iteration)
+            trajectory_buffer.final_update_of_results(evaluation_result.update)
+            trajectory_buffer.clear()
         eval_elapsed_time = time.time() - start_time
         environment.reset_num_envs() # Sets the number of environments back to original value.
         print(f"Evaluation loop took {eval_elapsed_time:.2f} seconds.")
-        trajectory_buffer.final_update_of_results(evaluation_result.update)
-        evaluation_result.log_evaluation_info()
+        # trajectory_buffer.final_update_of_results(evaluation_result.update, truncate=False)
+        # evaluation_result.log_evaluation_info()
+
+        eval_result = evaluation_result.compute_weighted_evaluation_info()
+        print(eval_result)
+        print(f'Episodes: {eval_result["counted_episodes"]}\nAverage episode length: {eval_result["average_episode_length"]}\nReward: {eval_result["virtual_returns"]}\n Goal reach probabilities: {eval_result["reach_probs"]}\nBad outcome prob: {eval_result["average_bad_outcome_prob"]}')
+        # exit()
 
     # Simulator
     # evaluation_result = evaluate_policy_in_model(policy, args, environment, tf_env, max_steps=episode_length, shield_processor=shield_processor)
@@ -309,7 +317,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, shield_mem
             print(f"Model checking calls: {shield_processor.shield.model_checking_calls}")
 
         print()
-        print(evaluation_result.counted_episodes[-1], evaluation_result.average_episode_length[-1], shield_processor.shield.shield_calls, eval_elapsed_time, evaluation_result.returns_episodic[-1], evaluation_result.reach_probs[-1],  evaluation_result.average_bad_outcome_prob[-1], shield_processor.shield.blocked_actions, shield_processor.shield.added_nonoptimal_actions, end=";", sep=";")
+        print(eval_result["counted_episodes"], eval_result["average_episode_length"], shield_processor.shield.shield_calls, eval_elapsed_time, eval_result["virtual_returns"], eval_result["reach_probs"],  eval_result["average_bad_outcome_prob"], shield_processor.shield.blocked_actions, shield_processor.shield.added_nonoptimal_actions, end=";", sep=";")
         if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShield, rl_src.shielding.shields.SelfConstructingShieldConstructionSafe, rl_src.shielding.shields.SelfConstructingShieldConstructionUnsafe]:
             if shield_processor.shield.memory > 0:
                 print(result.get_values()[final_allow_mdp.initial_states[0]], end="", sep=";")
@@ -326,7 +334,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, shield_mem
                 if load_shield is not None:
                     shield = f"constructed-{shield}"
                 f.write(f"{project_name};{agent_str};{shield};{shield_memory};{nu};") 
-                f.write(f"{evaluation_result.counted_episodes[-1]};{evaluation_result.average_episode_length[-1]};{shield_processor.shield.shield_calls};{eval_elapsed_time};{evaluation_result.returns_episodic[-1]};{evaluation_result.reach_probs[-1]};{evaluation_result.average_bad_outcome_prob[-1]};{shield_processor.shield.blocked_actions};{shield_processor.shield.added_nonoptimal_actions};")
+                f.write(f'{eval_result["counted_episodes"]};{eval_result["average_episode_length"]};{shield_processor.shield.shield_calls};{eval_elapsed_time};{eval_result["virtual_returns"]};{eval_result["reach_probs"]};{eval_result["average_bad_outcome_prob"]};{shield_processor.shield.blocked_actions};{shield_processor.shield.added_nonoptimal_actions};')
                 if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShield, rl_src.shielding.shields.SelfConstructingShieldConstructionSafe, rl_src.shielding.shields.SelfConstructingShieldConstructionUnsafe]:
                     if shield_processor.shield.memory > 0:
                         f.write(f"{result.get_values()[final_allow_mdp.initial_states[0]]}\n")

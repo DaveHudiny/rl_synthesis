@@ -184,6 +184,9 @@ class EvaluationResults:
         }
         weighted_averages = {}
         for key, values in evaluated_data.items():
+            if key == "counted_episodes":
+                weighted_averages[key] = sum(values)
+                continue
             weighted_sum = sum(value * num_ep for value, num_ep in zip(values, self.num_episodes))
             weighted_average = weighted_sum / total_episodes if total_episodes > 0 else float("nan")
             weighted_averages[key] = weighted_average
