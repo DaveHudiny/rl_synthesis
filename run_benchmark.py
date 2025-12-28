@@ -1,4 +1,3 @@
-
 import os
 import click
 import subprocess
@@ -52,11 +51,17 @@ def main(results_file, log_file, model_path, episode_length, num_environments,
 
         if log_file:
             with open(log_file, "a") as f:
-                process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                process = subprocess.Popen(
+                    command,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    cwd=os.path.dirname(os.path.abspath(__file__))
+                )
                 output, _ = process.communicate()
                 f.write(output.decode())
         else:
-            subprocess.run(command, shell=True)
+            subprocess.run(command, shell=True, cwd=os.path.dirname(os.path.abspath(__file__)))
         
 
 
