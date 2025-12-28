@@ -45,19 +45,21 @@ class ShieldProcessor:
 
         # model checking results for debugging
         if debug:
-            reach_formula = stormpy.parse_properties("Pmax=? [ F \"goal\" ]")
-            reward_formula = stormpy.parse_properties("Rmax=? [ C<=50 ]")
-            until_formula = stormpy.parse_properties("Pmax=? [ !\"bad\" U \"goal\" ]")
-            goal_formula = stormpy.parse_properties("Pmax=? [ F \"goal\" ]")
-            reach_result = stormpy.model_checking(mdp, reach_formula[0])
-            reward_result = stormpy.model_checking(mdp, reward_formula[0])
-            until_result = stormpy.model_checking(mdp, until_formula[0])
-            goal_result = stormpy.model_checking(mdp, goal_formula[0])
-            print("Max reachability probabilities to goal from initial state:", reach_result.get_values()[mdp.initial_states[0]])
-            print("Max expected rewards to goal from initial state:", reward_result.get_values()[mdp.initial_states[0]])
-            print("Max until probabilities to goal from initial state:", until_result.get_values()[mdp.initial_states[0]])
+            print(model)
+            if "goal" in model.labeling.get_labels():
+                reach_formula = stormpy.parse_properties("Pmax=? [ F \"goal\" ]")
+                until_formula = stormpy.parse_properties("Pmax=? [ !\"bad\" U \"goal\" ]")
+                goal_formula = stormpy.parse_properties("Pmax=? [ F \"goal\" ]")
+                reach_result = stormpy.model_checking(mdp, reach_formula[0])
+                until_result = stormpy.model_checking(mdp, until_formula[0])
+                goal_result = stormpy.model_checking(mdp, goal_formula[0])
+                print("Max reachability probabilities to goal from initial state:", reach_result.get_values()[mdp.initial_states[0]])
+                print("Max until probabilities to goal from initial state:", until_result.get_values()[mdp.initial_states[0]])
             # print(vmin)
             # print(self.bad_states)
+            reward_formula = stormpy.parse_properties("Rmax=? [ C<=100 ]")
+            reward_result = stormpy.model_checking(mdp, reward_formula[0])
+            print("Max expected rewards to goal from initial state:", reward_result.get_values()[mdp.initial_states[0]])
             exit()
 
         observation_to_state = [None] * model.nr_observations

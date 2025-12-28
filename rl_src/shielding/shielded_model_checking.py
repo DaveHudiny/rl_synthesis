@@ -7,7 +7,7 @@ from rl_src.shielding.model_info import ModelInfo
 
 
 
-def model_check_given_policy_and_shield(state_to_actions, shield, episode_length=50):
+def model_check_given_policy_and_shield(state_to_actions, shield, episode_length=50, goal_value=100.0, antigoal_value=-100.0):
      
     if type(shield) in [rl_src.shielding.shields.OptimisticShield, rl_src.shielding.shields.PessimisticShield]:
         assert False, "Model checking not possible for optimistic or pessimistic shields."
@@ -18,8 +18,9 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
 
     episode_length_string = "" if episode_length is None else f"<={episode_length}"
     safety_formula = stormpy.parse_properties(f"P=? [ true U{episode_length_string} \"bad\" ]")
-    full_safety_formula = stormpy.parse_properties(f"P=? [ F !\"bad\" ]")
+    full_safety_formula = stormpy.parse_properties(f"P=? [ F \"bad\" ]")
     goal_formula = stormpy.parse_properties(f"P=? [ true U{episode_length_string} \"goal\" ]")
+    fail_formula = stormpy.parse_properties(f"P=? [ true U{episode_length_string} \"fail\" ]")
     reward_formula = stormpy.parse_properties(f"R{{\"rews\"}}=? [ C{episode_length_string} ]")
 
     if type(shield) in [rl_src.shielding.shields.IdentityShield, rl_src.shielding.shields.StandardShield, rl_src.shielding.shields.DeltaShield]:
@@ -66,11 +67,29 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
 
     safety_result = stormpy.model_checking(dtmc, safety_formula[0])
     full_safety_result = stormpy.model_checking(dtmc, full_safety_formula[0])
-    goal_result = stormpy.model_checking(dtmc, goal_formula[0])
+    if "goal" in model.labeling.get_labels():
+        goal_result = stormpy.model_checking(dtmc, goal_formula[0])
+    else:
+        goal_result = None
+    if "fail" in model.labeling.get_labels():
+        fail_result = stormpy.model_checking(dtmc, fail_formula[0])
+    else:
+        fail_result = None
     reward_result = stormpy.model_checking(dtmc, reward_formula[0])
 
-    print(f"Safety probability from initial state: {safety_result.get_values()[dtmc.initial_states[0]]}")
-    print(f"Unbounded safety probability from initial state: {full_safety_result.get_values()[dtmc.initial_states[0]]}")
-    print(f"Goal reachability from initial state: {goal_result.get_values()[dtmc.initial_states[0]]}")
-    print(f"Reward from initial state: {reward_result.get_values()[dtmc.initial_states[0]]}")
-    print(f"Actual reward: {100*goal_result.get_values()[dtmc.initial_states[0]] + reward_result.get_values()[dtmc.initial_states[0]]}")
+    result_dict = {
+        "safety_probability": safety_result.get_values()[dtmc.initial_states[0]],
+        "full_safety_probability": full_safety_result.get_values()[dtmc.initial_states[0]],
+        "goal_reachability": goal_result.get_values()[dtmc.initial_states[0]] if goal_result is not None else 'N/A',
+        "fail_reachability": fail_result.get_values()[dtmc.initial_states[0]] if fail_result is not None else 'N/A',
+        "expected_reward": reward_result.get_values()[dtmc.initial_states[0]],
+        "actual_reward": (goal_value*goal_result.get_values()[dtmc.initial_states[0]] if goal_result is not None else 0) + (antigoal_value*fail_result.get_values()[dtmc.initial_states[0]] if fail_result is not None else 0) + reward_result.get_values()[dtmc.initial_states[0]] 
+    }
+
+    print(f"Safety probability from initial state: {result_dict['safety_probability']}")
+    print(f"Unbounded safety probability from initial state: {result_dict['full_safety_probability']}")
+    print(f"Goal reachability from initial state: {result_dict['goal_reachability']}")
+    print(f"Reward from initial state: {result_dict['expected_reward']}")
+    print(f"Actual reward: {result_dict['actual_reward']}")
+    
+    return result_dict

@@ -162,8 +162,10 @@ def set_global_seeds(seed):
 @click.option("--uniform-random-policy", is_flag=True, default=False, help="Whether to use a uniform random policy for evaluation instead of a trained agent.")
 @click.option("--eval-file", type=str, default=None, help="File to save evaluation results.")
 @click.option("--model-checking-eval", is_flag=True, default=False, help="Whether to perform model checking based evaluation.")
+@click.option("--goal-rew", type=float, default=100.0, help="Reward value for reaching the goal state.")
+@click.option("--fail-rew", type=float, default=-100.0, help="Reward value for reaching the fail state.")
 @click.option("--seed", type=int, default=None, help="Random seed for reproducibility.")
-def main(project, nu, shield, load_agent, save_agent, agent_training, shield_memory, training_iterations, episode_length, min_episodes_per_environment, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, uniform_random_policy, eval_file, model_checking_eval, seed):
+def main(project, nu, shield, load_agent, save_agent, agent_training, shield_memory, training_iterations, episode_length, min_episodes_per_environment, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, uniform_random_policy, eval_file, model_checking_eval, goal_rew, fail_rew, seed):
     project_path = project
     project_name = os.path.basename(os.path.normpath(project_path))
     prism_path = os.path.join(project_path, "sketch.templ")
@@ -183,12 +185,14 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, shield_mem
     model = sketch.pomdp # If you don't have POMDP, you can switch to quotient mdp or some other MDP/POMDP representations.
     # model = sketch.quotient_mdp
 
+    assert "bad" in model.labeling.get_labels(), "Model must have 'bad' label for shielding."
+
     # TODO investigate this
     # args.batch_size = 1  # For evaluation, we use batch size 1
     args.num_environments = num_environments
 
     environment = EnvironmentWrapperVec(
-        model, args, num_envs=args.num_environments, enforce_compilation=True)
+        model, args, num_envs=args.num_environments, enforce_compilation=True, goal_value=goal_rew, antigoal_value=fail_rew)
     
     if save_shield is not None:
         os.makedirs(f"trained_agents/shields/{project_name}", exist_ok=True)
@@ -257,9 +261,19 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, shield_mem
             mapped_actions.append(mapped_distribution)
             state_choice_labels.append(choice_labels)
 
-        model_check_given_policy_and_shield(mapped_actions, shield_processor.shield, episode_length=episode_length)        
+        model_check_result = model_check_given_policy_and_shield(mapped_actions, shield_processor.shield, episode_length=episode_length, goal_value=goal_rew, antigoal_value=fail_rew)        
 
-
+        if eval_file is not None:
+            with open(eval_file, "a") as f:
+                if uniform_random_policy:
+                    agent_str = "uniform_random"
+                else:
+                    agent_str = load_agent
+                if load_shield is not None:
+                    shield = f"constructed-{shield}"
+                f.write(f"{project_name};{agent_str};{shield};{shield_memory};{nu};") 
+                f.write(f'{model_check_result["safety_probability"]};{model_check_result["full_safety_probability"]};{model_check_result["goal_reachability"]};{model_check_result["actual_reward"]}')
+                f.write("\n")
 
         exit()
     else:

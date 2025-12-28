@@ -67,7 +67,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
     """
 
     def __init__(self, stormpy_model, args: ArgsEmulator, num_envs: int = 1, enforce_compilation: bool = False,
-                 obs_evaluator=None, quotient_state_valuations=None, observation_to_actions=None):
+                 obs_evaluator=None, quotient_state_valuations=None, observation_to_actions=None, goal_value=100.0, antigoal_value=-100.0):
         """Initializes the environment wrapper.
 
         Args:
@@ -92,6 +92,9 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
                                         "((x = (10 - 1)) & (y = (10 - 1)))", "((x = 8) & (y = 8))",
                                         "((x = (5 - 1)) & (y = (5 - 1)))", "(bat = 0)", "((x = 10) & (y = 10))",
                                         "label_done", "label_goal"])
+
+        self.goal_rew_value = goal_value
+        self.antigoal_rew_value = antigoal_value
 
         # Initialization of the vectorized simulator.
         labeling = stormpy_model.labeling.get_labels()
@@ -159,7 +162,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
 
         # Initialization of reward model.
         self.model_name = self.get_model_name()
-        self.set_reward_model(self.model_name)
+        self.set_reward_model(self.model_name, self.goal_rew_value, self.antigoal_rew_value)
 
         self._current_time_step = None
 
@@ -259,12 +262,12 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
             self.go_explore_add_state(new_states)
         self.predicate_automata_states = new_states
 
-    def set_basic_rewards(self):
+    def set_basic_rewards(self, goal_value=100.0, antigoal_value=-100.0):
         self.reward_multiplier = 1.0
         self.antigoal_values_vector = tf.constant(
-            [-100.0] * self.num_envs, dtype=tf.float32)
+            [antigoal_value] * self.num_envs, dtype=tf.float32)
         self.goal_values_vector = tf.constant(
-            [100.0] * self.num_envs, dtype=tf.float32)
+            [goal_value] * self.num_envs, dtype=tf.float32)
 
     def set_reachability_rewards(self):
         self.reward_multiplier = 0.0
@@ -333,7 +336,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         self.truncation_values_vector = tf.constant(
             [-1.0] * self.num_envs, dtype=tf.float32)
 
-    def set_reward_model(self, model_name):
+    def set_reward_model(self, model_name, goal_value=100.0, antigoal_value=-100.0):
         self.truncation_values_vector = tf.constant(
             [0.0] * self.num_envs, dtype=tf.float32)
         # self.reward_models = {
@@ -363,7 +366,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         #     self.set_basic_rewards()
         # if "packets_sent" in list(self.stormpy_model.reward_models.keys()):
         #     self.reward_multiplier = 10.0
-        self.set_basic_rewards()
+        self.set_basic_rewards(goal_value, antigoal_value)
 
         self.reward_signum = tf.sign(
             self.reward_multiplier) if self.reward_multiplier != 0.0 else tf.constant(-1.0)
@@ -487,7 +490,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
     def set_num_envs(self, num_envs: int):
         self.num_envs = num_envs
         self.vectorized_simulator.set_num_envs(num_envs)
-        self.set_reward_model(self.model_name)
+        self.set_reward_model(self.model_name, self.goal_rew_value, self.antigoal_rew_value)
         self.initialize_step_types()
         self.current_num_steps = tf.constant(
             [0] * self.num_envs, dtype=tf.float32)
@@ -644,7 +647,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         self.orig_num_envs = self.num_envs
         self.num_envs = num_envs
         self.vectorized_simulator.set_num_envs(num_envs)
-        self.set_reward_model(self.model_name)
+        self.set_reward_model(self.model_name, self.goal_rew_value, self.antigoal_rew_value)
         self.initialize_step_types()
         self.reset()
 

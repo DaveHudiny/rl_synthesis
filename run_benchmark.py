@@ -19,8 +19,11 @@ import itertools
 @click.option("--nu", type=float, required=True, help="Nu parameter for shielding.")
 @click.option("--number-of-evaluations", type=int, required=True, help="Number of evaluations to run for each shield.")
 @click.option("--uniform-random-agent", is_flag=True, help="Use a uniform random agent instead of a trained agent.")
+@click.option("--model-checking-eval", is_flag=True, default=False, help="Whether to perform model checking based evaluation.")
+@click.option("--goal-rew", type=float, default=100.0, help="Reward value for reaching the goal state.")
+@click.option("--fail-rew", type=float, default=0.0, help="Reward value for reaching the fail state.")
 def main(results_file, log_file, model_path, episode_length, num_environments,
-         num_parallel_environments, agent, nu, number_of_evaluations, uniform_random_agent):
+         num_parallel_environments, agent, nu, number_of_evaluations, uniform_random_agent, model_checking_eval, goal_rew, fail_rew):
 
     # Ensure the directory for the results file exists
     results_dir = os.path.dirname(os.path.abspath(results_file))
@@ -34,15 +37,15 @@ def main(results_file, log_file, model_path, episode_length, num_environments,
     for shield_type, i in tqdm.tqdm(shield_iteration_combinations):
         
         if shield_type in ["identity", "standard", "delta", "pessimistic", "optimistic"]:
-            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {num_parallel_environments} --load-agent {agent} --shield {shield_type} --nu {nu} --eval-file {results_file}"
+            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {num_parallel_environments} --load-agent {agent} --shield {shield_type} --nu {nu} {'--model-checking-eval' if model_checking_eval else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --eval-file {results_file}"
         elif shield_type in ["self-constructing-safe"]:
-            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {max(num_parallel_environments,16)} --load-agent {agent} --shield {shield_type} --nu {nu} --save-shield {agent+'-safe-'+str(nu).replace('.','')+'-'+str(i)} --eval-file {results_file}"
+            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {max(num_parallel_environments,16)} --load-agent {agent} --shield {shield_type} --nu {nu} --goal-rew {goal_rew} --fail-rew {fail_rew} --save-shield {agent+'-safe-'+str(nu).replace('.','')+'-'+str(i)} --eval-file {results_file}"
         elif shield_type in ["self-constructing-unsafe"]:
-            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {num_parallel_environments} --load-agent {agent} --shield {shield_type} --nu {nu} --save-shield {agent+'-unsafe-'+str(nu).replace('.','')+'-'+str(i)} --eval-file {results_file}"
+            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {num_parallel_environments} --load-agent {agent} --shield {shield_type} --nu {nu} --goal-rew {goal_rew} --fail-rew {fail_rew} --save-shield {agent+'-unsafe-'+str(nu).replace('.','')+'-'+str(i)} --eval-file {results_file}"
         elif shield_type in ["constructed-self-constructing-safe"]:
-            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {num_parallel_environments} --load-agent {agent} --shield self-constructing-safe --nu {nu} --load-shield {agent+'-safe-'+str(nu).replace('.','')+'-'+'0-iter-final-shield.pickle'} --eval-file {results_file}"
+            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {num_parallel_environments} --load-agent {agent} --shield self-constructing-safe --nu {nu} {'--model-checking-eval' if model_checking_eval else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --load-shield {agent+'-safe-'+str(nu).replace('.','')+'-'+'0-iter-final-shield.pickle'} --eval-file {results_file}"
         elif shield_type in ["constructed-self-constructing-unsafe"]:
-            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {num_parallel_environments} --load-agent {agent} --shield self-constructing-unsafe --nu {nu} --load-shield {agent+'-unsafe-'+str(nu).replace('.','')+'-'+'0-iter-final-shield.pickle'} --eval-file {results_file}"
+            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {num_parallel_environments} --load-agent {agent} --shield self-constructing-unsafe --nu {nu} {'--model-checking-eval' if model_checking_eval else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --load-shield {agent+'-unsafe-'+str(nu).replace('.','')+'-'+'0-iter-final-shield.pickle'} --eval-file {results_file}"
 
         if uniform_random_agent:
             command += " --uniform-random-policy"

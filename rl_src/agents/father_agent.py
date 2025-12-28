@@ -702,7 +702,7 @@ class FatherAgent(AbstractAgent):
         Args:
             best: Whether this is the best agent. If true, the agent is saved in the best folder.
         """
-        if iteration is None:
+        if iteration is None or self.agent_folder is None:
             return
         if self.agent is None or tf.train is None:
             logger.info("No agent for saving.")

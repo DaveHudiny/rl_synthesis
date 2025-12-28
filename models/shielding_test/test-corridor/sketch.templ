@@ -44,6 +44,7 @@ formula at_goal = (x=0 & y=2);
 formula crashed = false;
 label "goal" = at_goal;
 label "bad" = crashed | failed | (x=1 & y=1) | (x=3 & y=1);
+label "fail" = crashed | failed;
 
 module grid
 
