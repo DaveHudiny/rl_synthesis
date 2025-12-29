@@ -8,17 +8,35 @@ def merge_csv_files(input_folder, output_file):
     if not csv_files:
         print(f'No CSV files found in {input_folder}')
         return
-    df_list = [pd.read_csv(f, delimiter=';') for f in csv_files]
+    df_list = []
+    for f in csv_files:
+        try:
+            df = pd.read_csv(f, delimiter=';', error_bad_lines=False, warn_bad_lines=True)
+            df_list.append(df)
+        except Exception as e:
+            print(f'Error reading {f}: {e}')
+    if not df_list:
+        print('No valid CSV files to merge.')
+        return
     merged_df = pd.concat(df_list, ignore_index=True)
     merged_df.to_csv(output_file, index=False, sep=';')
-    print(f'Merged {len(csv_files)} files into {output_file}')
+    print(f'Merged {len(df_list)} files into {output_file}')
 
 def average_csv_files(input_folder, average_file):
     csv_files = glob.glob(os.path.join(input_folder, '*.csv'))
     if not csv_files:
         print(f'No CSV files found in {input_folder}')
         return
-    df_list = [pd.read_csv(f, delimiter=';') for f in csv_files]
+    df_list = []
+    for f in csv_files:
+        try:
+            df = pd.read_csv(f, delimiter=';', error_bad_lines=False, warn_bad_lines=True)
+            df_list.append(df)
+        except Exception as e:
+            print(f'Error reading {f}: {e}')
+    if not df_list:
+        print('No valid CSV files to average.')
+        return
     merged_df = pd.concat(df_list, ignore_index=True)
     if merged_df.shape[1] < 6:
         print('Not enough columns to average by first 5 columns.')
