@@ -63,7 +63,9 @@ class StandardShield(Shield):
         row = self.model_info.model.transition_matrix.get_row(row_index)
         for entry in row:
             next_val += entry.value() * self.model_info.vmin[entry.column]
-        return next_val <= self.model_info.vmin[state]
+        next_val_rounded = round(next_val, self.rounding_precision)
+        vmin_state_rounded = round(self.model_info.vmin[state], self.rounding_precision)
+        return next_val_rounded <= vmin_state_rounded
 
     def correct(self, last_action, current_state, distribution, reset, trace_index=0):
         self.shield_calls += 1
@@ -142,7 +144,9 @@ class PessimisticShield(Shield):
         self.last_states[trace_index] = current_state
         self.last_distrs[trace_index] = distribution
 
-        if self.incurred_safeties[trace_index] >= self.bmax:
+        rounded_incurred_safety = round(self.incurred_safeties[trace_index], self.rounding_precision)
+        rounded_bmax = round(self.bmax, self.rounding_precision)
+        if rounded_incurred_safety >= rounded_bmax:
             output_distribution = distribution
         else:
             self.blocked_actions += 1
@@ -220,7 +224,9 @@ class OptimisticShield(Shield):
         self.last_states[trace_index] = current_state
         self.last_distrs[trace_index] = distribution
 
-        if self.incurred_risks[trace_index] <= self.bmin:
+        rounded_incurred_risk = round(self.incurred_risks[trace_index], self.rounding_precision)
+        rounded_bmin = round(self.bmin, self.rounding_precision)
+        if rounded_incurred_risk <= rounded_bmin:
             output_distribution = distribution
         else:
             self.blocked_actions += 1
@@ -380,7 +386,9 @@ class SelfConstructingShield(Shield):
                 val = 0.0
                 for entry in row:
                     val += entry.value() * self.model_info.vmin[entry.column]
-                if val <= self.model_info.vmin[state]:
+                val_rounded = round(val, self.rounding_precision)
+                vmin_state_rounded = round(self.model_info.vmin[state], self.rounding_precision)
+                if val_rounded <= vmin_state_rounded:
                     vmin_actions_distributions.append([1.0 if a == action else 0.0 for a in range(actions_count)])
                     vmin_actions.append(action)
             assert len(vmin_actions) > 0, f"No safe actions for state {state}"

@@ -264,7 +264,10 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, shield_mem
         model_check_result = model_check_given_policy_and_shield(mapped_actions, shield_processor.shield, episode_length=episode_length, goal_value=goal_rew, antigoal_value=fail_rew)        
 
         if eval_file is not None:
+            file_exists = os.path.exists(eval_file)
             with open(eval_file, "a") as f:
+                if not file_exists:
+                    f.write("project_name;agent;shield;shield_memory;nu;safety_probability;full_safety_probability;goal_reachability;reward\n")
                 if uniform_random_policy:
                     agent_str = "uniform_random"
                 else:
@@ -340,7 +343,10 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, shield_mem
         print()
 
         if eval_file is not None:
+            file_exists = os.path.exists(eval_file)
             with open(eval_file, "a") as f:
+                if not file_exists:
+                    f.write("project_name;agent;shield;shield_memory;nu;counted_episodes;average_episode_length;shield_calls;eval_elapsed_time;reward;goal_probability;bad_outcome_prob;blocked_actions;added_nonoptimal_actions;initial_node_value;tree_size\n")
                 if uniform_random_policy:
                     agent_str = "uniform_random"
                 else:
@@ -351,11 +357,11 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, shield_mem
                 f.write(f'{eval_result["counted_episodes"]};{eval_result["average_episode_length"]};{shield_processor.shield.shield_calls};{eval_elapsed_time};{eval_result["virtual_returns"]};{eval_result["reach_probs"]};{eval_result["average_bad_outcome_prob"]};{shield_processor.shield.blocked_actions};{shield_processor.shield.added_nonoptimal_actions};')
                 if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShield, rl_src.shielding.shields.SelfConstructingShieldConstructionSafe, rl_src.shielding.shields.SelfConstructingShieldConstructionUnsafe]:
                     if shield_processor.shield.memory > 0:
-                        f.write(f"{result.get_values()[final_allow_mdp.initial_states[0]]}\n")
+                        f.write(f"{result.get_values()[final_allow_mdp.initial_states[0]]};\n")
                     else:
                         f.write(f"{shield_processor.shield.initial_node.value};{shield_processor.shield.initial_node.number_of_tree_nodes()}\n")
                 else:
-                    f.write("\n")
+                    f.write(";\n")
 
 
 if __name__ == "__main__":
