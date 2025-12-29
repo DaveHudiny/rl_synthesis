@@ -29,9 +29,9 @@ def average_csv_files(input_folder, average_file):
 
 @click.command()
 @click.argument('input_folder', type=click.Path(exists=True, file_okay=False), required=True)
-@click.argument('output_file', type=click.Path(), default='merged_output.csv', required=False)
+@click.argument('output_file', type=click.Path(), default='results/merged_output.csv', required=False)
 @click.option('--average', is_flag=True, help='Average rows with same values in first 5 columns and save to another file.')
-@click.option('--average-file', type=click.Path(), default='average_output.csv', help='Output file for averaged rows.')
+@click.option('--average-file', type=click.Path(), default='results/average_output.csv', help='Output file for averaged rows.')
 def main(input_folder, output_file, average, average_file):
     """Merge all CSV files in a folder into one CSV file. Optionally average rows with same values in first 5 columns."""
     merge_csv_files(input_folder, output_file)
