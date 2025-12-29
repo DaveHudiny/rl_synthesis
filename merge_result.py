@@ -8,9 +8,9 @@ def merge_csv_files(input_folder, output_file):
     if not csv_files:
         print(f'No CSV files found in {input_folder}')
         return
-    df_list = [pd.read_csv(f) for f in csv_files]
+    df_list = [pd.read_csv(f, delimiter=';') for f in csv_files]
     merged_df = pd.concat(df_list, ignore_index=True)
-    merged_df.to_csv(output_file, index=False)
+    merged_df.to_csv(output_file, index=False, sep=';')
     print(f'Merged {len(csv_files)} files into {output_file}')
 
 def average_csv_files(input_folder, average_file):
@@ -18,13 +18,13 @@ def average_csv_files(input_folder, average_file):
     if not csv_files:
         print(f'No CSV files found in {input_folder}')
         return
-    df_list = [pd.read_csv(f) for f in csv_files]
+    df_list = [pd.read_csv(f, delimiter=';') for f in csv_files]
     merged_df = pd.concat(df_list, ignore_index=True)
     if merged_df.shape[1] < 6:
         print('Not enough columns to average by first 5 columns.')
         return
     grouped = merged_df.groupby(list(merged_df.columns[:5]), as_index=False).mean(numeric_only=True)
-    grouped.to_csv(average_file, index=False)
+    grouped.to_csv(average_file, index=False, sep=';')
     print(f'Averaged rows saved to {average_file}')
 
 @click.command()
