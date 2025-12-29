@@ -11,7 +11,7 @@ def merge_csv_files(input_folder, output_file):
     df_list = []
     for f in csv_files:
         try:
-            df = pd.read_csv(f, delimiter=';', error_bad_lines=False, warn_bad_lines=True)
+            df = pd.read_csv(f, delimiter=';', on_bad_lines='warn')
             df_list.append(df)
         except Exception as e:
             print(f'Error reading {f}: {e}')
@@ -30,7 +30,7 @@ def average_csv_files(input_folder, average_file):
     df_list = []
     for f in csv_files:
         try:
-            df = pd.read_csv(f, delimiter=';', error_bad_lines=False, warn_bad_lines=True)
+            df = pd.read_csv(f, delimiter=';', on_bad_lines='warn')
             df_list.append(df)
         except Exception as e:
             print(f'Error reading {f}: {e}')
