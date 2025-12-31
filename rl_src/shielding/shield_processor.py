@@ -11,10 +11,11 @@ import numpy as np
 import pickle
 
 class ShieldProcessor:
-    def __init__(self, actions : list[str], model : stormpy.storage.SparsePomdp, nu : float, shield_type : str, args : ArgsEmulator = None, shield_memory : int = 0, debug: bool = False, shield_folder: str = None):
+    def __init__(self, actions : list[str], model : stormpy.storage.SparsePomdp, nu : float, shield_type : str, args : ArgsEmulator = None, shield_memory : int = 0, debug: bool = False, shield_folder: str = None, deterministic_agent: bool = False):
         self.args = args
         self.actions = actions
         self.shield_folder = shield_folder
+        self.deterministic_agent = deterministic_agent
 
         assert model.nr_states == model.nr_observations, "We currently only support shielding for MDPs."
         assert model.initial_states is not None and len(model.initial_states) == 1, "We currently only support single initial state models."
@@ -162,7 +163,10 @@ class ShieldProcessor:
         Returns:
             np.ndarray[np.float_]: New logits of probabilities for each action.
         """
-        played_probs = tf.nn.softmax(played_logits).numpy().tolist()
+        if not self.deterministic_agent:
+            played_probs = tf.nn.softmax(played_logits).numpy().tolist()
+        else:
+            played_probs = tf.one_hot(tf.argmax(played_logits, axis=1), depth=tf.shape(played_logits)[1], dtype=tf.float32).numpy().tolist()
         distributions = []
 
         for i in range(len(valuations)):

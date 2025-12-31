@@ -14,8 +14,9 @@ def extract_memory_less_fsc_actions(environment : EnvironmentWrapperVec, policy:
     fake_observations = environment.create_fake_timestep_from_observation_integer(range(nr_obs))
     initial_state = policy.get_initial_state(batch_size=nr_obs)
     if get_probs == False:
-        action_step = policy.action(fake_observations, initial_state)
-        actions = action_step.action.numpy()
+        action_step = policy_function(fake_observations, initial_state)
+        logits = action_step.action.logits
+        actions = tf.one_hot(tf.argmax(logits, axis=1), depth=tf.shape(logits)[1], dtype=tf.float32).numpy()
     else:
         action_step = policy_function(fake_observations, initial_state)
         logits = action_step.action.logits

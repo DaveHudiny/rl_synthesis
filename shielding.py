@@ -150,6 +150,7 @@ def set_global_seeds(seed):
 @click.option("--load-agent", type=str, default=None, help="Path to load a pre-trained agent from.")
 @click.option("--save-agent", type=str, default="", help="Suffix of folder containing the trained agent.")
 @click.option("--agent-training", is_flag=True, default=False, help="Whether to perform agent training.")
+@click.option("--deterministic-agent", is_flag=True, default=False, help="Whether the loaded agent is deterministic.")
 @click.option("--shield-memory", type=int, default=0, help="Memory size for self-constructing shields. If 0, no memory constraint is applied.")
 @click.option("--training-iterations", type=int, default=500, help="Number of iterations for training.")
 @click.option("--episode-length", type=int, default=50, help="Maximum length of each episode.")
@@ -165,7 +166,7 @@ def set_global_seeds(seed):
 @click.option("--goal-rew", type=float, default=100.0, help="Reward value for reaching the goal state.")
 @click.option("--fail-rew", type=float, default=-100.0, help="Reward value for reaching the fail state.")
 @click.option("--seed", type=int, default=None, help="Random seed for reproducibility.")
-def main(project, nu, shield, load_agent, save_agent, agent_training, shield_memory, training_iterations, episode_length, min_episodes_per_environment, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, uniform_random_policy, eval_file, model_checking_eval, goal_rew, fail_rew, seed):
+def main(project, nu, shield, load_agent, save_agent, agent_training, deterministic_agent, shield_memory, training_iterations, episode_length, min_episodes_per_environment, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, uniform_random_policy, eval_file, model_checking_eval, goal_rew, fail_rew, seed):
     project_path = project
     project_name = os.path.basename(os.path.normpath(project_path))
     prism_path = os.path.join(project_path, "sketch.templ")
@@ -201,7 +202,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, shield_mem
         shield_folder = None
     
     if shield is not None:
-        shield_processor = ShieldProcessor(environment.action_keywords, model, nu, shield, args=args, shield_memory=shield_memory, debug=model_debug, shield_folder=shield_folder)
+        shield_processor = ShieldProcessor(environment.action_keywords, model, nu, shield, args=args, shield_memory=shield_memory, debug=model_debug, shield_folder=shield_folder, deterministic_agent=deterministic_agent)
     else:
         shield_processor = None
 
@@ -209,7 +210,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, shield_mem
         if shield is not None:
             print(f"WARNING: Loading shield and therefore ignoring the provided shield type {shield}.")
             shield_processor = None
-        shield_processor = ShieldProcessor(environment.action_keywords, model, nu, 'self-constructing-static', args=args, shield_memory=shield_memory, debug=model_debug, shield_folder=None)
+        shield_processor = ShieldProcessor(environment.action_keywords, model, nu, 'self-constructing-static', args=args, shield_memory=shield_memory, debug=model_debug, shield_folder=None, deterministic_agent=deterministic_agent)
         shield_processor.load_shield(f"trained_agents/shields/{project_name}/{load_shield}")
 
     if load_agent is not None:
@@ -251,7 +252,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, shield_mem
     # Custom simulation loop for evaluation
     if model_checking_eval:
         assert shield_processor is not None, "Shield processor must be provided for model checking evaluation."
-        actions, _ = extract_memory_less_fsc_actions(environment, policy, get_probs = True, compile_policy=compile_policy)
+        actions, _ = extract_memory_less_fsc_actions(environment, policy, get_probs = not deterministic_agent, compile_policy=compile_policy)
 
         mapped_actions = []
         state_choice_labels= []

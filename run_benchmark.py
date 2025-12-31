@@ -21,8 +21,9 @@ import itertools
 @click.option("--model-checking-eval", is_flag=True, default=False, help="Whether to perform model checking based evaluation.")
 @click.option("--goal-rew", type=float, default=100.0, help="Reward value for reaching the goal state.")
 @click.option("--fail-rew", type=float, default=0.0, help="Reward value for reaching the fail state.")
+@click.option("--deterministic-agent", is_flag=True, default=False, help="Use a deterministic agent for evaluation.")
 def main(results_file, log_file, model_path, episode_length, num_environments,
-         num_parallel_environments, agent, nu, number_of_evaluations, uniform_random_agent, model_checking_eval, goal_rew, fail_rew):
+         num_parallel_environments, agent, nu, number_of_evaluations, uniform_random_agent, model_checking_eval, goal_rew, fail_rew, deterministic_agent):
 
     # Ensure the directory for the results file exists
     results_dir = os.path.dirname(os.path.abspath(results_file))
@@ -36,15 +37,15 @@ def main(results_file, log_file, model_path, episode_length, num_environments,
     for shield_type, i in tqdm.tqdm(shield_iteration_combinations):
         
         if shield_type in ["identity", "standard", "delta", "pessimistic", "optimistic"]:
-            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {num_parallel_environments} --load-agent {agent} --shield {shield_type} --nu {nu} {'--model-checking-eval' if model_checking_eval else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --eval-file {results_file}"
+            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {num_parallel_environments} --load-agent {agent} --shield {shield_type} --nu {nu} {'--model-checking-eval' if model_checking_eval else ''} {'--deterministic-agent' if deterministic_agent else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --eval-file {results_file}"
         elif shield_type in ["self-constructing-safe"]:
-            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {max(num_parallel_environments,16)} --load-agent {agent} --shield {shield_type} --nu {nu} {'--model-checking-eval' if model_checking_eval else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --save-shield {agent+'-safe-'+str(nu).replace('.','')+'-'+str(i)} --eval-file {results_file}"
+            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {max(num_parallel_environments,16)} --load-agent {agent} --shield {shield_type} --nu {nu} {'--model-checking-eval' if model_checking_eval else ''} {'--deterministic-agent' if deterministic_agent else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --save-shield {agent+'-safe-'+str(nu).replace('.','')+'-'+str(i)} --eval-file {results_file}"
         elif shield_type in ["self-constructing-unsafe"]:
-            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {num_parallel_environments} --load-agent {agent} --shield {shield_type} --nu {nu} {'--model-checking-eval' if model_checking_eval else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --save-shield {agent+'-unsafe-'+str(nu).replace('.','')+'-'+str(i)} --eval-file {results_file}"
+            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {num_parallel_environments} --load-agent {agent} --shield {shield_type} --nu {nu} {'--model-checking-eval' if model_checking_eval else ''} {'--deterministic-agent' if deterministic_agent else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --save-shield {agent+'-unsafe-'+str(nu).replace('.','')+'-'+str(i)} --eval-file {results_file}"
         elif shield_type in ["constructed-self-constructing-safe"]:
-            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {num_parallel_environments} --load-agent {agent} --shield self-constructing-safe --nu {nu} {'--model-checking-eval' if model_checking_eval else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --load-shield {agent+'-safe-'+str(nu).replace('.','')+'-'+'0-iter-final-shield.pickle'} --eval-file {results_file}"
+            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {num_parallel_environments} --load-agent {agent} --shield self-constructing-safe --nu {nu} {'--model-checking-eval' if model_checking_eval else ''} {'--deterministic-agent' if deterministic_agent else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --load-shield {agent+'-safe-'+str(nu).replace('.','')+'-'+'0-iter-final-shield.pickle'} --eval-file {results_file}"
         elif shield_type in ["constructed-self-constructing-unsafe"]:
-            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {num_parallel_environments} --load-agent {agent} --shield self-constructing-unsafe --nu {nu} {'--model-checking-eval' if model_checking_eval else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --load-shield {agent+'-unsafe-'+str(nu).replace('.','')+'-'+'0-iter-final-shield.pickle'} --eval-file {results_file}"
+            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --num-environments {num_environments} --num-parallel-environments {num_parallel_environments} --load-agent {agent} --shield self-constructing-unsafe --nu {nu} {'--model-checking-eval' if model_checking_eval else ''} {'--deterministic-agent' if deterministic_agent else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --load-shield {agent+'-unsafe-'+str(nu).replace('.','')+'-'+'0-iter-final-shield.pickle'} --eval-file {results_file}"
 
         if uniform_random_agent:
             command += " --uniform-random-policy"
