@@ -395,6 +395,19 @@ class SelfConstructingShield(Shield):
             self.vmin_actions_distributions.append(vmin_actions_distributions)
             self.vmin_actions.append(vmin_actions)
 
+    def load_matrix_vector_from_current_distributions(self, action_distributions=None):
+        assert self.memory > 0, "This is only needed for memory bounded shields."
+
+        if action_distributions is None:
+            action_distributions = self.current_action_distributions
+
+        for state in range(self.memory_unfolded_model.nr_states):
+            original_state = self.memory_state_to_sliding_window[state][0]
+            for distr in action_distributions[state]:
+                if distr not in self.vmin_actions_distributions[original_state]:
+                    row = payntbind.synthesis.createCombinationOfRows(self.full_transition_matrix_vector[state], distr)
+                    self.current_matrix_vector[state].append(row)
+
     def point_in_convex_hull(self, hull_vertices, point, tolerance=1e-6):
         if point in hull_vertices:
             self.convex_point_max_index = hull_vertices.index(point)
@@ -450,31 +463,43 @@ class SelfConstructingShield(Shield):
 
     def correct_for_given_node(self, last_action, current_state, distribution, reset, node):
 
-        # TODO handle memory
+        assert self.memory == 0, "This is only needed for non-memory bounded shields."
 
         output_distribution = distribution
 
         if node is None:
-            all_allowed_ditributions = self.vmin_actions_distributions[current_state]
+            all_allowed_distributions = self.vmin_actions_distributions[current_state]
         else:
-            all_allowed_ditributions = self.vmin_actions_distributions[current_state] + node.distributions
+            all_allowed_distributions = self.vmin_actions_distributions[current_state] + node.distributions
 
-        if not self.point_in_convex_hull(all_allowed_ditributions, distribution):
+        if not self.point_in_convex_hull(all_allowed_distributions, distribution):
             output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
-            if self.static_shield_clamp_to_existing_distributions and output_distribution not in all_allowed_ditributions:
-                self.point_in_convex_hull(all_allowed_ditributions, output_distribution) # to get the max index
-                output_distribution = all_allowed_ditributions[self.convex_point_max_index]
-        elif self.static_shield_clamp_to_existing_distributions and output_distribution not in all_allowed_ditributions:
-            output_distribution = all_allowed_ditributions[self.convex_point_max_index]
+            if self.static_shield_clamp_to_existing_distributions and output_distribution not in all_allowed_distributions:
+                self.point_in_convex_hull(all_allowed_distributions, output_distribution) # to get the max index
+                output_distribution = all_allowed_distributions[self.convex_point_max_index]
+        elif self.static_shield_clamp_to_existing_distributions and output_distribution not in all_allowed_distributions:
+            output_distribution = all_allowed_distributions[self.convex_point_max_index]
 
-        if output_distribution in all_allowed_ditributions:
-            last_distribution_index = all_allowed_ditributions.index(output_distribution)
+        if output_distribution in all_allowed_distributions:
+            last_distribution_index = all_allowed_distributions.index(output_distribution)
         else:
             assert not self.static_shield_clamp_to_existing_distributions, "This should not happen, as the distribution was clamped to allowed distributions."
-            last_distribution_index = len(all_allowed_ditributions)
+            last_distribution_index = len(all_allowed_distributions)
 
         return output_distribution, last_distribution_index
+    
+    def correct_for_given_memory_state(self, last_action, current_state, distribution, reset, memory_state_index):
 
+        assert self.memory > 0, "This is only needed for memory bounded shields."
+
+        output_distribution = distribution
+
+        all_allowed_distributions = self.current_action_distributions[memory_state_index]
+
+        if not self.point_in_convex_hull(all_allowed_distributions, distribution):
+            output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
+
+        return output_distribution
 
     def correct(self, last_action, current_state, distribution, reset, trace_index=0):
         self.shield_calls += 1
@@ -515,24 +540,24 @@ class SelfConstructingShield(Shield):
         else:
             # check if current distribution is inside the convex set
             if self.current_nodes[trace_index] is None:
-                all_allowed_ditributions = self.vmin_actions_distributions[current_state]
+                all_allowed_distributions = self.vmin_actions_distributions[current_state]
             else:
-                all_allowed_ditributions = self.vmin_actions_distributions[current_state] + self.current_nodes[trace_index].distributions
-            if not self.point_in_convex_hull(all_allowed_ditributions, distribution):
+                all_allowed_distributions = self.vmin_actions_distributions[current_state] + self.current_nodes[trace_index].distributions
+            if not self.point_in_convex_hull(all_allowed_distributions, distribution):
                 self.blocked_actions += 1
                 output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
-                if self.static_shield_clamp_to_existing_distributions and output_distribution not in all_allowed_ditributions:
-                    self.point_in_convex_hull(all_allowed_ditributions, output_distribution) # to get the max index
-                    output_distribution = all_allowed_ditributions[self.convex_point_max_index]
-            elif self.static_shield_clamp_to_existing_distributions and output_distribution not in all_allowed_ditributions:
+                if self.static_shield_clamp_to_existing_distributions and output_distribution not in all_allowed_distributions:
+                    self.point_in_convex_hull(all_allowed_distributions, output_distribution) # to get the max index
+                    output_distribution = all_allowed_distributions[self.convex_point_max_index]
+            elif self.static_shield_clamp_to_existing_distributions and output_distribution not in all_allowed_distributions:
                 self.blocked_actions += 1
-                output_distribution = all_allowed_ditributions[self.convex_point_max_index]
+                output_distribution = all_allowed_distributions[self.convex_point_max_index]
 
-            if output_distribution in all_allowed_ditributions:
-                self.last_distribution_indices[trace_index] = all_allowed_ditributions.index(output_distribution)
+            if output_distribution in all_allowed_distributions:
+                self.last_distribution_indices[trace_index] = all_allowed_distributions.index(output_distribution)
             else:
                 assert not self.static_shield_clamp_to_existing_distributions, "This should not happen, as the distribution was clamped to allowed distributions."
-                self.last_distribution_indices[trace_index] = len(all_allowed_ditributions)
+                self.last_distribution_indices[trace_index] = len(all_allowed_distributions)
 
         return output_distribution
 
