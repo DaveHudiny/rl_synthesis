@@ -81,31 +81,31 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
 
             dtmc = payntbind.synthesis.applyRandomizedSchedulerFromTree(shield.model_info.model, shielded_state_to_actions, node_index_to_state, successor_states_to_node)
 
-        safety_result = stormpy.model_checking(dtmc, safety_formula[0])
-        full_safety_result = stormpy.model_checking(dtmc, full_safety_formula[0])
-        if "goal" in model.labeling.get_labels():
-            goal_result = stormpy.model_checking(dtmc, goal_formula[0])
-        else:
-            goal_result = None
-        if "fail" in model.labeling.get_labels():
-            fail_result = stormpy.model_checking(dtmc, fail_formula[0])
-        else:
-            fail_result = None
-        reward_result = stormpy.model_checking(dtmc, reward_formula[0])
+    safety_result = stormpy.model_checking(dtmc, safety_formula[0])
+    full_safety_result = stormpy.model_checking(dtmc, full_safety_formula[0])
+    if "goal" in model.labeling.get_labels():
+        goal_result = stormpy.model_checking(dtmc, goal_formula[0])
+    else:
+        goal_result = None
+    if "fail" in model.labeling.get_labels():
+        fail_result = stormpy.model_checking(dtmc, fail_formula[0])
+    else:
+        fail_result = None
+    reward_result = stormpy.model_checking(dtmc, reward_formula[0])
 
-        result_dict = {
-            "safety_probability": safety_result.get_values()[dtmc.initial_states[0]],
-            "full_safety_probability": full_safety_result.get_values()[dtmc.initial_states[0]],
-            "goal_reachability": goal_result.get_values()[dtmc.initial_states[0]] if goal_result is not None else 'N/A',
-            "fail_reachability": fail_result.get_values()[dtmc.initial_states[0]] if fail_result is not None else 'N/A',
-            "expected_reward": reward_result.get_values()[dtmc.initial_states[0]],
-            "actual_reward": (goal_value*goal_result.get_values()[dtmc.initial_states[0]] if goal_result is not None else 0) + (antigoal_value*fail_result.get_values()[dtmc.initial_states[0]] if fail_result is not None else 0) + reward_result.get_values()[dtmc.initial_states[0]] 
-        }
+    result_dict = {
+        "safety_probability": safety_result.get_values()[dtmc.initial_states[0]],
+        "full_safety_probability": full_safety_result.get_values()[dtmc.initial_states[0]],
+        "goal_reachability": goal_result.get_values()[dtmc.initial_states[0]] if goal_result is not None else 'N/A',
+        "fail_reachability": fail_result.get_values()[dtmc.initial_states[0]] if fail_result is not None else 'N/A',
+        "expected_reward": reward_result.get_values()[dtmc.initial_states[0]],
+        "actual_reward": (goal_value*goal_result.get_values()[dtmc.initial_states[0]] if goal_result is not None else 0) + (antigoal_value*fail_result.get_values()[dtmc.initial_states[0]] if fail_result is not None else 0) + reward_result.get_values()[dtmc.initial_states[0]] 
+    }
 
-        print(f"Safety probability from initial state: {result_dict['safety_probability']}")
-        print(f"Unbounded safety probability from initial state: {result_dict['full_safety_probability']}")
-        print(f"Goal reachability from initial state: {result_dict['goal_reachability']}")
-        print(f"Reward from initial state: {result_dict['expected_reward']}")
-        print(f"Actual reward: {result_dict['actual_reward']}")
+    print(f"Safety probability from initial state: {result_dict['safety_probability']}")
+    print(f"Unbounded safety probability from initial state: {result_dict['full_safety_probability']}")
+    print(f"Goal reachability from initial state: {result_dict['goal_reachability']}")
+    print(f"Reward from initial state: {result_dict['expected_reward']}")
+    print(f"Actual reward: {result_dict['actual_reward']}")
     
     return result_dict
