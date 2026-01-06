@@ -130,7 +130,8 @@ class ShieldProcessor:
         self.shield.initial_node = shield_data.initial_node
 
         self.shield.current_action_distributions = shield_data.current_action_distributions
-        self.shield.load_matrix_vector_from_current_distributions()
+        if self.shield.memory > 0:
+            self.shield.load_matrix_vector_from_current_distributions()
         
         print(f"Shield loaded from {path}")
     
