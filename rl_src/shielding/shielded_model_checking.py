@@ -107,5 +107,7 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
     print(f"Goal reachability from initial state: {result_dict['goal_reachability']}")
     print(f"Reward from initial state: {result_dict['expected_reward']}")
     print(f"Actual reward: {result_dict['actual_reward']}")
+
+    print(f"{result_dict['full_safety_probability']};{result_dict['actual_reward']}")
     
     return result_dict
