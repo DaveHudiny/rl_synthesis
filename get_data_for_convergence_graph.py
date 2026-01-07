@@ -45,31 +45,31 @@ def main(plot_data_file, results_file, shield_construction_type, nu, log_file, m
         if uniform_random_agent:
             command += " --uniform-random-policy"
 
-            process = subprocess.Popen(
-                command,
-                shell=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                cwd=os.path.dirname(os.path.abspath(__file__))
-            )
-            output, _ = process.communicate()
-            if log_file:
-                with open(log_file, "a") as f:
-                    f.write(output.decode())
+        process = subprocess.Popen(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        )
+        output, _ = process.communicate()
+        if log_file:
+            with open(log_file, "a") as f:
+                f.write(output.decode())
 
-            # Process the last line of the output
-            last_line = output.decode().strip().split('\n')[-1]
-            if ';' not in last_line:
-                print("Error: Output does not contain ';' in the last line.")
-            else:
-                safety, reward = [part.strip() for part in last_line.split(';', 1)]
-                
-            file_exists = os.path.exists(plot_data_file)
-            with open(plot_data_file, "a") as f:
-                if not file_exists:
-                    f.write("model;agent;shield;shield_memory;nu;iter;safety;reward\n")
-                actual_agent = "uniform-random" if uniform_random_agent else agent
-                f.write(f"{os.path.basename(os.path.normpath(model_path))};{actual_agent};{shield_type};{shield_memory};{nu};{current_iter};{safety};{reward}\n")
+        # Process the last line of the output
+        last_line = output.decode().strip().split('\n')[-1]
+        if ';' not in last_line:
+            print("Error: Output does not contain ';' in the last line.")
+        else:
+            safety, reward = [part.strip() for part in last_line.split(';', 1)]
+            
+        file_exists = os.path.exists(plot_data_file)
+        with open(plot_data_file, "a") as f:
+            if not file_exists:
+                f.write("model;agent;shield;shield_memory;nu;iter;safety;reward\n")
+            actual_agent = "uniform-random" if uniform_random_agent else agent
+            f.write(f"{os.path.basename(os.path.normpath(model_path))};{actual_agent};{shield_type};{shield_memory};{nu};{current_iter};{safety};{reward}\n")
 
 
 if __name__ == "__main__":
