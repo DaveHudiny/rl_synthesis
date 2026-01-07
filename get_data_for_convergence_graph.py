@@ -38,9 +38,9 @@ def main(plot_data_file, results_file, shield_construction_type, nu, log_file, m
     for current_iter in range(0, 256, 4):
         
         if shield_type in ["constructed-self-constructing-safe"]:
-            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --load-agent {agent} --shield self-constructing-safe --nu {nu} --model-checking-eval' {'--deterministic-agent' if deterministic_agent else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --shield-memory {shield_memory} --load-shield {agent+'-safe-'+(shield_file_name+'-' if shield_file_name != '' else '')+'mem_'+str(shield_memory)+'-'+str(nu).replace('.','')+'-'+('deterministic-' if deterministic_agent else '')+f'0-iter-{current_iter}-shield.pickle'} --eval-file {results_file}"
+            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --load-agent {agent} --shield self-constructing-safe --nu {nu} --model-checking-eval {'--deterministic-agent' if deterministic_agent else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --shield-memory {shield_memory} --load-shield {agent+'-safe-'+(shield_file_name+'-' if shield_file_name != '' else '')+'mem_'+str(shield_memory)+'-'+str(nu).replace('.','')+'-'+('deterministic-' if deterministic_agent else '')+f'0-iter-{current_iter}-shield.pickle'} --eval-file {results_file}"
         elif shield_type in ["constructed-self-constructing-unsafe"]:
-            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --load-agent {agent} --shield self-constructing-unsafe --nu {nu} --model-checking-eval' {'--deterministic-agent' if deterministic_agent else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --shield-memory {shield_memory} --load-shield {agent+'-unsafe-'+(shield_file_name+'-' if shield_file_name != '' else '')+'mem_'+str(shield_memory)+'-'+str(nu).replace('.','')+'-'+('deterministic-' if deterministic_agent else '')+f'0-iter-{current_iter}-shield.pickle'} --eval-file {results_file}"
+            command = f"python3 shielding.py {model_path} --episode-length {episode_length} --load-agent {agent} --shield self-constructing-unsafe --nu {nu} --model-checking-eval {'--deterministic-agent' if deterministic_agent else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --shield-memory {shield_memory} --load-shield {agent+'-unsafe-'+(shield_file_name+'-' if shield_file_name != '' else '')+'mem_'+str(shield_memory)+'-'+str(nu).replace('.','')+'-'+('deterministic-' if deterministic_agent else '')+f'0-iter-{current_iter}-shield.pickle'} --eval-file {results_file}"
 
         if uniform_random_agent:
             command += " --uniform-random-policy"
@@ -64,12 +64,12 @@ def main(plot_data_file, results_file, shield_construction_type, nu, log_file, m
         else:
             safety, reward = [part.strip() for part in last_line.split(';', 1)]
             
-        file_exists = os.path.exists(plot_data_file)
-        with open(plot_data_file, "a") as f:
-            if not file_exists:
-                f.write("model;agent;shield;shield_memory;nu;iter;safety;reward\n")
-            actual_agent = "uniform-random" if uniform_random_agent else agent
-            f.write(f"{os.path.basename(os.path.normpath(model_path))};{actual_agent};{shield_type};{shield_memory};{nu};{current_iter};{safety};{reward}\n")
+            file_exists = os.path.exists(plot_data_file)
+            with open(plot_data_file, "a") as f:
+                if not file_exists:
+                    f.write("model;agent;shield;shield_memory;nu;iter;safety;reward\n")
+                actual_agent = "uniform-random" if uniform_random_agent else agent
+                f.write(f"{os.path.basename(os.path.normpath(model_path))};{actual_agent};{shield_type};{shield_memory};{nu};{current_iter};{safety};{reward}\n")
 
 
 if __name__ == "__main__":
