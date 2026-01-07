@@ -35,7 +35,7 @@ def main(plot_data_file, results_file, shield_construction_type, nu, log_file, m
     else:
         raise ValueError("Invalid shield construction type.")
 
-    for current_iter in range(256, step=4):
+    for current_iter in range(0, 256, 4):
         
         if shield_type in ["constructed-self-constructing-safe"]:
             command = f"python3 shielding.py {model_path} --episode-length {episode_length} --load-agent {agent} --shield self-constructing-safe --nu {nu} --model-checking-eval' {'--deterministic-agent' if deterministic_agent else ''} --goal-rew {goal_rew} --fail-rew {fail_rew} --shield-memory {shield_memory} --load-shield {agent+'-safe-'+(shield_file_name+'-' if shield_file_name != '' else '')+'mem_'+str(shield_memory)+'-'+str(nu).replace('.','')+'-'+('deterministic-' if deterministic_agent else '')+f'0-iter-{current_iter}-shield.pickle'} --eval-file {results_file}"
