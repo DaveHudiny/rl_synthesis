@@ -19,7 +19,7 @@ def main(results_folder, shield_memory, shield_name, number_of_evaluations, shie
     # init results file
     if not os.path.exists(results_folder):
         os.makedirs(results_folder, exist_ok=True)
-    script_raw_results_path = os.path.join(results_folder, "raw_evaluation_results.csv")
+    script_raw_results_path = os.path.join(results_folder, "construction_raw_evaluation_results.csv")
     script_log_path = os.path.join(results_folder, "evaluation_log.log")
 
     # init eval parameters
