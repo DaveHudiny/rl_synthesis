@@ -36,7 +36,7 @@ def create_latex_table_data(csv_file):
         return s
 
     # Indices of shields to exclude from green coloring and bolding
-    no_green_bold_indices = [3, 5]  # optimistic, online
+    no_green_bold_indices = [3]  # optimistic, online
 
     # Group by model, agent, nu
     models = df['model'].unique()

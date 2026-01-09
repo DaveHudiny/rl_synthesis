@@ -15,7 +15,6 @@ dpm,greedy,0.01,delta,delta,0.47923245234977535,9.6930225581665
 dpm,safe,0.01,standard,standard,0.0,0.0
 dpm,safe,0.05,standard,standard,0.0,0.0
 dpm,safe,0.2,standard,standard,0.0,0.0
-corridor,greedy,0.05,identity,identity,0.125,97.04873294309972
 corridor,greedy,0.2,identity,identity,0.125,97.04873294309972
 dpm,random,0.01,standard,standard,0.0,0.0
 dpm,random,0.05,standard,standard,0.0,0.0
@@ -24,7 +23,6 @@ dpm,greedy,0.05,delta,delta,0.47923245234977535,9.6930225581665
 corridor,safe,0.01,identity,identity,0.125,80.6686687685193
 corridor,safe,0.05,identity,identity,0.125,80.6686687685193
 corridor,safe,0.2,identity,identity,0.125,80.6686687685193
-corridor,greedy,0.05,standard,standard,0.0,-50.0
 corridor,greedy,0.2,standard,standard,0.0,-50.0
 dpm,greedy,0.2,delta,delta,0.47923245234977535,9.6930225581665
 corridor,random,0.01,identity,identity,0.7328130806391683,39.94909386923147
