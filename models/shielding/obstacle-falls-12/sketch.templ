@@ -1,0 +1,67 @@
+pomdp
+
+observables
+start, ax, ay
+endobservables
+
+const int N = 12;
+const int axMAX = N-1;
+const int ayMAX = N-1;
+const int axMIN = 0;
+const int ayMIN = 0;
+const double slippery = 0.1;
+
+formula done = start & ax = axMAX & ay = ayMAX;
+observable "amdone" = done;
+formula crash =  (ax = 1 & ay = 5) | (ax = 1 & ay = 8)  | (ax = 2 & ay = 1) | (ax = 3 & ay = 7) | (ax = 3 & ay = 10) | (ax = 4 & ay = 1) | (ax = 4 & ay = 3)  | (ax = 4 & ay = 8) | (ax = 5 & ay = 5) | (ax = 6 & ay = 1) | (ax = 6 & ay = 3) | (ax = 6 & ay = 5)  | (ax = 6 & ay = 6) | (ax = 6 & ay = 10) | (ax = 8 & ay = 1) | (ax = 8 & ay = 3) | (ax = 8 & ay = 5)  | (ax = 8 & ay = 7) | (ax = 10 & ay = 1) | (ax = 10 & ay = 3) | (ax = 10 & ay = 5) | (ax = 10 & ay = 7) | (ax = 10 & ay = 9) | (ax = 11 & ay = 0);
+observable "hascrash" = crash;
+
+formula fall = (ax = 0 & ay = 11);
+const double fallSlip = 0.99;
+
+module master
+    start : bool init false;
+
+    [placement] !start -> (start'=true);
+    [north] start & !done -> true;
+    [south] start  & !done -> true;
+    [east] start  & !done-> true;
+    [west] start & !done -> true;
+
+endmodule
+
+
+module robot
+    ax : [axMIN..axMAX] init 0;
+    ay : [ayMIN..ayMAX] init 0;
+
+    [placement] true ->  1: (ax'=0) & (ay'=0);
+
+    [west]   ax >= ay -> (1-2*slippery): (ax'=max(ax-1,axMIN)) + slippery: (ay'=min(ay+1,ayMAX)) + slippery: (ay'=max(ay-1,ayMIN));
+    [east]   ax >= ay -> (1-2*slippery): (ax'=min(ax+1,axMAX)) + slippery: (ay'=min(ay+1,ayMAX)) + slippery: (ay'=max(ay-1,ayMIN));
+    [south]  ax >= ay -> (1-2*slippery): (ay'=min(ay+1,ayMAX)) + slippery: (ax'=min(ax+1,axMAX)) + slippery: (ax'=max(ax-1,axMIN));
+    [north]  ax >= ay -> (1-2*slippery): (ay'=max(ay-1,ayMIN)) + slippery: (ax'=min(ax+1,axMAX)) + slippery: (ax'=max(ax-1,axMIN));
+
+    [west]   fall -> (1-fallSlip): (ax'=max(ax-1,axMIN)) + fallSlip: true;
+    [east]   fall -> (1-fallSlip): (ax'=min(ax+1,axMAX)) + fallSlip: true;
+    [south]  fall -> (1-fallSlip): (ay'=min(ay+1,ayMAX)) + fallSlip: true;
+    [north]  fall -> (1-fallSlip): (ay'=max(ay-1,ayMIN)) + fallSlip: true;
+
+    [west]   ax < ay & !fall -> (1-2*slippery-3*((ay-ax)*0.01)): (ax'=max(ax-1,axMIN)) + slippery+(ay-ax)*0.01: (ay'=min(ay+1,ayMAX)) + slippery+(ay-ax)*0.01: (ay'=max(ay-1,ayMIN)) + (ay-ax)*0.01: (ax'=min(ax+1,axMAX));
+    [east]   ax < ay & !fall -> (1-2*slippery-3*((ay-ax)*0.01)): (ax'=min(ax+1,axMAX)) + slippery+(ay-ax)*0.01: (ay'=min(ay+1,ayMAX)) + slippery+(ay-ax)*0.01: (ay'=max(ay-1,ayMIN)) + (ay-ax)*0.01: (ax'=max(ax-1,axMIN));
+    [south]  ax < ay & !fall -> (1-2*slippery-3*((ay-ax)*0.01)): (ay'=min(ay+1,ayMAX)) + slippery+(ay-ax)*0.01: (ax'=min(ax+1,axMAX)) + slippery+(ay-ax)*0.01: (ax'=max(ax-1,axMIN)) + (ay-ax)*0.01: (ay'=max(ay-1,ayMIN));
+    [north]  ax < ay & !fall -> (1-2*slippery-3*((ay-ax)*0.01)): (ay'=max(ay-1,ayMIN)) + slippery+(ay-ax)*0.01: (ax'=min(ax+1,axMAX)) + slippery+(ay-ax)*0.01: (ax'=max(ax-1,axMIN)) + (ay-ax)*0.01: (ay'=min(ay+1,ayMAX));
+endmodule
+
+
+label "goal" = done;
+label "bad" = crash | fall;
+
+rewards "rews"
+    [north] true : -1;
+    [south] true : -1;
+    [west] true : -1;
+    [east] true : -1;
+    //crash = true:100; 
+endrewards
+

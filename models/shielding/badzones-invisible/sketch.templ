@@ -1,0 +1,382 @@
+// Grid Prism Model Generated from Input File
+// Dimensions: 7 x 7
+
+// 6 | B B T T T T G 
+// 5 | B c T T V c T 
+// 4 | B B T T C V T 
+// 3 | . T T b T T T 
+// 2 | T T b T T T T 
+// 1 | T T T T V C V 
+// 0 | S T T . V V V 
+// y ---------------
+//   x 0 1 2 3 4 5 6 
+
+// . : CELL, S : START, G : GOAL, + : SLIP_ALL_DIRECTIONS, T : SLIP_SIDES, R : SLIP_RIGHT, L : SLIP_LEFT, C : COLLECTIBLE, c : COLLECTIBLE_SLIP, H : HAZARDOUS_COLLECTIBLE, h : HAZARDOUS_COLLECTIBLE_SLIP, W : WEAK_SIGNAL, D : DEADZONE, F : FAILURE, B : BAD_ZONE, b : BAD_ZONE_SLIP, V : BAD_DEADZONE, - : WALL
+
+
+pomdp
+
+observables
+x, y, failed, collected_5_1, collected_4_4, collected_1_5, collected_5_5
+endobservables
+
+// grid dimensions
+const int MAX_X = 6;
+const int MIN_X = 0;
+const int MAX_Y = 6;
+const int MIN_Y = 0;
+
+// slip probability
+const double SLIP_PROB = 0.1;
+const double WEAK_SIGNAL_PROB = 0.9;
+const double DEADZONE_PROB = 0.1;
+const double HAZARDOUS_COLLECTIBLE_FAILURE_PROB = 0.2;
+
+// macros enconding whether movement in a direction is possible
+formula u = (x=0 & y=0) | (x=1 & y=0) | (x=2 & y=0) | (x=3 & y=0) | (x=4 & y=0) | (x=5 & y=0) | (x=6 & y=0) | (x=0 & y=1) | (x=1 & y=1) | (x=2 & y=1) | (x=3 & y=1) | (x=4 & y=1) | (x=5 & y=1) | (x=6 & y=1) | (x=0 & y=2) | (x=1 & y=2) | (x=2 & y=2) | (x=3 & y=2) | (x=4 & y=2) | (x=5 & y=2) | (x=6 & y=2) | (x=0 & y=3) | (x=1 & y=3) | (x=2 & y=3) | (x=3 & y=3) | (x=4 & y=3) | (x=5 & y=3) | (x=6 & y=3) | (x=0 & y=4) | (x=1 & y=4) | (x=2 & y=4) | (x=3 & y=4) | (x=4 & y=4) | (x=5 & y=4) | (x=6 & y=4) | (x=0 & y=5) | (x=1 & y=5) | (x=2 & y=5) | (x=3 & y=5) | (x=4 & y=5) | (x=5 & y=5) | (x=6 & y=5);
+formula d = (x=0 & y=1) | (x=1 & y=1) | (x=2 & y=1) | (x=3 & y=1) | (x=4 & y=1) | (x=5 & y=1) | (x=6 & y=1) | (x=0 & y=2) | (x=1 & y=2) | (x=2 & y=2) | (x=3 & y=2) | (x=4 & y=2) | (x=5 & y=2) | (x=6 & y=2) | (x=0 & y=3) | (x=1 & y=3) | (x=2 & y=3) | (x=3 & y=3) | (x=4 & y=3) | (x=5 & y=3) | (x=6 & y=3) | (x=0 & y=4) | (x=1 & y=4) | (x=2 & y=4) | (x=3 & y=4) | (x=4 & y=4) | (x=5 & y=4) | (x=6 & y=4) | (x=0 & y=5) | (x=1 & y=5) | (x=2 & y=5) | (x=3 & y=5) | (x=4 & y=5) | (x=5 & y=5) | (x=6 & y=5) | (x=0 & y=6) | (x=1 & y=6) | (x=2 & y=6) | (x=3 & y=6) | (x=4 & y=6) | (x=5 & y=6) | (x=6 & y=6);
+formula r = (x=0 & y=0) | (x=1 & y=0) | (x=2 & y=0) | (x=3 & y=0) | (x=4 & y=0) | (x=5 & y=0) | (x=0 & y=1) | (x=1 & y=1) | (x=2 & y=1) | (x=3 & y=1) | (x=4 & y=1) | (x=5 & y=1) | (x=0 & y=2) | (x=1 & y=2) | (x=2 & y=2) | (x=3 & y=2) | (x=4 & y=2) | (x=5 & y=2) | (x=0 & y=3) | (x=1 & y=3) | (x=2 & y=3) | (x=3 & y=3) | (x=4 & y=3) | (x=5 & y=3) | (x=0 & y=4) | (x=1 & y=4) | (x=2 & y=4) | (x=3 & y=4) | (x=4 & y=4) | (x=5 & y=4) | (x=0 & y=5) | (x=1 & y=5) | (x=2 & y=5) | (x=3 & y=5) | (x=4 & y=5) | (x=5 & y=5) | (x=0 & y=6) | (x=1 & y=6) | (x=2 & y=6) | (x=3 & y=6) | (x=4 & y=6) | (x=5 & y=6);
+formula l = (x=1 & y=0) | (x=2 & y=0) | (x=3 & y=0) | (x=4 & y=0) | (x=5 & y=0) | (x=6 & y=0) | (x=1 & y=1) | (x=2 & y=1) | (x=3 & y=1) | (x=4 & y=1) | (x=5 & y=1) | (x=6 & y=1) | (x=1 & y=2) | (x=2 & y=2) | (x=3 & y=2) | (x=4 & y=2) | (x=5 & y=2) | (x=6 & y=2) | (x=1 & y=3) | (x=2 & y=3) | (x=3 & y=3) | (x=4 & y=3) | (x=5 & y=3) | (x=6 & y=3) | (x=1 & y=4) | (x=2 & y=4) | (x=3 & y=4) | (x=4 & y=4) | (x=5 & y=4) | (x=6 & y=4) | (x=1 & y=5) | (x=2 & y=5) | (x=3 & y=5) | (x=4 & y=5) | (x=5 & y=5) | (x=6 & y=5) | (x=1 & y=6) | (x=2 & y=6) | (x=3 & y=6) | (x=4 & y=6) | (x=5 & y=6) | (x=6 & y=6);
+
+// macros enconding movement or bumping into a wall
+formula yu = u ? (y+1) : y;
+formula yd = d ? (y-1) : y;
+formula xr = r ? (x+1) : x;
+formula xl = l ? (x-1) : x;
+
+formula at_goal = (x=6 & y=6);
+formula crashed = false;
+label "goal" = at_goal;
+label "bad" = crashed | failed | (x=4 & y=0) | (x=5 & y=0) | (x=6 & y=0) | (x=4 & y=1) | (x=6 & y=1) | (x=2 & y=2) | (x=3 & y=3) | (x=0 & y=4) | (x=1 & y=4) | (x=5 & y=4) | (x=0 & y=5) | (x=4 & y=5) | (x=0 & y=6) | (x=1 & y=6);
+
+module grid
+
+  x : [0..6] init 0;
+  y : [0..6] init 0;
+  failed : bool init false;
+  collected_5_1 : bool init false;
+  collected_4_4 : bool init false;
+  collected_1_5 : bool init false;
+  collected_5_5 : bool init false;
+
+  // actions: u - up, d - down, r - right, l - left, c - collect
+
+  [u] (x=0 & y=0 & !failed) -> 1.0 : (y'=yu);
+  [d] (x=0 & y=0 & !failed) -> 1.0 : (y'=yd);
+  [r] (x=0 & y=0 & !failed) -> 1.0 : (x'=xr);
+  [l] (x=0 & y=0 & !failed) -> 1.0 : (x'=xl);
+  [c] (x=0 & y=0 & !failed) -> 1.0 : true;
+
+  [u] (x=1 & y=0 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=1 & y=0 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=1 & y=0 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=1 & y=0 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=1 & y=0 & !failed) -> 1.0 : true;
+
+  [u] (x=2 & y=0 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=2 & y=0 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=2 & y=0 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=2 & y=0 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=2 & y=0 & !failed) -> 1.0 : true;
+
+  [u] (x=3 & y=0 & !failed) -> 1.0 : (y'=yu);
+  [d] (x=3 & y=0 & !failed) -> 1.0 : (y'=yd);
+  [r] (x=3 & y=0 & !failed) -> 1.0 : (x'=xr);
+  [l] (x=3 & y=0 & !failed) -> 1.0 : (x'=xl);
+  [c] (x=3 & y=0 & !failed) -> 1.0 : true;
+
+  [u] (x=4 & y=0 & !failed) -> 1.0-DEADZONE_PROB : (y'=yu) + DEADZONE_PROB : (failed'=true);
+  [d] (x=4 & y=0 & !failed) -> 1.0-DEADZONE_PROB : (y'=yd) + DEADZONE_PROB : (failed'=true);
+  [r] (x=4 & y=0 & !failed) -> 1.0-DEADZONE_PROB : (x'=xr) + DEADZONE_PROB : (failed'=true);
+  [l] (x=4 & y=0 & !failed) -> 1.0-DEADZONE_PROB : (x'=xl) + DEADZONE_PROB : (failed'=true);
+  [c] (x=4 & y=0 & !failed) -> 1.0 : true;
+
+  [u] (x=5 & y=0 & !failed) -> 1.0-DEADZONE_PROB : (y'=yu) + DEADZONE_PROB : (failed'=true);
+  [d] (x=5 & y=0 & !failed) -> 1.0-DEADZONE_PROB : (y'=yd) + DEADZONE_PROB : (failed'=true);
+  [r] (x=5 & y=0 & !failed) -> 1.0-DEADZONE_PROB : (x'=xr) + DEADZONE_PROB : (failed'=true);
+  [l] (x=5 & y=0 & !failed) -> 1.0-DEADZONE_PROB : (x'=xl) + DEADZONE_PROB : (failed'=true);
+  [c] (x=5 & y=0 & !failed) -> 1.0 : true;
+
+  [u] (x=6 & y=0 & !failed) -> 1.0-DEADZONE_PROB : (y'=yu) + DEADZONE_PROB : (failed'=true);
+  [d] (x=6 & y=0 & !failed) -> 1.0-DEADZONE_PROB : (y'=yd) + DEADZONE_PROB : (failed'=true);
+  [r] (x=6 & y=0 & !failed) -> 1.0-DEADZONE_PROB : (x'=xr) + DEADZONE_PROB : (failed'=true);
+  [l] (x=6 & y=0 & !failed) -> 1.0-DEADZONE_PROB : (x'=xl) + DEADZONE_PROB : (failed'=true);
+  [c] (x=6 & y=0 & !failed) -> 1.0 : true;
+
+  [u] (x=0 & y=1 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=0 & y=1 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=0 & y=1 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=0 & y=1 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=0 & y=1 & !failed) -> 1.0 : true;
+
+  [u] (x=1 & y=1 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=1 & y=1 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=1 & y=1 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=1 & y=1 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=1 & y=1 & !failed) -> 1.0 : true;
+
+  [u] (x=2 & y=1 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=2 & y=1 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=2 & y=1 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=2 & y=1 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=2 & y=1 & !failed) -> 1.0 : true;
+
+  [u] (x=3 & y=1 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=3 & y=1 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=3 & y=1 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=3 & y=1 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=3 & y=1 & !failed) -> 1.0 : true;
+
+  [u] (x=4 & y=1 & !failed) -> 1.0-DEADZONE_PROB : (y'=yu) + DEADZONE_PROB : (failed'=true);
+  [d] (x=4 & y=1 & !failed) -> 1.0-DEADZONE_PROB : (y'=yd) + DEADZONE_PROB : (failed'=true);
+  [r] (x=4 & y=1 & !failed) -> 1.0-DEADZONE_PROB : (x'=xr) + DEADZONE_PROB : (failed'=true);
+  [l] (x=4 & y=1 & !failed) -> 1.0-DEADZONE_PROB : (x'=xl) + DEADZONE_PROB : (failed'=true);
+  [c] (x=4 & y=1 & !failed) -> 1.0 : true;
+
+  [u] (x=5 & y=1 & !failed) -> 1.0 : (y'=yu);
+  [d] (x=5 & y=1 & !failed) -> 1.0 : (y'=yd);
+  [r] (x=5 & y=1 & !failed) -> 1.0 : (x'=xr);
+  [l] (x=5 & y=1 & !failed) -> 1.0 : (x'=xl);
+  [c] (x=5 & y=1 & !failed & !collected_5_1) -> 1.0 : (collected_5_1'=true);
+  [c] (x=5 & y=1 & !failed & collected_5_1) -> 1.0 : true;
+
+  [u] (x=6 & y=1 & !failed) -> 1.0-DEADZONE_PROB : (y'=yu) + DEADZONE_PROB : (failed'=true);
+  [d] (x=6 & y=1 & !failed) -> 1.0-DEADZONE_PROB : (y'=yd) + DEADZONE_PROB : (failed'=true);
+  [r] (x=6 & y=1 & !failed) -> 1.0-DEADZONE_PROB : (x'=xr) + DEADZONE_PROB : (failed'=true);
+  [l] (x=6 & y=1 & !failed) -> 1.0-DEADZONE_PROB : (x'=xl) + DEADZONE_PROB : (failed'=true);
+  [c] (x=6 & y=1 & !failed) -> 1.0 : true;
+
+  [u] (x=0 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=0 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=0 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=0 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=0 & y=2 & !failed) -> 1.0 : true;
+
+  [u] (x=1 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=1 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=1 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=1 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=1 & y=2 & !failed) -> 1.0 : true;
+
+  [u] (x=2 & y=2 & !failed) -> 1.0-(SLIP_PROB*3) : (y'=yu) + SLIP_PROB : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=2 & y=2 & !failed) -> 1.0-(SLIP_PROB*3) : (y'=yd) + SLIP_PROB : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=2 & y=2 & !failed) -> 1.0-(SLIP_PROB*3) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd) + SLIP_PROB : (x'=xl);
+  [l] (x=2 & y=2 & !failed) -> 1.0-(SLIP_PROB*3) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd) + SLIP_PROB : (x'=xr);
+  [c] (x=2 & y=2 & !failed) -> 1.0 : true;
+
+  [u] (x=3 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=3 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=3 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=3 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=3 & y=2 & !failed) -> 1.0 : true;
+
+  [u] (x=4 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=4 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=4 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=4 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=4 & y=2 & !failed) -> 1.0 : true;
+
+  [u] (x=5 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=5 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=5 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=5 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=5 & y=2 & !failed) -> 1.0 : true;
+
+  [u] (x=6 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=6 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=6 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=6 & y=2 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=6 & y=2 & !failed) -> 1.0 : true;
+
+  [u] (x=0 & y=3 & !failed) -> 1.0 : (y'=yu);
+  [d] (x=0 & y=3 & !failed) -> 1.0 : (y'=yd);
+  [r] (x=0 & y=3 & !failed) -> 1.0 : (x'=xr);
+  [l] (x=0 & y=3 & !failed) -> 1.0 : (x'=xl);
+  [c] (x=0 & y=3 & !failed) -> 1.0 : true;
+
+  [u] (x=1 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=1 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=1 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=1 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=1 & y=3 & !failed) -> 1.0 : true;
+
+  [u] (x=2 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=2 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=2 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=2 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=2 & y=3 & !failed) -> 1.0 : true;
+
+  [u] (x=3 & y=3 & !failed) -> 1.0-(SLIP_PROB*3) : (y'=yu) + SLIP_PROB : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=3 & y=3 & !failed) -> 1.0-(SLIP_PROB*3) : (y'=yd) + SLIP_PROB : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=3 & y=3 & !failed) -> 1.0-(SLIP_PROB*3) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd) + SLIP_PROB : (x'=xl);
+  [l] (x=3 & y=3 & !failed) -> 1.0-(SLIP_PROB*3) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd) + SLIP_PROB : (x'=xr);
+  [c] (x=3 & y=3 & !failed) -> 1.0 : true;
+
+  [u] (x=4 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=4 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=4 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=4 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=4 & y=3 & !failed) -> 1.0 : true;
+
+  [u] (x=5 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=5 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=5 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=5 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=5 & y=3 & !failed) -> 1.0 : true;
+
+  [u] (x=6 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=6 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=6 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=6 & y=3 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=6 & y=3 & !failed) -> 1.0 : true;
+
+  [u] (x=0 & y=4 & !failed) -> 1.0 : (y'=yu);
+  [d] (x=0 & y=4 & !failed) -> 1.0 : (y'=yd);
+  [r] (x=0 & y=4 & !failed) -> 1.0 : (x'=xr);
+  [l] (x=0 & y=4 & !failed) -> 1.0 : (x'=xl);
+  [c] (x=0 & y=4 & !failed) -> 1.0 : true;
+
+  [u] (x=1 & y=4 & !failed) -> 1.0 : (y'=yu);
+  [d] (x=1 & y=4 & !failed) -> 1.0 : (y'=yd);
+  [r] (x=1 & y=4 & !failed) -> 1.0 : (x'=xr);
+  [l] (x=1 & y=4 & !failed) -> 1.0 : (x'=xl);
+  [c] (x=1 & y=4 & !failed) -> 1.0 : true;
+
+  [u] (x=2 & y=4 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=2 & y=4 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=2 & y=4 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=2 & y=4 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=2 & y=4 & !failed) -> 1.0 : true;
+
+  [u] (x=3 & y=4 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=3 & y=4 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=3 & y=4 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=3 & y=4 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=3 & y=4 & !failed) -> 1.0 : true;
+
+  [u] (x=4 & y=4 & !failed) -> 1.0 : (y'=yu);
+  [d] (x=4 & y=4 & !failed) -> 1.0 : (y'=yd);
+  [r] (x=4 & y=4 & !failed) -> 1.0 : (x'=xr);
+  [l] (x=4 & y=4 & !failed) -> 1.0 : (x'=xl);
+  [c] (x=4 & y=4 & !failed & !collected_4_4) -> 1.0 : (collected_4_4'=true);
+  [c] (x=4 & y=4 & !failed & collected_4_4) -> 1.0 : true;
+
+  [u] (x=5 & y=4 & !failed) -> 1.0-DEADZONE_PROB : (y'=yu) + DEADZONE_PROB : (failed'=true);
+  [d] (x=5 & y=4 & !failed) -> 1.0-DEADZONE_PROB : (y'=yd) + DEADZONE_PROB : (failed'=true);
+  [r] (x=5 & y=4 & !failed) -> 1.0-DEADZONE_PROB : (x'=xr) + DEADZONE_PROB : (failed'=true);
+  [l] (x=5 & y=4 & !failed) -> 1.0-DEADZONE_PROB : (x'=xl) + DEADZONE_PROB : (failed'=true);
+  [c] (x=5 & y=4 & !failed) -> 1.0 : true;
+
+  [u] (x=6 & y=4 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=6 & y=4 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=6 & y=4 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=6 & y=4 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=6 & y=4 & !failed) -> 1.0 : true;
+
+  [u] (x=0 & y=5 & !failed) -> 1.0 : (y'=yu);
+  [d] (x=0 & y=5 & !failed) -> 1.0 : (y'=yd);
+  [r] (x=0 & y=5 & !failed) -> 1.0 : (x'=xr);
+  [l] (x=0 & y=5 & !failed) -> 1.0 : (x'=xl);
+  [c] (x=0 & y=5 & !failed) -> 1.0 : true;
+
+  [u] (x=1 & y=5 & !failed) -> 1.0-(SLIP_PROB*3) : (y'=yu) + SLIP_PROB : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=1 & y=5 & !failed) -> 1.0-(SLIP_PROB*3) : (y'=yd) + SLIP_PROB : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=1 & y=5 & !failed) -> 1.0-(SLIP_PROB*3) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd) + SLIP_PROB : (x'=xl);
+  [l] (x=1 & y=5 & !failed) -> 1.0-(SLIP_PROB*3) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd) + SLIP_PROB : (x'=xr);
+  [c] (x=1 & y=5 & !failed & !collected_1_5) -> 1.0 : (collected_1_5'=true);
+  [c] (x=1 & y=5 & !failed & collected_1_5) -> 1.0 : true;
+
+  [u] (x=2 & y=5 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=2 & y=5 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=2 & y=5 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=2 & y=5 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=2 & y=5 & !failed) -> 1.0 : true;
+
+  [u] (x=3 & y=5 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=3 & y=5 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=3 & y=5 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=3 & y=5 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=3 & y=5 & !failed) -> 1.0 : true;
+
+  [u] (x=4 & y=5 & !failed) -> 1.0-DEADZONE_PROB : (y'=yu) + DEADZONE_PROB : (failed'=true);
+  [d] (x=4 & y=5 & !failed) -> 1.0-DEADZONE_PROB : (y'=yd) + DEADZONE_PROB : (failed'=true);
+  [r] (x=4 & y=5 & !failed) -> 1.0-DEADZONE_PROB : (x'=xr) + DEADZONE_PROB : (failed'=true);
+  [l] (x=4 & y=5 & !failed) -> 1.0-DEADZONE_PROB : (x'=xl) + DEADZONE_PROB : (failed'=true);
+  [c] (x=4 & y=5 & !failed) -> 1.0 : true;
+
+  [u] (x=5 & y=5 & !failed) -> 1.0-(SLIP_PROB*3) : (y'=yu) + SLIP_PROB : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=5 & y=5 & !failed) -> 1.0-(SLIP_PROB*3) : (y'=yd) + SLIP_PROB : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=5 & y=5 & !failed) -> 1.0-(SLIP_PROB*3) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd) + SLIP_PROB : (x'=xl);
+  [l] (x=5 & y=5 & !failed) -> 1.0-(SLIP_PROB*3) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd) + SLIP_PROB : (x'=xr);
+  [c] (x=5 & y=5 & !failed & !collected_5_5) -> 1.0 : (collected_5_5'=true);
+  [c] (x=5 & y=5 & !failed & collected_5_5) -> 1.0 : true;
+
+  [u] (x=6 & y=5 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=6 & y=5 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=6 & y=5 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=6 & y=5 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=6 & y=5 & !failed) -> 1.0 : true;
+
+  [u] (x=0 & y=6 & !failed) -> 1.0 : (y'=yu);
+  [d] (x=0 & y=6 & !failed) -> 1.0 : (y'=yd);
+  [r] (x=0 & y=6 & !failed) -> 1.0 : (x'=xr);
+  [l] (x=0 & y=6 & !failed) -> 1.0 : (x'=xl);
+  [c] (x=0 & y=6 & !failed) -> 1.0 : true;
+
+  [u] (x=1 & y=6 & !failed) -> 1.0 : (y'=yu);
+  [d] (x=1 & y=6 & !failed) -> 1.0 : (y'=yd);
+  [r] (x=1 & y=6 & !failed) -> 1.0 : (x'=xr);
+  [l] (x=1 & y=6 & !failed) -> 1.0 : (x'=xl);
+  [c] (x=1 & y=6 & !failed) -> 1.0 : true;
+
+  [u] (x=2 & y=6 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=2 & y=6 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=2 & y=6 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=2 & y=6 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=2 & y=6 & !failed) -> 1.0 : true;
+
+  [u] (x=3 & y=6 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=3 & y=6 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=3 & y=6 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=3 & y=6 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=3 & y=6 & !failed) -> 1.0 : true;
+
+  [u] (x=4 & y=6 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=4 & y=6 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=4 & y=6 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=4 & y=6 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=4 & y=6 & !failed) -> 1.0 : true;
+
+  [u] (x=5 & y=6 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yu) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [d] (x=5 & y=6 & !failed) -> 1.0-(SLIP_PROB*2) : (y'=yd) + SLIP_PROB : (x'=xr) + SLIP_PROB : (x'=xl);
+  [r] (x=5 & y=6 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xr) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [l] (x=5 & y=6 & !failed) -> 1.0-(SLIP_PROB*2) : (x'=xl) + SLIP_PROB : (y'=yu) + SLIP_PROB : (y'=yd);
+  [c] (x=5 & y=6 & !failed) -> 1.0 : true;
+
+  [u] (x=6 & y=6 & !failed) -> 1.0 : (y'=yu);
+  [d] (x=6 & y=6 & !failed) -> 1.0 : (y'=yd);
+  [r] (x=6 & y=6 & !failed) -> 1.0 : (x'=xr);
+  [l] (x=6 & y=6 & !failed) -> 1.0 : (x'=xl);
+  [c] (x=6 & y=6 & !failed) -> 1.0 : true;
+
+  [u] failed -> 1.0 : true;
+  [d] failed -> 1.0 : true;
+  [r] failed -> 1.0 : true;
+  [l] failed -> 1.0 : true;
+  [c] failed -> 1.0 : true;
+
+endmodule
+
+rewards "rews"
+  [u] true : -1;
+  [d] true : -1;
+  [r] true : -1;
+  [l] true : -1;
+  [c] (x=5 & y=1 & !failed & !collected_5_1) : 10;
+  [c] (x=4 & y=4 & !failed & !collected_4_4) : 10;
+  [c] (x=1 & y=5 & !failed & !collected_1_5) : 10;
+  [c] (x=5 & y=5 & !failed & !collected_5_5) : 10;
+  [c] !(x=5 & y=1 & !failed & !collected_5_1) & !(x=4 & y=4 & !failed & !collected_4_4) & !(x=1 & y=5 & !failed & !collected_1_5) & !(x=5 & y=5 & !failed & !collected_5_5) : -1;
+endrewards
+
+

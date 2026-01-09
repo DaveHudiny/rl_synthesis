@@ -1,0 +1,156 @@
+pomdp
+
+// timing:
+// tick-0:
+//     a request (if any) is stored into queue
+//     service requester resets its request
+//     service provider mode is selected (pm)
+// tick-1:
+//     service provider (if active) consumes a request (if any)
+//     service provider changes its state
+//     service requester may produce a request
+//     battery depletes
+
+observables
+c, pm, request, sp, q, lost, bat
+endobservables
+
+
+// clock
+
+module CLOCK
+    c : [0..1] init 0;
+    [pm0] c=0 -> (c'=1);
+    [pm1] c=0 -> (c'=1);
+    [pm2] c=0 -> (c'=1);
+    [serve] c=1 -> (c'=0);
+
+    [loop] bat=0 | bat=2 -> true;
+endmodule
+
+
+// power manager
+
+module power_manager
+    pm  :  [0..2] init 0; // 0 - sleep, 1 - idle, 2 - active
+    [pm0] bat=1 -> (pm'=0);
+    [pm1] bat=1 -> (pm'=1);
+    [pm2] bat=1 -> (pm'=2); 
+
+    [loop] bat=0 | bat=2 -> true;
+endmodule
+
+
+// service requester
+
+// probability that a request is generated
+const double pr = 0.5;
+module service_requester
+    request : bool init false;
+    
+    [pm0] bat=1 -> 1: (request'=false);
+    [pm1] bat=1 -> 1: (request'=false);
+    [pm2] bat=1 -> 1: (request'=false);
+
+    [serve] true -> pr: (request'=true) + 1-pr: true;
+
+    [loop] bat=0 | bat=2 -> true;
+
+endmodule
+
+// service provider
+
+// mode transition probabilities
+const double tp1 = 0.9;
+const double tp2 = 0.9;
+
+formula sp_active = sp=2;
+
+module service_provider
+    sp : [0..4] init 0;
+    // 0 - sleep, 1 - idle, 2 - active
+    // waiting states: 3 - sleep to idle, 4 - idle to active
+
+    // immediate transitions - change to lower-energy (or same) state
+    [serve] sp <= 2 & pm <= sp -> (sp'=pm);
+
+    // transitions through waiting states - change to higher-energy state (sleep to idle or idle to active)
+    [serve] sp <= 2 & pm > sp -> (sp'=sp+3);
+
+    // waiting states
+    [serve] sp = 3 -> tp1 : (sp'=sp-2) + 1-tp1 : true;
+    [serve] sp = 4 -> tp2 : (sp'=sp-2) + 1-tp2 : true;
+
+    [loop] bat=0 | bat=2 -> true;
+
+endmodule
+
+
+
+
+// service request queue
+
+// queue size
+const int qmax = 20;
+formula qfull = (q = qmax);
+
+
+// initial queue size
+const int q_init = 0;
+const int max_lost = 0;
+
+module SRQ
+    q : [0..qmax] init q_init;
+    // lost requests counter
+    lost : [0..max_lost] init 0;
+
+    [pm0] !request -> true;
+    [pm1] !request -> true;
+    [pm2] !request -> true;
+
+    // request stored
+    [pm0] request & !qfull -> (q'=q+1);
+    [pm1] request & !qfull -> (q'=q+1);
+    [pm2] request & !qfull -> (q'=q+1);
+
+    // request lost (and counted)
+    [pm0] request &  qfull -> (lost'=min(lost+1,max_lost));
+    [pm1] request &  qfull -> (lost'=min(lost+1,max_lost));
+    [pm2] request &  qfull -> (lost'=min(lost+1,max_lost));
+
+    [serve]  sp_active -> (q'=max(q-1,0)); // serve
+    [serve] !sp_active -> true;
+
+    [loop] bat=0 | bat=2 -> true;
+
+endmodule
+
+
+// battery
+
+const double p_drain = 0.01;
+const double p_fail = 0.01;
+
+formula bat_drained = bat=0;
+formula bat_ok      = bat=1;
+formula bat_failed  = bat=2;
+
+module battery
+    bat : [0..2] init 1; // 0 empty, 1 - operational, 2 - failed
+    [serve] bat_drained | bat_failed -> true;
+    [serve] bat_ok & !sp_active -> p_drain : (bat'=0) + 1-p_drain : true;
+    [serve] bat_ok &  sp_active -> p_drain : (bat'=0) + p_fail : (bat'=2) + (1-p_drain-p_fail) : true;
+
+    [loop] bat=0 | bat=2 -> true;
+endmodule
+
+rewards "rews"
+  [serve] sp_active & q>0 : 1;
+endrewards
+
+formula fail = bat_failed;
+formula goal = bat_drained;
+formula bat_done = goal;
+
+label "bad" = bat_failed;
+//label "goal" = bat_drained;

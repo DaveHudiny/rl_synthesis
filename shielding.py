@@ -364,6 +364,8 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
                 else:
                     f.write(";\n")
 
+        print(f"{eval_result['average_bad_outcome_prob']};{eval_result['virtual_returns']}")
+
 
 if __name__ == "__main__":
     main()
