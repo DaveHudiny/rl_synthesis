@@ -20,7 +20,7 @@ def main(results_folder, shield_memory, shield_name, number_of_evaluations, shie
     if not os.path.exists(results_folder):
         os.makedirs(results_folder, exist_ok=True)
     script_raw_results_path = os.path.join(results_folder, "construction_raw_evaluation_results.csv")
-    script_log_path = os.path.join(results_folder, "evaluation_log.log")
+    script_log_path = os.path.join(results_folder, "construction_evaluation_log.log")
 
     # init eval parameters
     models = {'dpm' : 'models/shielding/dpm', 'corridor' : 'models/shielding/test-corridor', 'drone' : 'models/shielding/slippy-drone'} # USED FOR GENERATING COMMAND
