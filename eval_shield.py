@@ -51,7 +51,7 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
               'corridor' : {'greedy' : 'greedy-iter-100  --deterministic-agent', 'safe' : 'safe-iter-4000  --deterministic-agent', 'random' : 'random --uniform-random-policy'},
               'drone' : {'greedy' : 'greedy-iter-4000 --deterministic-agent', 'safe' : 'safe-iter-1000 --deterministic-agent', 'random' : 'random --uniform-random-policy'}} # USED FOR GENERATING COMMAND
     nus = {'dpm' : [0.01, 0.05, 0.2], 'corridor' : [0.01, 0.05, 0.2], 'drone' : [0.05, 0.1, 0.2]} # USED FOR GENERATING COMMAND
-    model_settings = {'dpm' : '--goal-rew 0.0', 'corridor' : '', 'drone' : ''} # USED FOR GENERATING COMMAND
+    model_settings = {'dpm' : '--goal-rew 0.0 --fail-rew 0.0', 'corridor' : '', 'drone' : ''} # USED FOR GENERATING COMMAND
 
     # shield init
     depends_on_nu = False
@@ -106,7 +106,6 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
         if not simulation_eval:
             command = f"python3 shielding.py {models[model]} --episode-length 50 --load-agent {agents[model][agent]} {shield_string} --nu {nu} {model_settings[model]} {log_settings} --model-checking-eval"
 
-            print(command)
             process = subprocess.Popen(
                 command,
                 shell=True,
