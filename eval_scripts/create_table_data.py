@@ -36,7 +36,8 @@ def create_latex_table_data(csv_file):
         return s
 
     # Indices of shields to exclude from green coloring and bolding
-    no_green_bold_indices = [3]  # optimistic, online
+    no_green_bold_indices = [3]  # optimistic, pessimistic, online
+    identity_index = 0  # index of identity shield
 
     # Group by model, agent, nu
     models = df['model'].unique()
@@ -68,8 +69,8 @@ def create_latex_table_data(csv_file):
                         green_mask.append(False)
                     else:
                         green_mask.append(r != '-' and float(r) < nu_val)
-                # Find max reward among green cells (excluding no_green_bold_indices)
-                green_rewards = [float(reward) if is_green and reward != '-' and idx not in no_green_bold_indices else float('-inf')
+                # Find max reward among green cells (excluding no_green_bold_indices and identity)
+                green_rewards = [float(reward) if is_green and reward != '-' and idx not in no_green_bold_indices and idx != identity_index else float('-inf')
                                  for idx, (is_green, (risk, reward)) in enumerate(zip(green_mask, shield_data))]
                 max_green_reward = max(green_rewards) if green_rewards else float('-inf')
                 # Build latex row
@@ -99,13 +100,17 @@ def create_latex_table_data(csv_file):
                             color = None
                         bold = False
                     else:
-                        if risk != '-' and float(risk) < nu_val:
+                        if risk != '-' and float(risk) <= nu_val:
                             color = 'green'
-                        elif risk != '-' and float(risk) >= nu_val:
+                        elif risk != '-' and float(risk) > nu_val:
                             color = 'red'
                         else:
                             color = None
-                        bold = color == 'green' and reward != '-' and float(reward) == max_green_reward and max_green_reward != float('-inf')
+                        # Only bold if not identity and not in no_green_bold_indices
+                        if idx != identity_index and idx not in no_green_bold_indices:
+                            bold = color == 'green' and reward != '-' and float(reward) == max_green_reward and max_green_reward != float('-inf')
+                        else:
+                            bold = False
                     risk_str = f"{float(risk):.2f}" if risk != '-' else '-'
                     reward_str = f"{float(reward):.1f}" if reward != '-' else '-'
                     row.append(latex_cell(risk_str, color=color, bold=bold))

@@ -48,7 +48,7 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
     # init eval parameters
     models = {'dpm' : 'models/shielding/dpm', 'corridor' : 'models/shielding/test-corridor', 'drone' : 'models/shielding/slippy-drone'} # USED FOR GENERATING COMMAND
     agents = {'dpm' : {'greedy' : 'greedy-iter-1000 --deterministic-agent', 'safe' : 'safe-iter-100 --deterministic-agent', 'random' : 'random --uniform-random-policy'},
-              'corridor' : {'greedy' : 'greedy-iter-100  --deterministic-agent', 'safe' : 'safe-iter-4000  --deterministic-agent', 'random' : 'random --uniform-random-policy'},
+              'corridor' : {'greedy' : 'greedy-iter-100 --deterministic-agent', 'safe' : 'safe-iter-4000 --deterministic-agent', 'random' : 'random --uniform-random-policy'},
               'drone' : {'greedy' : 'greedy-iter-4000 --deterministic-agent', 'safe' : 'safe-iter-1000 --deterministic-agent', 'random' : 'random --uniform-random-policy'}} # USED FOR GENERATING COMMAND
     nus = {'dpm' : [0.01, 0.05, 0.2], 'corridor' : [0.05, 0.1, 0.2], 'drone' : [0.01, 0.05, 0.2]} # USED FOR GENERATING COMMAND
     model_settings = {'dpm' : '--goal-rew 0.0 --fail-rew 0.0', 'corridor' : '', 'drone' : ''} # USED FOR GENERATING COMMAND
