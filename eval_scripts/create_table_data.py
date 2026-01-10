@@ -58,6 +58,15 @@ def create_latex_table_data(csv_file):
                     if not match.empty:
                         risk = match.iloc[0]['risk']
                         reward = match.iloc[0]['reward']
+                        # Round risk to 2 decimals, reward to 1 decimal
+                        try:
+                            risk = round(float(risk), 2)
+                        except Exception:
+                            pass
+                        try:
+                            reward = round(float(reward), 1)
+                        except Exception:
+                            pass
                         shield_data.append((risk, reward))
                     else:
                         shield_data.append(('-', '-'))
@@ -68,7 +77,7 @@ def create_latex_table_data(csv_file):
                     if idx in no_green_bold_indices:
                         green_mask.append(False)
                     else:
-                        green_mask.append(r != '-' and float(r) < nu_val)
+                        green_mask.append(r != '-' and float(r) <= nu_val)
                 # Find max reward among green cells (excluding no_green_bold_indices and identity)
                 green_rewards = [float(reward) if is_green and reward != '-' and idx not in no_green_bold_indices and idx != identity_index else float('-inf')
                                  for idx, (is_green, (risk, reward)) in enumerate(zip(green_mask, shield_data))]
