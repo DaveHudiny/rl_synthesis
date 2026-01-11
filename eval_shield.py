@@ -6,9 +6,19 @@ import itertools
 import pandas as pd
 
 
-def add_result_to_csv(csv_path, model, agent, nu, shield, shield_name, risk, reward):
+def add_result_to_csv(csv_path, df, model, agent, nu, shield, shield_name, risk, reward, shield_calls, blocked_actions):
+    exists = (
+            (df['model'] == model)
+            & (df['agent'] == agent)
+            & (df['nu'] == nu)
+            & (df['shield'] == shield)
+            & (df['shield_name'] == shield_name)
+        ).any()
+    if exists:
+        print(f"Result for model={model}, agent={agent}, nu={nu}, shield={shield}, shield_name={shield_name} already exists in CSV. Skipping addition.")
+        return
     with open(csv_path, "a") as f:
-        f.write(f"{model},{agent},{nu},{shield},{shield_name},{risk},{reward}\n")
+        f.write(f"{model},{agent},{nu},{shield},{shield_name},{risk},{reward},{shield_calls},{blocked_actions}\n")
 
 
 @click.command()
@@ -26,7 +36,7 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
     if not os.path.exists(results_folder):
         os.makedirs(results_folder, exist_ok=True)
     main_csv_path = os.path.join(results_folder, "evaluation_results.csv")
-    header = "model,agent,nu,shield,shield_name,risk,reward\n"
+    header = "model,agent,nu,shield,shield_name,risk,reward,shield_calls,blocked_actions\n"
     if not os.path.exists(main_csv_path):
         with open(main_csv_path, "w") as f:
             f.write(header)
@@ -99,8 +109,25 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
             & (df['shield_name'] == shield_name)
         ).any()
 
+        if not depends_on_nu:
+            # Also check for other nus
+            for other_nu in nus[model]:
+                if other_nu != nu:
+                    exists &= (
+                        (df['model'] == model)
+                        & (df['agent'] == agent)
+                        & (df['nu'] == other_nu)
+                        & (df['shield'] == shield)
+                        & (df['shield_name'] == shield_name)
+                    ).any()
+
         if exists:
             print(f"Skipping existing result for model={model}, agent={agent}, nu={nu}, shield={shield}, shield_name={shield_name}")
+            if not depends_on_nu:
+                # Also skip for other nus
+                for other_nu in nus[model]:
+                    if other_nu != nu:
+                        print(f"Skipping existing result for model={model}, agent={agent}, nu={other_nu}, shield={shield}, shield_name={shield_name}")
             continue
 
         if not simulation_eval:
@@ -122,19 +149,21 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
             if ';' not in last_line:
                 print("Error: Output does not contain ';' in the last line.")
             else:
-                risk, reward = [part.strip() for part in last_line.split(';', 1)]
+                risk, reward, shield_calls, blocked_actions = [part.strip() for part in last_line.split(';', 3)]
 
-                add_result_to_csv(main_csv_path, model, agent, nu, shield, shield_name, risk, reward)
+                add_result_to_csv(main_csv_path, df, model, agent, nu, shield, shield_name, risk, reward, shield_calls, blocked_actions)
                 
                 if not depends_on_nu:
                     # Also add for other nus
                     for other_nu in nus[model]:
                         if other_nu != nu:
-                            add_result_to_csv(main_csv_path, model, agent, other_nu, shield, shield_name, risk, reward)
+                            add_result_to_csv(main_csv_path, df, model, agent, other_nu, shield, shield_name, risk, reward, shield_calls, blocked_actions)
         else:
             # Simulation-based evaluation
             total_risk = 0.0
             total_reward = 0.0
+            total_shield_calls = 0
+            total_blocked_actions = 0
             wrong_results_detected = False
             for eval_iter in range(number_of_evaluations):
                 command = f"python3 shielding.py {models[model]} --episode-length 50 --load-agent {agents[model][agent]} {shield_string} --nu {nu} {model_settings[model]} {log_settings}"
@@ -157,9 +186,11 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
                     wrong_results_detected = True
                     break
                 else:
-                    risk, reward = [part.strip() for part in last_line.split(';', 1)]
+                    risk, reward, shield_calls, blocked_actions = [part.strip() for part in last_line.split(';', 3)]
                     total_risk += float(risk)
                     total_reward += float(reward)
+                    total_shield_calls += int(shield_calls)
+                    total_blocked_actions += int(blocked_actions)
 
             if wrong_results_detected:
                 print(f"Skipping result for model={model}, agent={agent}, nu={nu}, shield={shield}, shield_name={shield_string} due to errors in evaluation.")

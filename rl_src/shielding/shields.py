@@ -465,6 +465,8 @@ class SelfConstructingShield(Shield):
 
         assert self.memory == 0, "This is only needed for non-memory bounded shields."
 
+        self.shield_calls += 1
+
         output_distribution = distribution
 
         if node is None:
@@ -473,11 +475,13 @@ class SelfConstructingShield(Shield):
             all_allowed_distributions = self.vmin_actions_distributions[current_state] + node.distributions
 
         if not self.point_in_convex_hull(all_allowed_distributions, distribution):
+            self.blocked_actions += 1
             output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
             if self.static_shield_clamp_to_existing_distributions and output_distribution not in all_allowed_distributions:
                 self.point_in_convex_hull(all_allowed_distributions, output_distribution) # to get the max index
                 output_distribution = all_allowed_distributions[self.convex_point_max_index]
         elif self.static_shield_clamp_to_existing_distributions and output_distribution not in all_allowed_distributions:
+            self.blocked_actions += 1
             output_distribution = all_allowed_distributions[self.convex_point_max_index]
 
         if output_distribution in all_allowed_distributions:
@@ -492,11 +496,14 @@ class SelfConstructingShield(Shield):
 
         assert self.memory > 0, "This is only needed for memory bounded shields."
 
+        self.shield_calls += 1
+
         output_distribution = distribution
 
         all_allowed_distributions = self.current_action_distributions[memory_state_index]
 
         if not self.point_in_convex_hull(all_allowed_distributions, distribution):
+            self.blocked_actions += 1
             output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
 
         return output_distribution

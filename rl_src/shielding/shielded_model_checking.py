@@ -23,6 +23,9 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
     fail_formula = stormpy.parse_properties(f"P=? [ true U{episode_length_string} \"fail\" ]")
     reward_formula = stormpy.parse_properties(f"R{{\"rews\"}}=? [ C{episode_length_string} ]")
 
+    shield.shield_calls = 0
+    shield.blocked_actions = 0
+
     if type(shield) in [rl_src.shielding.shields.IdentityShield, rl_src.shielding.shields.StandardShield, rl_src.shielding.shields.DeltaShield]:
         shielded_state_to_actions = []
         for state, action in enumerate(state_to_actions):
@@ -108,6 +111,6 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
     print(f"Reward from initial state: {result_dict['expected_reward']}")
     print(f"Actual reward: {result_dict['actual_reward']}")
 
-    print(f"{result_dict['full_safety_probability']};{result_dict['actual_reward']}")
+    print(f"{result_dict['full_safety_probability']};{result_dict['actual_reward']};{shield.shield_calls};{shield.blocked_actions}")
     
     return result_dict
