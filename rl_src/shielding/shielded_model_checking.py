@@ -7,7 +7,7 @@ from rl_src.shielding.model_info import ModelInfo
 
 
 
-def model_check_given_policy_and_shield(state_to_actions, shield, episode_length=50, goal_value=100.0, antigoal_value=-100.0):
+def model_check_given_policy_and_shield(state_to_actions, shield, episode_length=50, goal_value=100.0, antigoal_value=-100.0, expected_shield_calls=False):
      
     if type(shield) in [rl_src.shielding.shields.OptimisticShield, rl_src.shielding.shields.PessimisticShield]:
         assert False, "Model checking not possible for optimistic or pessimistic shields."
@@ -28,9 +28,15 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
 
     if type(shield) in [rl_src.shielding.shields.IdentityShield, rl_src.shielding.shields.StandardShield, rl_src.shielding.shields.DeltaShield]:
         shielded_state_to_actions = []
+        was_state_shielded = [0] * model.nr_states
+        blocked_actions = 0
         for state, action in enumerate(state_to_actions):
             shielded_action = shield.correct(None, state, action, False)
             shielded_state_to_actions.append(shielded_action)
+            if blocked_actions < shield.blocked_actions:
+                was_state_shielded[state] = 1
+                blocked_actions = shield.blocked_actions
+
         dtmc = payntbind.synthesis.applyRandomizedScheduler(shield.model_info.model, shielded_state_to_actions)
 
     if type(shield) in [rl_src.shielding.shields.SelfConstructingShield]:
@@ -39,9 +45,12 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
 
             full_safety_formula = stormpy.parse_properties(f"Pmax=? [ F \"bad\" ]")
 
+            was_state_shielded = [0] * (shield.memory_unfolded_model.nr_states)
+
             state_vector_matrix = []
             reward_model = shield.model_info.model.get_reward_model("rews")
             actual_rewards = []
+            blocked_actions = 0
             for state in range(shield.memory_unfolded_model.nr_states):
                 original_state = shield.memory_state_to_sliding_window[state][0]
                 action = state_to_actions[original_state]
@@ -52,6 +61,10 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
                 for choice_index, prob in enumerate(shielded_action):
                     action_reward += prob * reward_model.state_action_rewards[shield.model_info.model.transition_matrix.get_row_group_start(original_state) + choice_index]
                 actual_rewards.append(action_reward)
+
+                if blocked_actions < shield.blocked_actions:
+                    was_state_shielded[state] = 1
+                    blocked_actions = shield.blocked_actions
 
 
             dtmc = payntbind.synthesis.createDtmcFromVectorMatrixWithRewards(shield.memory_unfolded_model, state_vector_matrix, actual_rewards)
@@ -65,12 +78,19 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
             shielded_state_to_actions = [None] * (len(node_index_to_node) + model.nr_states)
             successor_states_to_node = [None] * len(node_index_to_node)
 
+            was_state_shielded = [0] * (len(node_index_to_node) + model.nr_states)
+
+            blocked_actions = 0
             for node_index, node in node_index_to_node.items():
                 state = node.state_index
                 action = state_to_actions[state]
                 shielded_action, last_distr = shield.correct_for_given_node(None, state, action, False, node)
 
                 shielded_state_to_actions[node_index] = shielded_action
+
+                if blocked_actions < shield.blocked_actions:
+                    was_state_shielded[node_index] = 1
+                    blocked_actions = shield.blocked_actions
 
                 successor_state_to_node = {}
                 for (succ_state, distr_index), succ_node in node_index_to_successor_index_to_state[node_index].items():
@@ -82,7 +102,13 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
                 shielded_action, _ = shield.correct_for_given_node(None, state, state_to_actions[state], False, None)
                 shielded_state_to_actions[len(node_index_to_node) + state] = shielded_action
 
+                if blocked_actions < shield.blocked_actions:
+                    was_state_shielded[len(node_index_to_node) + state] = 1
+                    blocked_actions = shield.blocked_actions
+
             dtmc = payntbind.synthesis.applyRandomizedSchedulerFromTree(shield.model_info.model, shielded_state_to_actions, node_index_to_state, successor_states_to_node)
+
+
 
     safety_result = stormpy.model_checking(dtmc, safety_formula[0])
     full_safety_result = stormpy.model_checking(dtmc, full_safety_formula[0])
@@ -96,13 +122,40 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
         fail_result = None
     reward_result = stormpy.model_checking(dtmc, reward_formula[0])
 
+    # Compute expected shield calls and blocked actions
+    if expected_shield_calls:
+        unfolded_dtmc = payntbind.synthesis.unfoldDtmcWithStepBound(dtmc, episode_length)
+        import math
+        environment = stormpy.Environment()
+        result = stormpy.compute_expected_number_of_visits(environment, unfolded_dtmc)
+        expected_visits_values = list(result.get_values())
+        expected_visits_values = [v if v != float('inf') and not math.isnan(v) else 0.0 for v in expected_visits_values]
+        # print(was_state_shielded)
+        # print(expected_visits_values)
+        # exit()
+        num_expected_shield_calls = sum(expected_visits_values)
+        num_expected_blocked_actions = 0.0
+        for unfolded_state, visits in enumerate(expected_visits_values):
+            orig_state = unfolded_state % dtmc.nr_states
+            if was_state_shielded[orig_state]:
+                num_expected_blocked_actions += visits
+        # print(f"Expected blocked actions: {num_expected_blocked_actions}")
+        # print(f"Expected shield calls: {num_expected_shield_calls}")
+        # print(f"Allowed actions: {(1 - (num_expected_blocked_actions / num_expected_shield_calls)) * 100:.2f}%")
+        # exit()
+    else:
+        num_expected_shield_calls = shield.shield_calls
+        num_expected_blocked_actions = shield.blocked_actions
+
     result_dict = {
         "safety_probability": safety_result.get_values()[dtmc.initial_states[0]],
         "full_safety_probability": full_safety_result.get_values()[dtmc.initial_states[0]],
         "goal_reachability": goal_result.get_values()[dtmc.initial_states[0]] if goal_result is not None else 'N/A',
         "fail_reachability": fail_result.get_values()[dtmc.initial_states[0]] if fail_result is not None else 'N/A',
         "expected_reward": reward_result.get_values()[dtmc.initial_states[0]],
-        "actual_reward": (goal_value*goal_result.get_values()[dtmc.initial_states[0]] if goal_result is not None else 0) + (antigoal_value*fail_result.get_values()[dtmc.initial_states[0]] if fail_result is not None else 0) + reward_result.get_values()[dtmc.initial_states[0]] 
+        "actual_reward": (goal_value*goal_result.get_values()[dtmc.initial_states[0]] if goal_result is not None else 0) + (antigoal_value*fail_result.get_values()[dtmc.initial_states[0]] if fail_result is not None else 0) + reward_result.get_values()[dtmc.initial_states[0]],
+        "expected_shield_calls": num_expected_shield_calls,
+        "expected_blocked_actions": num_expected_blocked_actions
     }
 
     print(f"Safety probability from initial state: {result_dict['safety_probability']}")
@@ -110,7 +163,8 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
     print(f"Goal reachability from initial state: {result_dict['goal_reachability']}")
     print(f"Reward from initial state: {result_dict['expected_reward']}")
     print(f"Actual reward: {result_dict['actual_reward']}")
+    print(f"Allowed actions: {(1 - (num_expected_blocked_actions / num_expected_shield_calls)) * 100:.2f}%")
 
-    print(f"{result_dict['full_safety_probability']};{result_dict['actual_reward']};{shield.shield_calls};{shield.blocked_actions}")
+    print(f"{result_dict['full_safety_probability']};{result_dict['actual_reward']};{result_dict['expected_shield_calls']};{result_dict['expected_blocked_actions']}")
     
     return result_dict

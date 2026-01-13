@@ -149,8 +149,6 @@ class PessimisticShield(Shield):
         if rounded_incurred_safety >= rounded_bmax:
             output_distribution = distribution
         else:
-            self.blocked_actions += 1
-
             new_distribution = self.standard_shield.correct(last_action, current_state, distribution, reset)
             self.incurred_safeties[trace_index] -= this_step_safety
             qmax = self._qmax(current_state, new_distribution)
@@ -158,6 +156,8 @@ class PessimisticShield(Shield):
             self.incurred_safeties[trace_index] += this_step_safety
             self.last_distrs[trace_index] = new_distribution
             output_distribution = new_distribution
+
+            self.blocked_actions = self.standard_shield.blocked_actions
 
         return output_distribution
 
@@ -229,8 +229,6 @@ class OptimisticShield(Shield):
         if rounded_incurred_risk <= rounded_bmin:
             output_distribution = distribution
         else:
-            self.blocked_actions += 1
-
             new_distribution = self.standard_shield.correct(last_action, current_state, distribution, reset)
             self.incurred_risks[trace_index] -= this_step_risk
             qmin = self._qmin(current_state, new_distribution)
@@ -238,6 +236,8 @@ class OptimisticShield(Shield):
             self.incurred_risks[trace_index] += this_step_risk
             self.last_distrs[trace_index] = new_distribution
             output_distribution = new_distribution
+
+            self.blocked_actions = self.standard_shield.blocked_actions
 
         return output_distribution
     

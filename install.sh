@@ -7,7 +7,7 @@ export COMPILE_JOBS=8
 
 # environment variables
 PAYNT_ROOT=`pwd`
-PREREQUISITES=${PAYNT_ROOT}/prerequisites # modify this to install prerequisites outside of Paynt
+# PREREQUISITES=${PAYNT_ROOT}/prerequisites # modify this to install prerequisites outside of Paynt
 
 # storm and stormpy dependencies
 sudo apt update -qq
@@ -17,13 +17,13 @@ sudo apt install -y maven uuid-dev python3.10-dev python3.10-venv
 python3.10 -m pip install --upgrade pip
 
 # prerequisites
-mkdir -p ${PREREQUISITES}
+# mkdir -p ${PREREQUISITES}
 
 # setup and activate python environment
-python3.10 -m venv ${PREREQUISITES}/venv
-source ${PREREQUISITES}/venv/bin/activate
+# python3.10 -m venv ${PREREQUISITES}/venv
+# source ${PREREQUISITES}/venv/bin/activate
 pip3 install wheel
-pip3 install paynt
+# pip3 install paynt
 
 # paynt dependencies
 sudo apt -y install graphviz
@@ -47,4 +47,4 @@ pip install -e .
 cd ${PAYNT_ROOT}
 
 # done
-deactivate
+# deactivate

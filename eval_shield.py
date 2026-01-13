@@ -131,7 +131,7 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
             continue
 
         if not simulation_eval:
-            command = f"python3 shielding.py {models[model]} --episode-length 50 --load-agent {agents[model][agent]} {shield_string} --nu {nu} {model_settings[model]} {log_settings} --model-checking-eval"
+            command = f"python3 shielding.py {models[model]} --episode-length 50 --load-agent {agents[model][agent]} {shield_string} --nu {nu} {model_settings[model]} {log_settings} --model-checking-eval --expected-shield-calls"
 
             process = subprocess.Popen(
                 command,
