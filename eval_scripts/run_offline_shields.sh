@@ -10,13 +10,11 @@ fi
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path greedy-nu001-mem0--eval-1-iter-final-shield.pickle --shield-model dpm --shield-construction-agent greedy --shield-nu 0.01 &
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path greedy-nu005-mem0--eval-1-iter-final-shield.pickle --shield-model dpm --shield-construction-agent greedy --shield-nu 0.05 &
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path greedy-nu02-mem0--eval-1-iter-final-shield.pickle --shield-model dpm --shield-construction-agent greedy --shield-nu 0.2 &
-wait
 
 
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path safe-nu001-mem0--eval-1-iter-final-shield.pickle --shield-model dpm --shield-construction-agent safe --shield-nu 0.01 &
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path safe-nu005-mem0--eval-1-iter-final-shield.pickle --shield-model dpm --shield-construction-agent safe --shield-nu 0.05 &
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path safe-nu02-mem0--eval-1-iter-final-shield.pickle --shield-model dpm --shield-construction-agent safe --shield-nu 0.2 &
-wait
 
 
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path random-nu001-mem0--eval-1-iter-final-shield.pickle --shield-model dpm --shield-construction-agent random --shield-nu 0.01 &
@@ -29,13 +27,11 @@ wait
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path greedy-nu005-mem0--eval-1-iter-final-shield.pickle --shield-model corridor --shield-construction-agent greedy --shield-nu 0.05 &
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path greedy-nu01-mem0--eval-1-iter-final-shield.pickle --shield-model corridor --shield-construction-agent greedy --shield-nu 0.1 &
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path greedy-nu02-mem0--eval-1-iter-final-shield.pickle --shield-model corridor --shield-construction-agent greedy --shield-nu 0.2 &
-wait
 
 
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path safe-nu005-mem0--eval-1-iter-final-shield.pickle --shield-model corridor --shield-construction-agent safe --shield-nu 0.05 &
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path safe-nu01-mem0--eval-1-iter-final-shield.pickle --shield-model corridor --shield-construction-agent safe --shield-nu 0.1 &
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path safe-nu02-mem0--eval-1-iter-final-shield.pickle --shield-model corridor --shield-construction-agent safe --shield-nu 0.2 &
-wait
 
 
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path random-nu005-mem0--eval-1-iter-final-shield.pickle --shield-model corridor --shield-construction-agent random --shield-nu 0.05 &
@@ -48,13 +44,11 @@ wait
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path greedy-nu001-mem0--eval-1-iter-final-shield.pickle --shield-model drone --shield-construction-agent greedy --shield-nu 0.01 &
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path greedy-nu005-mem0--eval-1-iter-final-shield.pickle --shield-model drone --shield-construction-agent greedy --shield-nu 0.05 &
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path greedy-nu02-mem0--eval-1-iter-final-shield.pickle --shield-model drone --shield-construction-agent greedy --shield-nu 0.2 &
-wait
 
 
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path safe-nu001-mem0--eval-1-iter-final-shield.pickle --shield-model drone --shield-construction-agent safe --shield-nu 0.01 &
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path safe-nu005-mem0--eval-1-iter-final-shield.pickle --shield-model drone --shield-construction-agent safe --shield-nu 0.05 &
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path safe-nu02-mem0--eval-1-iter-final-shield.pickle --shield-model drone --shield-construction-agent safe --shield-nu 0.2 &
-wait
 
 
 python3 eval_shield.py --results-folder "$SUBFOLDER" --shield offline --shield-path random-nu001-mem0--eval-1-iter-final-shield.pickle --shield-model drone --shield-construction-agent random --shield-nu 0.01 &
