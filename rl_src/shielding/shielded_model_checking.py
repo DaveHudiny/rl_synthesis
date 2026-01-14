@@ -80,6 +80,8 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
 
             was_state_shielded = [0] * (len(node_index_to_node) + model.nr_states)
 
+            standard_shield = rl_src.shielding.shields.StandardShield(shield.model_info, shield.actions)
+
             blocked_actions = 0
             for node_index, node in node_index_to_node.items():
                 state = node.state_index
@@ -89,6 +91,7 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
                 shielded_state_to_actions[node_index] = shielded_action
 
                 if blocked_actions < shield.blocked_actions:
+                    assert tuple(shielded_action) != tuple(state_to_actions[state])
                     was_state_shielded[node_index] = 1
                     blocked_actions = shield.blocked_actions
 
@@ -103,6 +106,7 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
                 shielded_state_to_actions[len(node_index_to_node) + state] = shielded_action
 
                 if blocked_actions < shield.blocked_actions:
+                    assert tuple(shielded_action) != tuple(state_to_actions[state])
                     was_state_shielded[len(node_index_to_node) + state] = 1
                     blocked_actions = shield.blocked_actions
 
@@ -124,7 +128,7 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
 
     # Compute expected shield calls and blocked actions
     if expected_shield_calls:
-        unfolded_dtmc = payntbind.synthesis.unfoldDtmcWithStepBound(dtmc, episode_length)
+        unfolded_dtmc, state_to_orig_state_step_pairs = payntbind.synthesis.unfoldDtmcWithStepBound(dtmc, episode_length)
         import math
         environment = stormpy.Environment()
         result = stormpy.compute_expected_number_of_visits(environment, unfolded_dtmc)
@@ -132,13 +136,23 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
         expected_visits_values = [v if v != float('inf') and not math.isnan(v) else 0.0 for v in expected_visits_values]
         # print(was_state_shielded)
         # print(expected_visits_values)
-        # exit()
+
+        # remove repeated visits of goal and fail states
+        for unfolded_state, (orig_state, step) in enumerate(state_to_orig_state_step_pairs):
+            if "goal" in dtmc.labeling.get_labels_of_state(orig_state) or "fail" in dtmc.labeling.get_labels_of_state(orig_state):
+                expected_visits_values[unfolded_state] = 0.0
+
         num_expected_shield_calls = sum(expected_visits_values)
         num_expected_blocked_actions = 0.0
+        earliest_shielded_step = None
         for unfolded_state, visits in enumerate(expected_visits_values):
-            orig_state = unfolded_state % dtmc.nr_states
+            if unfolded_state >= len(state_to_orig_state_step_pairs):
+                continue
+            orig_state = state_to_orig_state_step_pairs[unfolded_state][0]
             if was_state_shielded[orig_state]:
                 num_expected_blocked_actions += visits
+                if earliest_shielded_step is None or state_to_orig_state_step_pairs[unfolded_state][1] < earliest_shielded_step:
+                    earliest_shielded_step = state_to_orig_state_step_pairs[unfolded_state][1]
         # print(f"Expected blocked actions: {num_expected_blocked_actions}")
         # print(f"Expected shield calls: {num_expected_shield_calls}")
         # print(f"Allowed actions: {(1 - (num_expected_blocked_actions / num_expected_shield_calls)) * 100:.2f}%")
@@ -146,6 +160,7 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
     else:
         num_expected_shield_calls = shield.shield_calls
         num_expected_blocked_actions = shield.blocked_actions
+        earliest_shielded_step = None
 
     result_dict = {
         "safety_probability": safety_result.get_values()[dtmc.initial_states[0]],
@@ -155,7 +170,8 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
         "expected_reward": reward_result.get_values()[dtmc.initial_states[0]],
         "actual_reward": (goal_value*goal_result.get_values()[dtmc.initial_states[0]] if goal_result is not None else 0) + (antigoal_value*fail_result.get_values()[dtmc.initial_states[0]] if fail_result is not None else 0) + reward_result.get_values()[dtmc.initial_states[0]],
         "expected_shield_calls": num_expected_shield_calls,
-        "expected_blocked_actions": num_expected_blocked_actions
+        "expected_blocked_actions": num_expected_blocked_actions,
+        "earliest_shielded_step": earliest_shielded_step
     }
 
     print(f"Safety probability from initial state: {result_dict['safety_probability']}")
@@ -163,8 +179,9 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
     print(f"Goal reachability from initial state: {result_dict['goal_reachability']}")
     print(f"Reward from initial state: {result_dict['expected_reward']}")
     print(f"Actual reward: {result_dict['actual_reward']}")
-    print(f"Allowed actions: {(1 - (num_expected_blocked_actions / num_expected_shield_calls)) * 100:.2f}%")
+    print(f"Allowed actions: {(1 - (result_dict['expected_blocked_actions'] / result_dict['expected_shield_calls'])) * 100:.2f}%")
+    print(f"Earliest shielded step: {result_dict['earliest_shielded_step']}")
 
-    print(f"{result_dict['full_safety_probability']};{result_dict['actual_reward']};{result_dict['expected_shield_calls']};{result_dict['expected_blocked_actions']}")
+    print(f"{result_dict['full_safety_probability']};{result_dict['actual_reward']};{result_dict['expected_shield_calls']};{result_dict['expected_blocked_actions']};{result_dict['earliest_shielded_step']}")
     
     return result_dict

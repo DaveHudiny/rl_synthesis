@@ -47,13 +47,9 @@ def create_latex_table_data(csv_file, split_offline):
             s = f"\\cellcolor{{{color}!20}}{s}"
         return s
 
-    # Indices of shields to exclude from green coloring and bolding
-    if split_offline:
-        no_green_bold_indices = [3]  # optimistic, pessimistic, online
-        identity_index = 0  # index of identity shield
-    else:
-        no_green_bold_indices = [3]  # optimistic, pessimistic, online
-        identity_index = 0
+    # Indices of shields to exclude from bolding (identity and optimistic)
+    identity_index = 0  # index of identity shield
+    optimistic_index = 3  # index of optimistic shield in both split_offline and merged
 
     # Group by model, agent, nu
     models = df['model'].unique()
@@ -93,11 +89,10 @@ def create_latex_table_data(csv_file, split_offline):
                         shield_data.append((risk, allowed_pct))
                     else:
                         shield_data.append(('-', '-'))
-                # Find max allowed_pct (excluding identity and no_green_bold_indices)
-                allowed_pcts = [allowed_pct if idx != identity_index and idx not in no_green_bold_indices and allowed_pct != '-' else float('-inf')
+                # Find max allowed_pct (excluding identity and optimistic shields), for shields with risk <= nu
+                allowed_pcts = [allowed_pct if idx != identity_index and idx != optimistic_index and allowed_pct != '-' and risk != '-' and float(risk) <= float(nu) else float('-inf')
                                 for idx, (risk, allowed_pct) in enumerate(shield_data)]
-                # Convert to float for comparison
-                allowed_pcts = [float(x) if x != '-' else float('-inf') for x in allowed_pcts]
+                allowed_pcts = [int(x) if x != '-' and x != float('-inf') else float('-inf') for x in allowed_pcts]
                 max_allowed_pct = max(allowed_pcts) if allowed_pcts else float('-inf')
                 # Build latex row
                 row = []
@@ -120,7 +115,6 @@ def create_latex_table_data(csv_file, split_offline):
                 for idx, (risk, allowed_pct) in enumerate(shield_data):
                     # Determine color for risk cell
                     if risk != '-' and float(risk) <= nu_val:
-                        pass
                         risk_color = None
                     elif risk != '-' and float(risk) > nu_val:
                         risk_color = 'red'
@@ -129,14 +123,15 @@ def create_latex_table_data(csv_file, split_offline):
                     # Determine color and bold for allowed_pct cell
                     allowed_color = risk_color
                     bold = False
+                    # Only consider non-identity and non-optimistic shields for bolding
                     if (
-                        idx != identity_index and idx not in no_green_bold_indices and
-                        allowed_pct != '-' and float(risk) <= nu_val and float(allowed_pct) == max_allowed_pct and max_allowed_pct != float('-inf')
+                        idx != identity_index and idx != optimistic_index and
+                        allowed_pct != '-' and risk != '-' and float(risk) <= nu_val and int(allowed_pct) >= int(max_allowed_pct) and max_allowed_pct != float('-inf')
                     ):
                         bold = True
                     risk_str = f"{float(risk):.2f}" if risk != '-' else '-'
                     allowed_str = f"{int(allowed_pct)}" if allowed_pct != '-' else '-'
-                    row.append(latex_cell(risk_str, color=risk_color))
+                    row.append(latex_cell(risk_str, color=risk_color, bold=bold))
                     row.append(latex_cell(allowed_str, color=allowed_color, bold=bold))
                 model_block_lines.append(' & '.join(row) + r" \\")
             # Add cmidrule after each agent except last
