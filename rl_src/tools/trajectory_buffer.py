@@ -80,7 +80,7 @@ class TrajectoryBuffer:
         for index in finished_true_indices:
             if index[0] != prev_index[0]:
                 prev_index = np.array([index[0], 0])
-            if truncate and number_of_sampled_steps - prev_index[1] <= self.truncation_point:
+            if truncate and number_of_sampled_steps - prev_index[1] < self.truncation_point:
                 continue
             in_episode_reward = np.sum(
                 self.real_rewards[prev_index[0], prev_index[1]:index[1]+1])
