@@ -30,7 +30,8 @@ def add_result_to_csv(csv_path, df, model, agent, nu, shield, shield_name, risk,
 @click.option("--shield-nu", type=float, required=False, default=None, help="Nu parameter for shielding.")
 @click.option("--shield-model", type=str, required=False, default=None, help="Model to use for evaluation: 'dpm', 'corridor', or 'drone'.")
 @click.option("--shield-construction-agent", type=str, required=False, default=None, help="Agent used for shield construction if applicable.")
-def main(results_folder, shield, shield_memory, shield_path, number_of_evaluations, shield_nu, shield_model, shield_construction_agent):
+@click.option("--eval-agent", type=str, required=False, default=None, help="Agent used for evaluation.")
+def main(results_folder, shield, shield_memory, shield_path, number_of_evaluations, shield_nu, shield_model, shield_construction_agent, eval_agent):
 
     # init results file
     if not os.path.exists(results_folder):
@@ -93,7 +94,9 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
     eval_combinations = []
     model_list = models.keys() if not custom_model else [shield_model]
     for model in model_list:
-        for agent in agents[model].keys():
+        agent_list = agents[model].keys() if eval_agent is None else [eval_agent]
+        assert all(agent in agents[model].keys() for agent in agent_list), f"One or more specified eval agents are not valid for model {model}."
+        for agent in agent_list:
             nu_list = nus[model] if depends_on_nu and not custom_nu else ([shield_nu] if custom_nu else [nus[model][0]])
             for nu in nu_list:
                 eval_combinations.append( (model, agent, nu) )
