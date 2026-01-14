@@ -6,7 +6,7 @@ import itertools
 import pandas as pd
 
 
-def add_result_to_csv(csv_path, df, model, agent, nu, shield, shield_name, risk, reward, shield_calls, blocked_actions):
+def add_result_to_csv(csv_path, df, model, agent, nu, shield, shield_name, risk, reward, shield_calls, blocked_actions, earliest_shielded_step):
     exists = (
             (df['model'] == model)
             & (df['agent'] == agent)
@@ -18,7 +18,7 @@ def add_result_to_csv(csv_path, df, model, agent, nu, shield, shield_name, risk,
         print(f"Result for model={model}, agent={agent}, nu={nu}, shield={shield}, shield_name={shield_name} already exists in CSV. Skipping addition.")
         return
     with open(csv_path, "a") as f:
-        f.write(f"{model},{agent},{nu},{shield},{shield_name},{risk},{reward},{shield_calls},{blocked_actions}\n")
+        f.write(f"{model},{agent},{nu},{shield},{shield_name},{risk},{reward},{shield_calls},{blocked_actions},{earliest_shielded_step}\n")
 
 
 @click.command()
@@ -37,7 +37,7 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
     if not os.path.exists(results_folder):
         os.makedirs(results_folder, exist_ok=True)
     main_csv_path = os.path.join(results_folder, "evaluation_results.csv")
-    header = "model,agent,nu,shield,shield_name,risk,reward,shield_calls,blocked_actions\n"
+    header = "model,agent,nu,shield,shield_name,risk,reward,shield_calls,blocked_actions,earliest_shielded_step\n"
     if not os.path.exists(main_csv_path):
         with open(main_csv_path, "w") as f:
             f.write(header)
@@ -152,15 +152,15 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
             if ';' not in last_line:
                 print("Error: Output does not contain ';' in the last line.")
             else:
-                risk, reward, shield_calls, blocked_actions = [part.strip() for part in last_line.split(';', 3)]
+                risk, reward, shield_calls, blocked_actions, earliest_shielded_step = [part.strip() for part in last_line.split(';', 4)]
 
-                add_result_to_csv(main_csv_path, df, model, agent, nu, shield, shield_name, risk, reward, shield_calls, blocked_actions)
+                add_result_to_csv(main_csv_path, df, model, agent, nu, shield, shield_name, risk, reward, shield_calls, blocked_actions, earliest_shielded_step)
                 
                 if not depends_on_nu:
                     # Also add for other nus
                     for other_nu in nus[model]:
                         if other_nu != nu:
-                            add_result_to_csv(main_csv_path, df, model, agent, other_nu, shield, shield_name, risk, reward, shield_calls, blocked_actions)
+                            add_result_to_csv(main_csv_path, df, model, agent, other_nu, shield, shield_name, risk, reward, shield_calls, blocked_actions, earliest_shielded_step)
         else:
             # Simulation-based evaluation
             total_risk = 0.0
@@ -189,7 +189,7 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
                     wrong_results_detected = True
                     break
                 else:
-                    risk, reward, shield_calls, blocked_actions = [part.strip() for part in last_line.split(';', 3)]
+                    risk, reward, shield_calls, blocked_actions, earliest_shielded_step = [part.strip() for part in last_line.split(';', 4)]
                     total_risk += float(risk)
                     total_reward += float(reward)
                     total_shield_calls += int(shield_calls)
@@ -201,10 +201,10 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
 
             avg_risk = total_risk / number_of_evaluations
             avg_reward = total_reward / number_of_evaluations
-            avg_shield_calls = total_shield_calls // number_of_evaluations
-            avg_blocked_actions = total_blocked_actions // number_of_evaluations
+            avg_shield_calls = total_shield_calls / number_of_evaluations
+            avg_blocked_actions = total_blocked_actions / number_of_evaluations
 
-            add_result_to_csv(main_csv_path, df, model, agent, nu, shield, shield_name, avg_risk, avg_reward, avg_shield_calls, avg_blocked_actions)
+            add_result_to_csv(main_csv_path, df, model, agent, nu, shield, shield_name, avg_risk, avg_reward, avg_shield_calls, avg_blocked_actions, earliest_shielded_step)
 
 
 
