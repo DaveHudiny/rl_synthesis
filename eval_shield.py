@@ -84,11 +84,11 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
         assert shield_construction_agent is not None, "Offline shield requires a shield construction agent to be specified. (--shield-construction-agent)"
         shield_name = f"{shield_construction_agent}"
     if shield in ['online']:
-        shield_string = f"--shield self-constructing-safe --shield-memory {shield_memory} --num-environments 2048 --num-parallel-environments 16"
+        shield_string = f"--shield self-constructing-safe --shield-memory {shield_memory} --num-environments 2048 --num-parallel-environments 16 --min-episodes-per-environment 10"
     if shield in ['pessimistic', 'optimistic', 'online']:
         simulation_eval = True
     if shield in ['pessimistic', 'optimistic']:
-        shield_string = f"--shield {shield} --shield-memory {shield_memory}  --num-environments 2048 --num-parallel-environments 512"
+        shield_string = f"--shield {shield} --shield-memory {shield_memory}  --num-environments 2048 --num-parallel-environments 512 --min-episodes-per-environment 10"
 
     # prepare what to run combinations
     eval_combinations = []
