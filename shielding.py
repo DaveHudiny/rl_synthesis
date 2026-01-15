@@ -301,7 +301,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
 
         eval_result = evaluation_result.compute_weighted_evaluation_info()
         print(eval_result)
-        print(f'Episodes: {eval_result["counted_episodes"]}\nAverage episode length: {eval_result["average_episode_length"]}\nReward: {eval_result["virtual_returns"]}\n Goal reach probabilities: {eval_result["reach_probs"]}\nBad outcome prob: {eval_result["average_bad_outcome_prob"]}')
+        print(f'Episodes: {eval_result["counted_episodes"]}\nAverage episode length: {eval_result["average_episode_length"]}\nReward: {eval_result["virtual_returns"]}\n Goal reach probabilities: {eval_result["reach_probs"]}\nBad outcome prob: {eval_result["average_bad_outcome_prob"]}\nExpected allowed actions: {1 - (shield_processor.shield.blocked_actions / shield_processor.shield.shield_calls) if shield_processor.shield.shield_calls > 0 else 0}')
         # exit()
 
     # Simulator

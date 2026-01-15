@@ -74,14 +74,14 @@ def create_latex_table_data(csv_file, split_offline):
                     if not match.empty:
                         risk = match.iloc[0]['risk']
                         try:
-                            risk = round(float(risk), 2)
+                            risk = round(float(risk), 3)
                         except Exception:
                             pass
                         try:
                             shield_calls = float(match.iloc[0]['shield_calls'])
                             blocked_actions = float(match.iloc[0]['blocked_actions'])
                             if shield_calls > 0:
-                                allowed_pct = round(100 * (1 - blocked_actions / shield_calls))
+                                allowed_pct = round((1 - blocked_actions / shield_calls), 3)
                             else:
                                 allowed_pct = '-'
                         except Exception:
@@ -92,7 +92,7 @@ def create_latex_table_data(csv_file, split_offline):
                 # Find max allowed_pct (excluding identity and optimistic shields), for shields with risk <= nu
                 allowed_pcts = [allowed_pct if idx != identity_index and idx != optimistic_index and allowed_pct != '-' and risk != '-' and float(risk) <= float(nu) else float('-inf')
                                 for idx, (risk, allowed_pct) in enumerate(shield_data)]
-                allowed_pcts = [int(x) if x != '-' and x != float('-inf') else float('-inf') for x in allowed_pcts]
+                allowed_pcts = [float(x) if x != '-' and x != float('-inf') else float('-inf') for x in allowed_pcts]
                 max_allowed_pct = max(allowed_pcts) if allowed_pcts else float('-inf')
                 # Build latex row
                 row = []
@@ -126,11 +126,21 @@ def create_latex_table_data(csv_file, split_offline):
                     # Only consider non-identity and non-optimistic shields for bolding
                     if (
                         idx != identity_index and idx != optimistic_index and
-                        allowed_pct != '-' and risk != '-' and float(risk) <= nu_val and int(allowed_pct) >= int(max_allowed_pct) and max_allowed_pct != float('-inf')
+                        allowed_pct != '-' and risk != '-' and float(risk) <= nu_val and float(allowed_pct) >= float(max_allowed_pct) and max_allowed_pct != float('-inf')
                     ):
                         bold = True
-                    risk_str = f"{float(risk):.2f}" if risk != '-' else '-'
-                    allowed_str = f"{int(allowed_pct)}" if allowed_pct != '-' else '-'
+                    def format_val(val):
+                        if val == '-':
+                            return '-'
+                        val_str = f"{float(val):.3f}"
+                        if val_str.startswith('0.'):
+                            return val_str[1:]
+                        elif val_str[0] != '0':
+                            return 'is 1'
+                        else:
+                            return val_str
+                    risk_str = format_val(risk)
+                    allowed_str = format_val(allowed_pct)
                     row.append(latex_cell(risk_str, color=risk_color, bold=bold))
                     row.append(latex_cell(allowed_str, color=allowed_color, bold=bold))
                 model_block_lines.append(' & '.join(row) + r" \\")
