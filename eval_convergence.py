@@ -139,8 +139,10 @@ def main(results_folder, shield_memory, shield_nu, shield_model, shield_construc
 
                 shield_partial_name = f"{agent}-mem_{shield_memory}-nu_{str(nu).replace('.','')}-{shield_name}-eval_{eval_it}"
 
-                if shield_partial_name in constructed_shields:
-                    print(f"Shield {shield_partial_name} already constructed. Skipping construction.")
+                model_shield_partial_name = f"{model}-{shield_partial_name}"
+
+                if model_shield_partial_name in constructed_shields:
+                    print(f"Shield {model_shield_partial_name} already constructed. Skipping construction.")
                     continue
 
                 command = f"python3 shielding.py {models[model]} --episode-length 50 --load-agent {agents[model][agent]} --shield self-constructing-unsafe --save-shield {shield_partial_name} --nu {nu} {model_settings[model]} {log_settings} --num-environments 2048 --num-parallel-environments 8 --min-episodes-per-environment 10"
@@ -158,7 +160,7 @@ def main(results_folder, shield_memory, shield_nu, shield_model, shield_construc
  
                 # Mark shield as constructed
                 with open(constructed_shields_list_path, "a") as f:
-                    f.write(f"{shield_partial_name}\n")
+                    f.write(f"{model_shield_partial_name}\n")
 
 
 if __name__ == "__main__":
