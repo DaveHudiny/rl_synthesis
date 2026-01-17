@@ -46,17 +46,22 @@ def create_latex_table_data(csv_file, split_offline):
         if color:
             s = f"\\cellcolor{{{color}!20}}{s}"
         return s
+    
+    model_order = ['corridor', 'drone', 'dpm']
+    model_rename = {'corridor': 'corridor', 'drone': 'drone', 'dpm': 'dpm'}
+
+    agent_order = ['greedy', 'safe', 'random']
+    agent_rename = {'greedy': 'greedy', 'safe': 'timid', 'random': 'random'}
 
     # Indices of shields to exclude from bolding (identity and optimistic)
     identity_index = 0  # index of identity shield
     optimistic_index = 3  # index of optimistic shield in both split_offline and merged
 
-    # Group by model, agent, nu
-    models = df['model'].unique()
+    # Group by model, agent, nu, using specified order and renaming
     output_lines = []
-    for m_idx, model in enumerate(models):
+    for m_idx, model in enumerate(model_order):
         model_df = df[df['model'] == model]
-        agents = model_df['agent'].unique()
+        agents = [a for a in agent_order if a in model_df['agent'].unique()]
         model_block_lines = []
         for a_idx, agent in enumerate(agents):
             agent_df = model_df[model_df['agent'] == agent]
@@ -98,14 +103,14 @@ def create_latex_table_data(csv_file, split_offline):
                 row = []
                 # Model column
                 if a_idx == 0 and n_idx == 0:
-                    row.append(f"\\multirow{{{len(agents)*len(nu_values)}}}{{*}}{{{model}}}")
+                    row.append(f"\\multirow{{{len(agents)*len(nu_values)}}}{{*}}{{{model_rename[model]}}}")
                 elif n_idx == 0:
                     row.append('')
                 else:
                     row.append('')
                 # Agent column
                 if n_idx == 0:
-                    row.append(f"\\multirow{{{len(nu_values)}}}{{*}}{{{agent}}}")
+                    row.append(f"\\multirow{{{len(nu_values)}}}{{*}}{{{agent_rename[agent]}}}")
                 else:
                     row.append('')
                 # nu column
@@ -136,7 +141,7 @@ def create_latex_table_data(csv_file, split_offline):
                         if val_str.startswith('0.'):
                             return val_str[1:]
                         elif val_str[0] != '0':
-                            return 'is 1'
+                            return '~~{=}1'
                         else:
                             return val_str
                     risk_str = format_val(risk)
@@ -150,7 +155,7 @@ def create_latex_table_data(csv_file, split_offline):
         # Add model block to output
         output_lines.extend(model_block_lines)
         # Add cmidrule between models except after last
-        if m_idx < len(models) - 1:
+        if m_idx < len(model_order) - 1:
             output_lines.append(r" \cmidrule(lr){1-17}")
 
     # Print output
