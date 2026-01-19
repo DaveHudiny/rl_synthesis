@@ -145,7 +145,7 @@ def main(results_folder, shield_memory, shield_nu, shield_model, shield_construc
                     print(f"Shield {model_shield_partial_name} already constructed. Skipping construction.")
                     continue
 
-                command = f"python3 shielding.py {models[model]} --episode-length 50 --load-agent {agents[model][agent]} --shield self-constructing-unsafe --save-shield {shield_partial_name} --nu {nu} {model_settings[model]} {log_settings} --num-environments 2048 --num-parallel-environments 8 --min-episodes-per-environment 10"
+                command = f"python3 shielding.py {models[model]} --episode-length 50 --load-agent {agents[model][agent]} {shield_string} --save-shield {shield_partial_name} --nu {nu} {model_settings[model]} {log_settings} --num-environments 2048 --num-parallel-environments 8 --min-episodes-per-environment 10"
 
                 process = subprocess.Popen(
                     command,
