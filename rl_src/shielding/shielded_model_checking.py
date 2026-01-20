@@ -182,7 +182,5 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
     print(f"Actual reward: {result_dict['actual_reward']}")
     print(f"Allowed actions: {(1 - (result_dict['expected_blocked_actions'] / result_dict['expected_shield_calls']))}")
     print(f"Earliest shielded step: {result_dict['earliest_shielded_step']}")
-
-    print(f"{result_dict['full_safety_probability']};{result_dict['actual_reward']};{result_dict['expected_shield_calls']};{result_dict['expected_blocked_actions']};{result_dict['earliest_shielded_step']}")
     
     return result_dict

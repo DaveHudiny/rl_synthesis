@@ -3,7 +3,9 @@ import pandas as pd
 
 @click.command()
 @click.argument('csv_file', type=click.Path(exists=True))
-def create_latex_table_data(csv_file):
+@click.option('--split-offline', default=False, type=bool, is_flag=True, help='Split offline shields into separate columns (default) or merge into one using shield_name==agent.')
+@click.option('--show-identity', default=False, type=bool, is_flag=True, help='Show identity shield column in the table.')
+def create_latex_table_data(csv_file, split_offline, show_identity):
     """
     Create LaTeX table data from CSV evaluation results.
     """
@@ -12,17 +14,35 @@ def create_latex_table_data(csv_file):
     df = pd.read_csv(csv_file)
 
     # Define shield columns and their mapping to (shield, shield_name)
-    shield_columns = [
-        ("identity", "identity"),
-        ("standard", "standard"),
-        ("delta", "delta"),
-        ("optimistic", "optimistic"),
-        ("pessimistic", "pessimistic"),
-        ("online", "online"),
-        ("offline", "greedy"),
-        ("offline", "safe"),
-        ("offline", "random"),
-    ]
+    if split_offline:
+        shield_columns = [
+            ("identity", "identity"),
+            ("standard", "standard"),
+            ("delta", "delta"),
+            ("optimistic", "optimistic"),
+            ("pessimistic", "pessimistic"),
+            ("online", "online"),
+            ("offline", "greedy"),
+            ("offline", "safe"),
+            ("offline", "random"),
+        ]
+    else:
+        shield_columns = [
+            ("identity", "identity"),
+            ("standard", "standard"),
+            ("delta", "delta"),
+            ("optimistic", "optimistic"),
+            ("pessimistic", "pessimistic"),
+            ("online", "online"),
+            ("offline", None),  # merged offline column
+        ]
+    # Remove identity shield column unless show_identity is True
+    if not show_identity:
+        shield_columns = [col for col in shield_columns if col[0] != "identity"]
+    # Calculate number of columns for cmidrule
+    # Columns: model, agent, nu, then 2 columns per shield (risk, allowed_pct)
+    num_shields = len(shield_columns)
+    num_columns = 3 + 2 * num_shields
 
     # For LaTeX output
     def latex_cell(val, color=None, bold=False):
@@ -34,105 +54,171 @@ def create_latex_table_data(csv_file):
         if color:
             s = f"\\cellcolor{{{color}!20}}{s}"
         return s
+    
+    model_order = ['corridor', 'drone', 'dpm']
+    model_rename = {'corridor': 'corridor', 'drone': 'drone', 'dpm': 'dpm'}
 
-    # Indices of shields to exclude from green coloring and bolding
-    no_green_bold_indices = [3]  # optimistic, pessimistic, online
+    agent_order = ['greedy', 'safe', 'random']
+    agent_rename = {'greedy': 'greedy', 'safe': 'timid', 'random': 'random'}
+
+    # Indices of shields to exclude from bolding (identity and optimistic)
     identity_index = 0  # index of identity shield
+    optimistic_index = 3  # index of optimistic shield in both split_offline and merged
 
-    # Group by model, agent, nu
-    models = df['model'].unique()
+    # Group by model, agent, nu, using specified order and renaming
     output_lines = []
-    for m_idx, model in enumerate(models):
+    for m_idx, model in enumerate(model_order):
         model_df = df[df['model'] == model]
-        agents = model_df['agent'].unique()
+        agents = [a for a in agent_order if a in model_df['agent'].unique()]
         model_block_lines = []
         for a_idx, agent in enumerate(agents):
             agent_df = model_df[model_df['agent'] == agent]
             nu_values = sorted(agent_df['nu'].unique(), key=lambda x: float(x))
+            identity_risks = []  # Collect identity shield risks for each nu
             for n_idx, nu in enumerate(nu_values):
                 row_df = agent_df[agent_df['nu'] == nu]
-                # For each shield column, get (risk, reward)
+                # For each shield column, get (risk, allowed_pct)
                 shield_data = []
+                # Always get identity shield risk for agent label, even if not shown
+                match_identity = row_df[(row_df['shield'] == 'identity') & (row_df['shield_name'] == 'identity')]
+                if not match_identity.empty:
+                    identity_risk = match_identity.iloc[0]['risk']
+                    try:
+                        identity_risk = round(float(identity_risk), 3)
+                    except Exception:
+                        pass
+                else:
+                    identity_risk = '-'
+                identity_risks.append(identity_risk)
                 for shield, shield_name in shield_columns:
-                    match = row_df[(row_df['shield'] == shield) & (row_df['shield_name'] == shield_name)]
+                    if shield == "offline" and not split_offline:
+                        match = row_df[(row_df['shield'] == 'offline') & (row_df['shield_name'] == agent)]
+                    else:
+                        match = row_df[(row_df['shield'] == shield) & (row_df['shield_name'] == shield_name)]
                     if not match.empty:
                         risk = match.iloc[0]['risk']
-                        reward = match.iloc[0]['reward']
-                        # Round risk to 2 decimals, reward to 1 decimal
                         try:
-                            risk = round(float(risk), 2)
+                            risk = round(float(risk), 3)
                         except Exception:
                             pass
                         try:
-                            reward = round(float(reward), 1)
+                            shield_calls = float(match.iloc[0]['shield_calls'])
+                            blocked_actions = float(match.iloc[0]['blocked_actions'])
+                            if shield_calls > 0:
+                                allowed_pct = round((1 - blocked_actions / shield_calls), 3)
+                            else:
+                                allowed_pct = '-'
                         except Exception:
-                            pass
-                        shield_data.append((risk, reward))
+                            allowed_pct = '-'
+                        shield_data.append((risk, allowed_pct))
                     else:
                         shield_data.append(('-', '-'))
-                # Determine coloring and bolding
-                nu_val = float(nu)
-                green_mask = []
-                for idx, (r, _) in enumerate(shield_data):
-                    if idx in no_green_bold_indices:
-                        green_mask.append(False)
-                    else:
-                        green_mask.append(r != '-' and float(r) <= nu_val)
-                # Find max reward among green cells (excluding no_green_bold_indices and identity)
-                green_rewards = [float(reward) if is_green and reward != '-' and idx not in no_green_bold_indices and idx != identity_index else float('-inf')
-                                 for idx, (is_green, (risk, reward)) in enumerate(zip(green_mask, shield_data))]
-                max_green_reward = max(green_rewards) if green_rewards else float('-inf')
+                # Find max allowed_pct (excluding identity and optimistic shields), for shields with risk <= nu
+                allowed_pcts = [allowed_pct if idx != identity_index and idx != optimistic_index and allowed_pct != '-' and risk != '-' and float(risk) <= float(nu) else float('-inf')
+                                for idx, (risk, allowed_pct) in enumerate(shield_data)]
+                allowed_pcts = [float(x) if x != '-' and x != float('-inf') else float('-inf') for x in allowed_pcts]
+                max_allowed_pct = max(allowed_pcts) if allowed_pcts else float('-inf')
                 # Build latex row
                 row = []
                 # Model column
                 if a_idx == 0 and n_idx == 0:
-                    row.append(f"\\multirow{{{len(agents)*len(nu_values)}}}{{*}}{{{model}}}")
+                    row.append(f"\\multirow{{{len(agents)*len(nu_values)}}}{{*}}{{{model_rename[model]}}}")
                 elif n_idx == 0:
                     row.append('')
                 else:
                     row.append('')
                 # Agent column
                 if n_idx == 0:
-                    row.append(f"\\multirow{{{len(nu_values)}}}{{*}}{{{agent}}}")
+                    # For the last nu (last row for this agent), append identity risk in brackets
+                    agent_label = agent_rename[agent]
+                    if len(nu_values) > 0:
+                        last_identity_risk = identity_risks[-1] if len(identity_risks) == len(nu_values) and len(nu_values) > 0 else None
+                        if last_identity_risk is not None:
+                            def format_val(val):
+                                if val == '-':
+                                    return '-'
+                                val_str = f"{float(val):.3f}"
+                                if val_str.startswith('0.'):
+                                    return val_str[1:]
+                                elif val_str[0] != '0':
+                                    return '~~{=}1'
+                                else:
+                                    return val_str
+                            last_identity_risk_str = format_val(last_identity_risk)
+                        else:
+                            last_identity_risk_str = '-'
+                    else:
+                        last_identity_risk_str = '-'
+                    # Only add bracket for the last row for this agent
+                    if len(nu_values) == 1:
+                        agent_label = f"{agent_label} [{last_identity_risk_str}]"
+                    else:
+                        agent_label = f"{agent_label}"
+                    row.append(f"\\multirow{{{len(nu_values)}}}{{*}}{{{agent_label}}}")
+                elif n_idx == len(nu_values) - 1:
+                    # Last row for this agent: append identity risk in brackets
+                    agent_label = agent_rename[agent]
+                    last_identity_risk = identity_risks[-1]
+                    def format_val(val):
+                        if val == '-':
+                            return '-'
+                        val_str = f"{float(val):.3f}"
+                        if val_str.startswith('0.'):
+                            return val_str[1:]
+                        elif val_str[0] != '0':
+                            return '~~{=}1'
+                        else:
+                            return val_str
+                    last_identity_risk_str = format_val(last_identity_risk)
+                    row.append(f"({last_identity_risk_str})")
                 else:
                     row.append('')
                 # nu column
                 row.append(str(nu))
-                # For each shield, add risk and reward (rounded)
-                for idx, (risk, reward) in enumerate(shield_data):
-                    is_green = green_mask[idx]
-                    # For optimistic, pessimistic, online: color red if risk > nu, else uncolored
-                    if idx in no_green_bold_indices:
-                        if risk != '-' and float(risk) > nu_val:
-                            color = 'red'
-                        else:
-                            color = None
-                        bold = False
+                # For each shield, add risk and allowed_pct (rounded)
+                nu_val = float(nu)
+                for idx, (risk, allowed_pct) in enumerate(shield_data):
+                    # Determine color for risk cell
+                    if risk != '-' and float(risk) <= nu_val:
+                        risk_color = None
+                    elif risk != '-' and float(risk) > nu_val:
+                        risk_color = 'red'
                     else:
-                        if risk != '-' and float(risk) <= nu_val:
-                            color = 'green'
-                        elif risk != '-' and float(risk) > nu_val:
-                            color = 'red'
+                        risk_color = None
+                    # Determine color and bold for allowed_pct cell
+                    allowed_color = risk_color
+                    bold = False
+                    # Only consider non-identity and non-optimistic shields for bolding
+                    if (
+                        idx != identity_index and idx != optimistic_index and
+                        allowed_pct != '-' and risk != '-' and float(risk) <= nu_val and float(allowed_pct) >= float(max_allowed_pct) and max_allowed_pct != float('-inf')
+                    ):
+                        bold = True
+                    def format_val(val):
+                        if val == '-':
+                            return '-'
+                        val_str = f"{float(val):.3f}"
+                        if val_str.startswith('0.'):
+                            return val_str[1:]
+                        elif val_str[0] != '0':
+                            return '~~{=}1'
                         else:
-                            color = None
-                        # Only bold if not identity and not in no_green_bold_indices
-                        if idx != identity_index and idx not in no_green_bold_indices:
-                            bold = color == 'green' and reward != '-' and float(reward) == max_green_reward and max_green_reward != float('-inf')
-                        else:
-                            bold = False
-                    risk_str = f"{float(risk):.2f}" if risk != '-' else '-'
-                    reward_str = f"{float(reward):.1f}" if reward != '-' else '-'
-                    row.append(latex_cell(risk_str, color=color, bold=bold))
-                    row.append(latex_cell(reward_str, color=color, bold=bold))
+                            return val_str
+                    risk_str = format_val(risk)
+                    allowed_str = format_val(allowed_pct)
+                    row.append(latex_cell(risk_str, color=risk_color, bold=bold))
+                    row.append(latex_cell(allowed_str, color=allowed_color, bold=bold))
                 model_block_lines.append(' & '.join(row) + r" \\")
             # Add cmidrule after each agent except last
             if a_idx < len(agents) - 1:
-                model_block_lines.append(r" \cmidrule(lr){2-21}")
+                # cmidrule for agent block: starts at agent column (2), ends at last column
+                model_block_lines.append(f" \\cmidrule(lr){{2-{num_columns}}}")
         # Add model block to output
         output_lines.extend(model_block_lines)
         # Add cmidrule between models except after last
-        if m_idx < len(models) - 1:
-            output_lines.append(r" \cmidrule(lr){1-21}")
+        if m_idx < len(model_order) - 1:
+            # cmidrule for model block: starts at model column (1), ends at last column
+            output_lines.append(f" \\cmidrule(lr){{1-{num_columns}}}")
 
     # Print output
     for line in output_lines:

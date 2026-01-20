@@ -5,7 +5,7 @@ import tqdm
 import itertools
 import pandas as pd
 
-def add_result_to_csv(csv_path, df, model, agent, nu, shield, shield_name, iter, risk, reward, shield_calls, blocked_actions, earliest_shielded_step):
+def add_result_to_csv(csv_path, df, model, agent, nu, shield, shield_name, iter, risk, reward, shield_calls, blocked_actions, earliest_shielded_step, eval_time):
     exists = (
             (df['model'] == model)
             & (df['agent'] == agent)
@@ -18,7 +18,7 @@ def add_result_to_csv(csv_path, df, model, agent, nu, shield, shield_name, iter,
         print(f"Result for model={model}, agent={agent}, nu={nu}, shield={shield}, shield_name={shield_name}, iter={iter} already exists in CSV. Skipping addition.")
         return
     with open(csv_path, "a") as f:
-        f.write(f"{model},{agent},{nu},{shield},{shield_name},{iter},{risk},{reward},{shield_calls},{blocked_actions},{earliest_shielded_step}\n")
+        f.write(f"{model},{agent},{nu},{shield},{shield_name},{iter},{risk},{reward},{shield_calls},{blocked_actions},{earliest_shielded_step},{eval_time}\n")
 
 
 @click.command()
@@ -36,7 +36,7 @@ def main(results_folder, shield_memory, shield_nu, shield_model, shield_construc
     if not os.path.exists(results_folder):
         os.makedirs(results_folder, exist_ok=True)
     main_csv_path = os.path.join(results_folder, "convergence.csv")
-    header = "model,agent,nu,shield,shield_name,iter,risk,reward,shield_calls,blocked_actions,earliest_shielded_step\n"
+    header = "model,agent,nu,shield,shield_name,iter,risk,reward,shield_calls,blocked_actions,earliest_shielded_step,eval_time\n"
     if not os.path.exists(main_csv_path):
         with open(main_csv_path, "w") as f:
             f.write(header)
@@ -129,9 +129,9 @@ def main(results_folder, shield_memory, shield_nu, shield_model, shield_construc
                 if ';' not in last_line:
                     print("Error: Output does not contain ';' in the last line.")
                 else:
-                    risk, reward, shield_calls, blocked_actions, earliest_shielded_step = [part.strip() for part in last_line.split(';', 4)]
+                    risk, reward, shield_calls, blocked_actions, earliest_shielded_step, eval_time = [part.strip() for part in last_line.split(';', 5)]
 
-                    add_result_to_csv(main_csv_path, df, model, agent, nu, "constructed", shield_partial_name, current_iter, risk, reward, shield_calls, blocked_actions, earliest_shielded_step)
+                    add_result_to_csv(main_csv_path, df, model, agent, nu, "constructed", shield_partial_name, current_iter, risk, reward, shield_calls, blocked_actions, earliest_shielded_step, eval_time)
 
         else:
 

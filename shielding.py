@@ -255,6 +255,8 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
         assert shield_processor is not None, "Shield processor must be provided for model checking evaluation."
         actions, _ = extract_memory_less_fsc_actions(environment, policy, get_probs = not deterministic_agent, compile_policy=compile_policy)
 
+        start_time = time.time()
+
         mapped_actions = []
         state_choice_labels= []
         for state in range(shield_processor.shield.model_info.model.nr_states):
@@ -263,13 +265,18 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
             mapped_actions.append(mapped_distribution)
             state_choice_labels.append(choice_labels)
 
-        model_check_result = model_check_given_policy_and_shield(mapped_actions, shield_processor.shield, episode_length=episode_length, goal_value=goal_rew, antigoal_value=fail_rew, expected_shield_calls=expected_shield_calls)        
+        model_check_result = model_check_given_policy_and_shield(mapped_actions, shield_processor.shield, episode_length=episode_length, goal_value=goal_rew, antigoal_value=fail_rew, expected_shield_calls=expected_shield_calls)      
+
+        eval_elapsed_time = time.time() - start_time
+        print(f"Model checking evaluation took {eval_elapsed_time:.2f} seconds.")  
+
+        print(f"{model_check_result['full_safety_probability']};{model_check_result['actual_reward']};{model_check_result['expected_shield_calls']};{model_check_result['expected_blocked_actions']};{model_check_result['earliest_shielded_step']};{eval_elapsed_time}")
 
         if eval_file is not None:
             file_exists = os.path.exists(eval_file)
             with open(eval_file, "a") as f:
                 if not file_exists:
-                    f.write("project_name;agent;shield;shield_memory;nu;safety_probability;full_safety_probability;goal_reachability;reward;shield_calls;blocked_actions\n")
+                    f.write("project_name;agent;shield;shield_memory;nu;safety_probability;full_safety_probability;goal_reachability;reward;shield_calls;blocked_actions;evaluation_time\n")
                 if uniform_random_policy:
                     agent_str = "uniform_random"
                 else:
@@ -277,7 +284,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
                 if load_shield is not None:
                     shield = f"constructed-{shield}"
                 f.write(f"{project_name};{agent_str};{shield};{shield_memory};{nu};") 
-                f.write(f'{model_check_result["safety_probability"]};{model_check_result["full_safety_probability"]};{model_check_result["goal_reachability"]};{model_check_result["actual_reward"]};{model_check_result["expected_shield_calls"]};{model_check_result["expected_blocked_actions"]}')
+                f.write(f'{model_check_result["safety_probability"]};{model_check_result["full_safety_probability"]};{model_check_result["goal_reachability"]};{model_check_result["actual_reward"]};{model_check_result["expected_shield_calls"]};{model_check_result["expected_blocked_actions"]};{eval_elapsed_time}')
                 f.write("\n")
 
         exit()
@@ -365,7 +372,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
                 else:
                     f.write(";\n")
 
-        print(f"{eval_result['average_bad_outcome_prob']};{eval_result['virtual_returns']};{shield_processor.shield.shield_calls};{shield_processor.shield.blocked_actions};None")
+        print(f"{eval_result['average_bad_outcome_prob']};{eval_result['virtual_returns']};{shield_processor.shield.shield_calls};{shield_processor.shield.blocked_actions};None;{eval_elapsed_time}")
 
 
 if __name__ == "__main__":
