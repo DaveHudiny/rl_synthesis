@@ -205,8 +205,9 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
             avg_reward = total_reward / number_of_evaluations
             avg_shield_calls = total_shield_calls / number_of_evaluations
             avg_blocked_actions = total_blocked_actions / number_of_evaluations
+            avg_eval_time = total_eval_time / number_of_evaluations
 
-            add_result_to_csv(main_csv_path, df, model, agent, nu, shield, shield_name, avg_risk, avg_reward, avg_shield_calls, avg_blocked_actions, earliest_shielded_step, total_eval_time)
+            add_result_to_csv(main_csv_path, df, model, agent, nu, shield, shield_name, avg_risk, avg_reward, avg_shield_calls, avg_blocked_actions, earliest_shielded_step, avg_eval_time)
 
 
 

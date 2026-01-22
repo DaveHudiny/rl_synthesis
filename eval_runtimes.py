@@ -78,12 +78,12 @@ def main(results_folder, shield_memory, shield_path, number_of_evaluations):
     for model, agent, nu, shield in tqdm.tqdm(eval_combinations):
 
         # shield init
-        shield_string = f"--shield {shield} --shield-memory {shield_memory} --num-environments 1024 --num-parallel-environments 16 --min-episodes-per-environment 10"         # USED FOR GENERATING COMMAND
+        shield_string = f"--shield {shield} --shield-memory {shield_memory} --num-environments 2048 --num-parallel-environments 16 --min-episodes-per-environment 10"         # USED FOR GENERATING COMMAND
         shield_name = shield
         if shield in ['offline']:
             if shield_path == "":
                 raise RuntimeError("Offline shield requires a shield path to be specified. (--shield-path)")
-            shield_string = f"--load-shield {shield_path} --shield-memory {shield_memory} --num-environments 1024 --num-parallel-environments 16 --min-episodes-per-environment 10"
+            shield_string = f"--load-shield {shield_path} --shield-memory {shield_memory} --num-environments 2048 --num-parallel-environments 16 --min-episodes-per-environment 10"
         if shield in ['online']:
             shield_string = f"--shield self-constructing-safe --shield-memory {shield_memory} --num-environments 2048 --num-parallel-environments 16 --min-episodes-per-environment 10"
         
