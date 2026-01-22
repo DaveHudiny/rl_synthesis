@@ -25,8 +25,9 @@ def add_result_to_csv(csv_path, df, model, agent, nu, shield, shield_name, risk,
 @click.option("--results-folder", type=str, required=True, help="Path to the results folder.")
 @click.option("--shield-memory", type=int, required=False, default=0, help="Memory size for the shield.")
 @click.option("--shield-path", type=str, required=False, default="greedy-mem_0-nu_02--eval_0-iter-final-shield.pickle", help="Path to the shield file if applicable.")
+@click.option("--model-eval", type=str, required=False, default=None, help="Model to use for evaluation: 'dpm', 'corridor', 'drone', or 'drone-b'.")
 @click.option("--number-of-evaluations", type=int, required=False, default=3, help="Number of evaluations to run for the shield.")
-def main(results_folder, shield_memory, shield_path, number_of_evaluations):
+def main(results_folder, shield_memory, shield_path, model_eval, number_of_evaluations):
 
     # init results file
     if not os.path.exists(results_folder):
@@ -68,6 +69,9 @@ def main(results_folder, shield_memory, shield_path, number_of_evaluations):
     eval_combinations = []
     model_list = models.keys()
     for model in model_list:
+        if model_eval is not None:
+            if model != model_eval:
+                continue
         agent_list = agents[model].keys()
         assert all(agent in agents[model].keys() for agent in agent_list), f"One or more specified eval agents are not valid for model {model}."
         for agent in agent_list:

@@ -58,7 +58,7 @@ class ShieldProcessor:
                 print("Max until probabilities to goal from initial state:", until_result.get_values()[mdp.initial_states[0]])
             # print(vmin)
             # print(self.bad_states)
-            reward_formula = stormpy.parse_properties("Rmax=? [ C<=100 ]")
+            reward_formula = stormpy.parse_properties("Rmax=? [ C<=50 ]")
             reward_result = stormpy.model_checking(mdp, reward_formula[0])
             print("Max expected rewards to goal from initial state:", reward_result.get_values()[mdp.initial_states[0]])
             exit()
