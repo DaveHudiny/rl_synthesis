@@ -57,12 +57,13 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
     log_settings = f"--eval-file {script_raw_results_path}" # USED FOR GENERATING COMMAND
 
     # init eval parameters
-    models = {'dpm' : 'models/shielding/dpm', 'corridor' : 'models/shielding/test-corridor', 'drone' : 'models/shielding/slippy-drone'} # USED FOR GENERATING COMMAND
+    models = {'dpm' : 'models/shielding/dpm', 'corridor' : 'models/shielding/test-corridor', 'drone' : 'models/shielding/slippy-drone', 'drone-b' : 'models/shielding/collect'} # USED FOR GENERATING COMMAND
     agents = {'dpm' : {'greedy' : 'greedy-iter-1000 --deterministic-agent', 'safe' : 'safe-iter-100 --deterministic-agent', 'random' : 'random --uniform-random-policy'},
               'corridor' : {'greedy' : 'greedy-iter-100 --deterministic-agent', 'safe' : 'safe-iter-4000 --deterministic-agent', 'random' : 'random --uniform-random-policy'},
-              'drone' : {'greedy' : 'greedy-iter-4000 --deterministic-agent', 'safe' : 'safe-iter-1000 --deterministic-agent', 'random' : 'random --uniform-random-policy'}} # USED FOR GENERATING COMMAND
-    nus = {'dpm' : [0.01, 0.05, 0.2], 'corridor' : [0.05, 0.1, 0.2], 'drone' : [0.01, 0.05, 0.2]} # USED FOR GENERATING COMMAND
-    model_settings = {'dpm' : '--goal-rew 0.0 --fail-rew 0.0', 'corridor' : '', 'drone' : ''} # USED FOR GENERATING COMMAND
+              'drone' : {'greedy' : 'greedy-iter-4000 --deterministic-agent', 'safe' : 'safe-iter-1000 --deterministic-agent', 'random' : 'random --uniform-random-policy'},
+              'drone-b' : {'greedy' : 'greedy-iter-500 --deterministic-agent', 'safe' : 'safe-iter-500', 'random' : 'random --uniform-random-policy'}} # USED FOR GENERATING COMMAND
+    nus = {'dpm' : [0.01, 0.05, 0.2], 'corridor' : [0.05, 0.1, 0.2], 'drone' : [0.01, 0.05, 0.2], 'drone-b' : [0.01, 0.05, 0.2]} # USED FOR GENERATING COMMAND
+    model_settings = {'dpm' : '--goal-rew 0.0 --fail-rew 0.0', 'corridor' : '', 'drone' : '', 'drone-b' : ''} # USED FOR GENERATING COMMAND
 
     # shield init
     depends_on_nu = False
@@ -79,7 +80,7 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
         shield_string = f"--load-shield {shield_path} --shield-memory {shield_memory}"
         assert shield_nu is not None, "Offline shield requires a nu parameter to be specified. (--shield-nu)"
         custom_nu = True
-        assert shield_model in ['dpm', 'corridor', 'drone'], "Offline shield requires a model to be specified. (--shield-model)"
+        assert shield_model in ['dpm', 'corridor', 'drone', 'drone-b'], "Offline shield requires a model to be specified. (--shield-model)"
         custom_model = True
         assert shield_construction_agent is not None, "Offline shield requires a shield construction agent to be specified. (--shield-construction-agent)"
         shield_name = f"{shield_construction_agent}"

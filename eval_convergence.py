@@ -70,8 +70,8 @@ def main(results_folder, shield_memory, shield_nu, shield_model, shield_construc
     agents = {'dpm' : {'greedy' : 'greedy-iter-1000 --deterministic-agent', 'safe' : 'safe-iter-100 --deterministic-agent', 'random' : 'random --uniform-random-policy'},
               'corridor' : {'greedy' : 'greedy-iter-100 --deterministic-agent', 'safe' : 'safe-iter-4000 --deterministic-agent', 'random' : 'random --uniform-random-policy'},
               'drone' : {'greedy' : 'greedy-iter-4000 --deterministic-agent', 'safe' : 'safe-iter-1000 --deterministic-agent', 'random' : 'random --uniform-random-policy'},
-              'drone-b' : {'rabdom' : 'random --uniform-random-policy'}} # USED FOR GENERATING COMMAND
-    nus = {'dpm' : [0.01, 0.05, 0.2], 'corridor' : [0.05, 0.1, 0.2], 'drone' : [0.01, 0.05, 0.2], 'drone-b' : [0.2]} # USED FOR GENERATING COMMAND
+              'drone-b' : {'greedy' : 'greedy-iter-500 --deterministic-agent', 'safe' : 'safe-iter-500', 'random' : 'random --uniform-random-policy'}} # USED FOR GENERATING COMMAND
+    nus = {'dpm' : [0.01, 0.05, 0.2], 'corridor' : [0.05, 0.1, 0.2], 'drone' : [0.01, 0.05, 0.2], 'drone-b' : [0.01, 0.05, 0.2]} # USED FOR GENERATING COMMAND
     model_settings = {'dpm' : '--goal-rew 0.0 --fail-rew 0.0', 'corridor' : '', 'drone' : '', 'drone-b' : ''} # USED FOR GENERATING COMMAND
 
     shield_string = f"--shield self-constructing-unsafe --shield-memory {shield_memory}"
