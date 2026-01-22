@@ -56,7 +56,7 @@ def main(results_folder, shield_memory, shield_path, number_of_evaluations):
     agents = {'dpm' : {'greedy' : 'greedy-iter-1000 --deterministic-agent'},
               'corridor' : {'greedy' : 'greedy-iter-100 --deterministic-agent'},
               'drone' : {'greedy' : 'greedy-iter-4000 --deterministic-agent'},
-              'drone-b' : {'greedy' : 'random -- uniform-random-policy'}} # USED FOR GENERATING COMMAND
+              'drone-b' : {'greedy' : 'random --uniform-random-policy'}} # USED FOR GENERATING COMMAND
     # agents = {'dpm' : {'greedy' : 'greedy-iter-1000 --deterministic-agent', 'safe' : 'safe-iter-100 --deterministic-agent', 'random' : 'random --uniform-random-policy'},
     #           'corridor' : {'greedy' : 'greedy-iter-100 --deterministic-agent', 'safe' : 'safe-iter-4000 --deterministic-agent', 'random' : 'random --uniform-random-policy'},
     #           'drone' : {'greedy' : 'greedy-iter-4000 --deterministic-agent', 'safe' : 'safe-iter-1000 --deterministic-agent', 'random' : 'random --uniform-random-policy'}} # USED FOR GENERATING COMMAND
