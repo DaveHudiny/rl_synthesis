@@ -52,15 +52,16 @@ def main(results_folder, shield_memory, shield_path, number_of_evaluations):
     log_settings = f"--eval-file {script_raw_results_path}" # USED FOR GENERATING COMMAND
 
     # init eval parameters
-    models = {'dpm' : 'models/shielding/dpm', 'corridor' : 'models/shielding/test-corridor', 'drone' : 'models/shielding/slippy-drone'} # USED FOR GENERATING COMMAND
+    models = {'dpm' : 'models/shielding/dpm', 'corridor' : 'models/shielding/test-corridor', 'drone' : 'models/shielding/slippy-drone', 'drone-b' : 'models/shielding/collect'} # USED FOR GENERATING COMMAND
     agents = {'dpm' : {'greedy' : 'greedy-iter-1000 --deterministic-agent'},
               'corridor' : {'greedy' : 'greedy-iter-100 --deterministic-agent'},
-              'drone' : {'greedy' : 'greedy-iter-4000 --deterministic-agent'}} # USED FOR GENERATING COMMAND
+              'drone' : {'greedy' : 'greedy-iter-4000 --deterministic-agent'},
+              'drone-b' : {'greedy' : 'random -- uniform-random-policy'}} # USED FOR GENERATING COMMAND
     # agents = {'dpm' : {'greedy' : 'greedy-iter-1000 --deterministic-agent', 'safe' : 'safe-iter-100 --deterministic-agent', 'random' : 'random --uniform-random-policy'},
     #           'corridor' : {'greedy' : 'greedy-iter-100 --deterministic-agent', 'safe' : 'safe-iter-4000 --deterministic-agent', 'random' : 'random --uniform-random-policy'},
     #           'drone' : {'greedy' : 'greedy-iter-4000 --deterministic-agent', 'safe' : 'safe-iter-1000 --deterministic-agent', 'random' : 'random --uniform-random-policy'}} # USED FOR GENERATING COMMAND
-    nus = {'dpm' : [0.2], 'corridor' : [0.2], 'drone' : [0.2]} # USED FOR GENERATING COMMAND
-    model_settings = {'dpm' : '--goal-rew 0.0 --fail-rew 0.0', 'corridor' : '', 'drone' : ''} # USED FOR GENERATING COMMAND
+    nus = {'dpm' : [0.2], 'corridor' : [0.2], 'drone' : [0.2], 'drone-b' : [0.2]} # USED FOR GENERATING COMMAND
+    model_settings = {'dpm' : '--goal-rew 0.0 --fail-rew 0.0', 'corridor' : '', 'drone' : '', 'drone-b' : ''} # USED FOR GENERATING COMMAND
     shields = ['identity', 'standard', 'delta', 'pessimistic', 'optimistic', 'online', 'offline']
 
     # prepare what to run combinations
