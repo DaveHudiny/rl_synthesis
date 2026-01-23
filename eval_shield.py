@@ -191,7 +191,7 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
                     wrong_results_detected = True
                     break
                 else:
-                    risk, reward, shield_calls, blocked_actions, earliest_shielded_step, eval_elapsed_time = [part.strip() for part in last_line.split(';', 4)]
+                    risk, reward, shield_calls, blocked_actions, earliest_shielded_step, eval_elapsed_time = [part.strip() for part in last_line.split(';', 5)]
                     total_risk += float(risk)
                     total_reward += float(reward)
                     total_shield_calls += int(shield_calls)
