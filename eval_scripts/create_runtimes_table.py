@@ -2,7 +2,7 @@
 import csv
 from collections import defaultdict, OrderedDict
 
-CSV_PATH = 'test_data/20-01-runtimes.csv'
+CSV_PATH = 'test_data/22-01-runtimes.csv'
 
 def main():
 	# Read CSV and collect data
@@ -26,7 +26,7 @@ def main():
 				value = '-'
 			data[model][shield] = value
 
-	desired_order = ['corridor', 'drone', 'dpm']
+	desired_order = ['corridor', 'drone', 'drone-b', 'dpm']
 	models = [m for m in desired_order if m in models]
 	# Remove 'identity' shield from columns
 	shield_types = [s for s in shield_types if s and s != 'identity']

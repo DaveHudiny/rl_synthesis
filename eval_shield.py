@@ -31,7 +31,8 @@ def add_result_to_csv(csv_path, df, model, agent, nu, shield, shield_name, risk,
 @click.option("--shield-model", type=str, required=False, default=None, help="Model to use for evaluation: 'dpm', 'corridor', or 'drone'.")
 @click.option("--shield-construction-agent", type=str, required=False, default=None, help="Agent used for shield construction if applicable.")
 @click.option("--eval-agent", type=str, required=False, default=None, help="Agent used for evaluation.")
-def main(results_folder, shield, shield_memory, shield_path, number_of_evaluations, shield_nu, shield_model, shield_construction_agent, eval_agent):
+@click.option("--eval-based-on-shield-name", is_flag=True, default=False, help="Whether to base evaluation on shield name.")
+def main(results_folder, shield, shield_memory, shield_path, number_of_evaluations, shield_nu, shield_model, shield_construction_agent, eval_agent, eval_based_on_shield_name):
 
     # init results file
     if not os.path.exists(results_folder):
@@ -75,15 +76,46 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
     if shield in ['delta', 'pessimistic', 'optimistic', 'online', 'offline']:
         depends_on_nu = True
     if shield in ['offline']:
-        if shield_path == "":
-            raise RuntimeError("Offline shield requires a shield path to be specified. (--shield-path)")
-        shield_string = f"--load-shield {shield_path} --shield-memory {shield_memory}"
-        assert shield_nu is not None, "Offline shield requires a nu parameter to be specified. (--shield-nu)"
-        custom_nu = True
-        assert shield_model in ['dpm', 'corridor', 'drone', 'drone-b'], "Offline shield requires a model to be specified. (--shield-model)"
-        custom_model = True
-        assert shield_construction_agent is not None, "Offline shield requires a shield construction agent to be specified. (--shield-construction-agent)"
-        shield_name = f"{shield_construction_agent}"
+        if eval_based_on_shield_name:
+            if shield_path == "":
+                raise RuntimeError("Offline shield requires a shield path to be specified. (--shield-path)")
+            # Parse shield_path for agent and nu
+            import re
+            # Example: greedy-mem_0-nu_02--eval_0-iter-final-shield.pickle
+            basename = os.path.basename(shield_path)
+            match = re.match(r"([^-]+)-mem_(\d+)-nu_(\d+)(?:--|\.)", basename)
+            if not match:
+                raise RuntimeError(f"Could not parse shield_path for agent and nu: {basename}")
+            parsed_eval_agent = match.group(1)
+            mem_str = match.group(2)
+            parsed_mem = int(mem_str)
+            nu_str = match.group(3)
+            # Convert nu_str like '02' or '005' to float
+            if len(nu_str) == 2:
+                parsed_nu = float(f"{nu_str[0]}.{nu_str[1]}")
+            elif len(nu_str) == 3:
+                parsed_nu = float(f"0.0{nu_str[-2:]}") if nu_str.startswith('0') else float(f"0.{nu_str}")
+            else:
+                raise RuntimeError(f"Unexpected nu format in shield_path: {nu_str}")
+            shield_nu = parsed_nu
+            custom_nu = True
+            eval_agent = parsed_eval_agent
+            # Set shield_name
+            if parsed_mem > 0:
+                shield_name = f"{eval_agent}-{parsed_mem}"
+            else:
+                shield_name = f"{eval_agent}"
+            shield_string = f"--load-shield {shield_path} --shield-memory {shield_memory}"
+        else:
+            if shield_path == "":
+                raise RuntimeError("Offline shield requires a shield path to be specified. (--shield-path)")
+            shield_string = f"--load-shield {shield_path} --shield-memory {shield_memory}"
+            assert shield_nu is not None, "Offline shield requires a nu parameter to be specified. (--shield-nu)"
+            custom_nu = True
+            assert shield_model in ['dpm', 'corridor', 'drone', 'drone-b'], "Offline shield requires a model to be specified. (--shield-model)"
+            custom_model = True
+            assert shield_construction_agent is not None, "Offline shield requires a shield construction agent to be specified. (--shield-construction-agent)"
+            shield_name = f"{shield_construction_agent}"
     if shield in ['online']:
         shield_string = f"--shield self-constructing-safe --shield-memory {shield_memory} --num-environments 2048 --num-parallel-environments 16 --min-episodes-per-environment 10"
     if shield in ['pessimistic', 'optimistic', 'online']:

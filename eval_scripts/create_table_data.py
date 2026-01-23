@@ -32,7 +32,7 @@ def create_latex_table_data(csv_file, split_offline, show_identity):
             ("standard", "standard"),
             ("delta", "delta"),
             ("optimistic", "optimistic"),
-            ("pessimistic", "pessimistic"),
+            # ("pessimistic", "pessimistic"),
             ("online", "online"),
             ("offline", None),  # merged offline column
         ]
@@ -55,15 +55,15 @@ def create_latex_table_data(csv_file, split_offline, show_identity):
             s = f"\\cellcolor{{{color}!20}}{s}"
         return s
     
-    model_order = ['corridor', 'drone', 'dpm']
-    model_rename = {'corridor': 'corridor', 'drone': 'drone', 'dpm': 'dpm'}
+    model_order = ['corridor', 'dpm', 'drone', 'drone-b']
+    model_rename = {'corridor': 'corridor', 'drone': 'drone', 'dpm': 'dpm', 'drone-b': 'drone-b'}
 
     agent_order = ['greedy', 'safe', 'random']
     agent_rename = {'greedy': 'greedy', 'safe': 'timid', 'random': 'random'}
 
     # Indices of shields to exclude from bolding (identity and optimistic)
-    identity_index = 0  # index of identity shield
-    optimistic_index = 3  # index of optimistic shield in both split_offline and merged
+    identity_index = next((i for i, (shield, _) in enumerate(shield_columns) if shield == "identity"), None)
+    optimistic_index = next((i for i, (shield, _) in enumerate(shield_columns) if shield == "optimistic"), None)
 
     # Group by model, agent, nu, using specified order and renaming
     output_lines = []
@@ -114,7 +114,7 @@ def create_latex_table_data(csv_file, split_offline, show_identity):
                     else:
                         shield_data.append(('-', '-'))
                 # Find max allowed_pct (excluding identity and optimistic shields), for shields with risk <= nu
-                allowed_pcts = [allowed_pct if idx != identity_index and idx != optimistic_index and allowed_pct != '-' and risk != '-' and float(risk) <= float(nu) else float('-inf')
+                allowed_pcts = [allowed_pct if (identity_index is None or idx != identity_index) and (optimistic_index is None or idx != optimistic_index) and allowed_pct != '-' and risk != '-' and float(risk) <= float(nu) else float('-inf')
                                 for idx, (risk, allowed_pct) in enumerate(shield_data)]
                 allowed_pcts = [float(x) if x != '-' and x != float('-inf') else float('-inf') for x in allowed_pcts]
                 max_allowed_pct = max(allowed_pcts) if allowed_pcts else float('-inf')
@@ -190,7 +190,7 @@ def create_latex_table_data(csv_file, split_offline, show_identity):
                     bold = False
                     # Only consider non-identity and non-optimistic shields for bolding
                     if (
-                        idx != identity_index and idx != optimistic_index and
+                        (identity_index is None or idx != identity_index) and (optimistic_index is None or idx != optimistic_index) and
                         allowed_pct != '-' and risk != '-' and float(risk) <= nu_val and float(allowed_pct) >= float(max_allowed_pct) and max_allowed_pct != float('-inf')
                     ):
                         bold = True
