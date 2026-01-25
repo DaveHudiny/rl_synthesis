@@ -13,6 +13,10 @@ def create_latex_table_data(csv_file, split_offline, show_identity):
     # Load data
     df = pd.read_csv(csv_file)
 
+    # Remap nu values: 0.005 -> 0.05, 0.001 -> 0.01
+    nu_remap = {0.005: 0.05, 0.001: 0.01, '0.005': 0.05, '0.001': 0.01}
+    df['nu'] = df['nu'].apply(lambda x: nu_remap[x] if x in nu_remap else x)
+
     # Define shield columns and their mapping to (shield, shield_name)
     if split_offline:
         shield_columns = [
@@ -35,6 +39,7 @@ def create_latex_table_data(csv_file, split_offline, show_identity):
             # ("pessimistic", "pessimistic"),
             ("online", "online"),
             ("offline", None),  # merged offline column
+            ("mem1", None),     # new mem1 column
         ]
     # Remove identity shield column unless show_identity is True
     if not show_identity:
@@ -43,6 +48,8 @@ def create_latex_table_data(csv_file, split_offline, show_identity):
     # Columns: model, agent, nu, then 2 columns per shield (risk, allowed_pct)
     num_shields = len(shield_columns)
     num_columns = 3 + 2 * num_shields
+
+    
 
     # For LaTeX output
     def latex_cell(val, color=None, bold=False):
@@ -93,6 +100,8 @@ def create_latex_table_data(csv_file, split_offline, show_identity):
                 for shield, shield_name in shield_columns:
                     if shield == "offline" and not split_offline:
                         match = row_df[(row_df['shield'] == 'offline') & (row_df['shield_name'] == agent)]
+                    elif shield == "mem1" and not split_offline:
+                        match = row_df[(row_df['shield'] == 'offline') & (row_df['shield_name'] == agent + '-1')]
                     else:
                         match = row_df[(row_df['shield'] == shield) & (row_df['shield_name'] == shield_name)]
                     if not match.empty:

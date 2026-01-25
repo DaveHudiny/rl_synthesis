@@ -30,7 +30,8 @@ def add_result_to_csv(csv_path, df, model, agent, nu, shield, shield_name, iter,
 @click.option("--shield-name", type=str, required=False, default="", help="Name of the shield to use.")
 @click.option("--construct-shields", is_flag=True, default=False, help="Only run self-constructing shields.")
 @click.option("--number-of-evaluations", type=int, required=False, default=3, help="Number of evaluations to run for the shield.")
-def main(results_folder, shield_memory, shield_nu, shield_model, shield_construction_agent, shield_name, construct_shields, number_of_evaluations):
+@click.option("--iter-increment", type=int, required=False, default=4, help="Iteration increment for evaluations.")
+def main(results_folder, shield_memory, shield_nu, shield_model, shield_construction_agent, shield_name, construct_shields, number_of_evaluations, iter_increment):
 
     # init results file
     if not os.path.exists(results_folder):
@@ -96,7 +97,7 @@ def main(results_folder, shield_memory, shield_nu, shield_model, shield_construc
 
         if not construct_shields:
 
-            for current_iter in range(0, 256, 4):
+            for current_iter in range(0, 256, iter_increment):
 
                 # Check if result already exists in df
                 exists = (
