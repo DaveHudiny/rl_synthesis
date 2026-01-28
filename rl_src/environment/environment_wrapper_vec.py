@@ -335,6 +335,16 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         self.goal_values_vector = tf.constant(
             [1.0] * self.num_envs, dtype=tf.float32)
         self.truncation_values_vector = tf.constant(
+            [-0.0] * self.num_envs, dtype=tf.float32)
+        
+    def set_collect_rewards(self):
+        """Sets the rewards for the collect states."""
+        self.reward_multiplier = 1.0
+        self.antigoal_values_vector = tf.constant(
+            [self.args.evaluation_antigoal] * self.num_envs, dtype=tf.float32)
+        self.goal_values_vector = tf.constant(
+            [100.0] * self.num_envs, dtype=tf.float32)
+        self.truncation_values_vector = tf.constant(
             [-1.0] * self.num_envs, dtype=tf.float32)
 
     def set_reward_model(self, model_name):
@@ -356,6 +366,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
             "dpm": self.set_dpm_rewards,
             "aco": self.set_obstacle_rewards,
             "rover": self.set_rover_rewards,
+            "collect": self.set_collect_rewards,
         }
         key_found = False
         for key in self.reward_models.keys():
@@ -690,7 +701,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
             observations = self.add_noise_to_observation(observations, noise_level=0.1)
         self.last_observation = observations
         self.states = self.vectorized_simulator.simulator_states
-        self.is_in_bad_state = self.bad_states[self.states.vertices]
+        # self.is_in_bad_state = self.bad_states[self.states.vertices]
         self.allowed_actions = allowed_actions
         self.labels_mask = metalabels
         self.orig_reward = tf.constant(

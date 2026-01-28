@@ -3,7 +3,7 @@
 
 models_dir="models/models_robust"
 
-seeds=(12345 23456 34567 45678 56789)
+seeds=(89012 90123 01234)
 
 # Generate data for robust experiments.
 for seed in "${seeds[@]}"; do
@@ -31,6 +31,7 @@ for seed in "${seeds[@]}"; do
     done
 done
 
+exit 0
 
 models_dir="models/models_single_pomdp"
 seeds=(12345 23456 34567 45678 56789 67890 78901 89012 90123 01234)

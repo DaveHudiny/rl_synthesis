@@ -706,6 +706,9 @@ class FatherAgent(AbstractAgent):
             logger.info("No agent for saving.")
             return
         checkpoint = tf.train.Checkpoint(agent=self.agent)
+        if self.agent_folder is None:
+            logger.info("No agent folder for saving.")
+            return
         if best:
             agent_folder = self.agent_folder + "/best"
         else:
