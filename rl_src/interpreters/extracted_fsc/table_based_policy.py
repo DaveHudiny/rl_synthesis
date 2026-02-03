@@ -13,6 +13,7 @@ from rl_src.tools.evaluators import evaluate_policy_in_model
 
 from tf_agents.policies.py_tf_eager_policy import PyTFEagerPolicy
 
+
 class TableBasedPolicy(TFPolicy):
     def __init__(self, original_policy : TFPolicy, action_function : np.ndarray, 
                  update_function : np.ndarray, # Action and update function has shape (nr_model_states, nr_observations) 

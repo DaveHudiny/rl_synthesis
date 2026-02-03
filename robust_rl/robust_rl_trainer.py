@@ -1,6 +1,6 @@
 # using Paynt for POMDP sketches
 
-from robust_rl.robust_rl_tools import create_json_file_name, assignment_to_pomdp
+from robust_rl.robust_rl_tools import create_json_file_name, assignment_to_pomdp, generate_table_based_fsc_from_paynt_fsc
 import paynt.quotient.fsc
 import paynt.synthesizer.synthesizer_ar
 
@@ -33,6 +33,9 @@ from robust_rl.benchmark_stats import BenchmarkStats
 from paynt.quotient.fsc import FscFactored
 
 from robust_rl.config_file import Config
+
+from rl_src.interpreters.extracted_fsc.table_based_policy import TableBasedPolicy
+from rl_src.tools.evaluators import evaluate_policy_in_model
 
 
 logger = logging.getLogger(__name__)
@@ -123,10 +126,9 @@ class RobustTrainer:
         paynt_fsc = ConstructorFSC.construct_fsc_from_table_based_policy(
             fsc, quotient, family_quotient_numpy=self.family_quotient_numpy, cut_probs=self.cut_probs)
         self.fscs_extracted.append(paynt_fsc)
-
+        
         available_nodes = paynt_fsc.compute_available_updates(0)
         self.benchmark_stats.available_nodes_in_fsc.append(available_nodes)
-
         if get_dict:
             return {
                 "extracted_paynt_fsc": paynt_fsc,
@@ -215,8 +217,8 @@ class RobustTrainer:
                 pomdp, self.agent, nr_iterations=nr_iterations)
 
             # Analysis of the dormant neurons. Not mentioned in the paper, but used during the tuning.
-            nr_clusters = rnn_analyzer.analyze(self.agent, self.tf_env)
-            self.benchmark_stats.add_nr_clusters(nr_clusters)
+            # nr_clusters = rnn_analyzer.analyze(self.agent, self.tf_env)
+            # self.benchmark_stats.add_nr_clusters(nr_clusters)
 
             nr_iterations = config.nr_inner_iter if not self.args.periodic_restarts else 401
 

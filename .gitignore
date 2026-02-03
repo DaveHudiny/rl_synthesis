@@ -25,6 +25,7 @@ sdist/
 var/
 wheels/
 trained_agents/
+models/models_table_camera_ready/
 share/python-wheels/
 *.egg-info/
 .installed.cfg

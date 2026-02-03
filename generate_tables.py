@@ -129,7 +129,7 @@ def generate_latex_table_from_stats(benchmark_stats):
 
 
 if __name__ == "__main__":
-    base_directory = "models_robust"
+    base_directory = "models/models_table_camera_ready"
     benchmark_stats = load_all_benchmark_directories(base_directory)
     # print(benchmark_stats["network"][0][1]) # Access of one benchmark stats from the "network" directory
     generate_latex_table_from_stats(benchmark_stats)

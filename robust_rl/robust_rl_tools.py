@@ -59,16 +59,40 @@ def generate_table_based_fsc_from_paynt_fsc(paynt_fsc: FscFactored, original_act
             for action, prob in paynt_fsc.action_function[n][z].items():
                 action_label = paynt_fsc.action_labels[int(action)]
                 if action_label == "__no_label__":
-                    action_function[n][z][0] = prob
+                    continue
                 else:
                     action_function[n][z][original_action_space.index(
                         action_label)] = prob
+    
+    # Fix the action_function (normalize)
+    for n in range(paynt_fsc.num_nodes):
+        for z in range(paynt_fsc.num_observations):
+            total = np.sum(action_function[n][z])
+            if total > 0:
+                action_function[n][z] /= total
+            else:
+                # If no action is defined, assign uniform distribution
+                num_actions = action_function.shape[2]
+                action_function[n][z] = np.ones(num_actions, dtype=np.float32) / num_actions
+    
+    
     update_function = np.zeros(
         (paynt_fsc.num_nodes, paynt_fsc.num_observations, paynt_fsc.num_nodes), dtype=np.float32)
+    
     for n in range(paynt_fsc.num_nodes):
         for z in range(paynt_fsc.num_observations):
             for n_new, prob in paynt_fsc.update_function[n][z].items():
                 update_function[n][z][int(n_new)] = prob
+    # Fix the update_function (normalize)
+    for n in range(paynt_fsc.num_nodes):
+        for z in range(paynt_fsc.num_observations):
+            total = np.sum(update_function[n][z])
+            if total > 0:
+                update_function[n][z] /= total
+            else:
+                # If no update is defined, assign uniform distribution
+                num_nodes = update_function.shape[2]
+                update_function[n][z] = np.ones(num_nodes, dtype=np.float32) / num_nodes
     # Create the table-based policy
     table_based_policy = TableBasedPolicy(
         original_policy=agent.get_policy(False, True),
