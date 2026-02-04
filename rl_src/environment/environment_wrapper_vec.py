@@ -573,7 +573,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         # self.oracle_reward *= self.args.discount_factor
         return oracle_reward
 
-    def evaluate_simulator(self) -> ts.TimeStep:
+    def evaluate_step(self) -> ts.TimeStep:
         """Evaluates the simulator and returns the current time step. Primarily used to determine, whether the state is the last one or not."""
         self.flag_goal = tf.zeros((self.num_envs,), dtype=tf.bool)
         labels_mask = tf.convert_to_tensor(self.labels_mask, dtype=tf.bool)
@@ -771,7 +771,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         self.cumulative_num_steps += self.num_envs
         self.last_action = tf.cast(action, dtype=tf.float32)
         self._do_step_in_simulator(action)
-        evaluated_step = self.evaluate_simulator()
+        evaluated_step = self.evaluate_step()
         return evaluated_step
 
     def get_model_name(self):

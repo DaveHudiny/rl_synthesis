@@ -76,7 +76,6 @@ class RobustTrainer:
             seed=args.seed)
         self.agent = None
         self.extraction_less = args.without_extraction
-        self.fscs_extracted = []
 
     def save_stats(self, path):
         self.benchmark_stats.save_stats(path)
@@ -120,12 +119,13 @@ class RobustTrainer:
             agent.unset_policy_masking()
 
         tf_environment = TFPyEnvironment(environment)
-
+        print("Calling call_si_or_aalpy")
         fsc = self.call_si_or_aalpy(
             agent, environment, tf_environment, num_data_steps=num_data_steps, training_epochs=training_epochs)
+        print("Finished call_si_or_aalpy, constructing PAYNT representation...")
         paynt_fsc = ConstructorFSC.construct_fsc_from_table_based_policy(
             fsc, quotient, family_quotient_numpy=self.family_quotient_numpy, cut_probs=self.cut_probs)
-        self.fscs_extracted.append(paynt_fsc)
+        print("Finished constructing PAYNT representation. Computing available nodes in FSC...")
         
         available_nodes = paynt_fsc.compute_available_updates(0)
         self.benchmark_stats.available_nodes_in_fsc.append(available_nodes)
@@ -134,6 +134,7 @@ class RobustTrainer:
                 "extracted_paynt_fsc": paynt_fsc,
                 "extracted_fsc": fsc
             }
+        print(f"Available nodes in FSC: {available_nodes}")
         return paynt_fsc
 
     def train_on_new_pomdp(self, pomdp=None, agent: Recurrent_PPO_agent = None, nr_iterations=1500):
@@ -213,6 +214,7 @@ class RobustTrainer:
 
             if args_emulated.single_pomdp_experiment:
                 pomdp = None
+            print("Training on new POMDP...")
             self.train_on_new_pomdp(  # Train the agent on multiple POMDPs
                 pomdp, self.agent, nr_iterations=nr_iterations)
 
@@ -224,15 +226,16 @@ class RobustTrainer:
 
             # In our final implementation, we always use masking for the extraction
             for use_masking in [True]:
-
+                print("Extracting FSC...")
                 fsc = self.extract_fsc(self.agent, self.agent.environment, pomdp_sketch, get_dict=True,
                                        num_data_steps=num_samples_learn, use_masking=use_masking, training_epochs=config.extraction_epochs)
                 # Evaluate the FSC on all POMDPs
                 paynt_fsc = fsc["extracted_paynt_fsc"]
                 table_based_fsc = fsc["extracted_fsc"]
-
+                print("Building DTMC sketch and synthesizing assignment...")
                 dtmc_sketch = pomdp_sketch.build_dtmc_sketch(
                     paynt_fsc, negate_specification=True)
+                print("DTMC sketch built, starting synthesis...")
                 synthesizer = paynt.synthesizer.synthesizer_ar.SynthesizerAR(
                     dtmc_sketch)
                 hole_assignment = synthesizer.synthesize(keep_optimum=True)
@@ -258,6 +261,8 @@ class RobustTrainer:
             self.save_stats(json_path)
             if self.args.periodic_restarts:
                 self.agent.reset_weights()
+            del synthesizer
+            del dtmc_sketch
 
     def train_and_extract_single_pomdp(self, pomdp_sketch: PomdpFamilyQuotient, nr_iterations=1500, num_samples_learn=4001, args: ArgsEmulator = None, project_path: str = None):
         """
@@ -270,9 +275,6 @@ class RobustTrainer:
         fsc = self.extract_fsc(self.agent, self.agent.environment, pomdp_sketch,
                                num_data_steps=num_samples_learn, training_epochs=6001, get_dict=True)
         paynt_fsc = fsc["extracted_paynt_fsc"]
-        import pickle as pkl
-        with open(os.path.join(project_path, "extracted_fsc.pkl"), "wb") as f:
-            pkl.dump(paynt_fsc, f)
 
         dtmc_sketch = pomdp_sketch.build_dtmc_sketch(
             paynt_fsc)

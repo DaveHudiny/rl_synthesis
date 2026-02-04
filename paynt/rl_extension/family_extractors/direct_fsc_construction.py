@@ -65,13 +65,14 @@ class ConstructorFSC:
                                 continue
                             else:
                                 # To avoid zero probabilities
-                                action_dict[action] = prob + 0.0001
+                                action_dict[action] = prob # + 0.0001
                         else:
                             action = int(action) if (family_quotient_numpy and original_action_labels) is None else family_quotient_numpy.action_labels.tolist(
                             ).index(original_action_labels[action])
                             if family_quotient_numpy is not None and family_quotient_numpy.observation_to_legal_action_mask[observation][action]:
                                 # To avoid zero probabilities
-                                action_dict[action] = 0.0001
+                                # action_dict[action] = 0 # .0001
+                                pass
 
                     if action_dict == {}:
                         if family_quotient_numpy is not None:
@@ -91,6 +92,13 @@ class ConstructorFSC:
                     if total_prob > 0:
                         action_dict = {
                             action: prob / total_prob for action, prob in action_dict.items()}
+                    else:
+                        # If total_prob is 0, assign uniform distribution over legal actions
+                        if family_quotient_numpy is not None:
+                            action_dict = {action: 1.0 for action in range(len(
+                                family_quotient_numpy.action_labels)) if family_quotient_numpy.observation_to_legal_action_mask[observation][action]}
+                            action_dict = {
+                                action: 1.0 / len(action_dict) for action in action_dict}
                     action_for_memory.append(action_dict)
                 action_function.append(action_for_memory)
             return action_function

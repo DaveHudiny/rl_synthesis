@@ -29,6 +29,7 @@ class TrajectoryBuffer:
             self.goals_achieved = []
             self.traps_achieved = []
             self.discounted_rewards = []
+            self.bad_outcomes = []
 
     def __init__(self, environment: EnvironmentWrapperVec = None, truncation_point: int = None):
         self.virtual_rewards = []
@@ -42,7 +43,7 @@ class TrajectoryBuffer:
         self.is_in_bad_state = []
         self.environment = environment
         self.truncation_point = truncation_point if truncation_point is not None else (environment.args.max_steps if environment else None)
-        self.episode_outcomes = self.EpisodeOutcomes([], [], [], [], [])
+        self.episode_outcomes = self.EpisodeOutcomes([], [], [], [], [], [])
         self.average_episode_length = 0
         self.counted_episodes = 0
 
