@@ -1,6 +1,6 @@
-# PAYNT + DRL
+# Lexpop
 
-This toolkit implements the PAYNT-DRL loop. The implementation contains the modified version of the PAYNT project and our DRL extension containing SOTA methods for POMDP planning using LSTM networks.
+This toolkit implements the PAYNT-DRL loop called Lexpop (Learning-based policy EXtraction for POMDP Planning). The implementation contains the modified version of the PAYNT project and our DRL extension containing SOTA methods for POMDP planning using LSTM networks.
 
 
 

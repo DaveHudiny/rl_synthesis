@@ -147,6 +147,8 @@ def update_records(model, records, entry, gru_extracted=False):
 
 
 def generate_convergence_curves(benchmark_stats, output_directory, gru_extracted=False):
+    if output_directory is not None:
+        os.makedirs(output_directory, exist_ok=True)
     for model in benchmark_stats:
         stats = benchmark_stats[model]
         records = {
@@ -176,7 +178,6 @@ def generate_convergence_curves(benchmark_stats, output_directory, gru_extracted
             for key in records:
                 for i in range(len(records[key])):
                     records[key][i] = [-v for v in records[key][i]]
-
         max_length = max(len(v) for values in records.values() for v in values)
         data = []
         for label, values_list in records.items():
@@ -193,7 +194,6 @@ def generate_convergence_curves(benchmark_stats, output_directory, gru_extracted
                         "Method": label
                     })
         df = pd.DataFrame(data)
-        # Vykreslit
         if model == "drone-2-6-1":
             df_copy = df.copy()
             plot_robust_lineplot_drone(
@@ -415,10 +415,10 @@ def plot_robust_moving(df, model, output_directory):
     # palette = sns.color_palette("tab10")
     linestyles = [
         (),                  # "-" solid
-        # (),                  # "-" solid
+        (),                  # "-" solid
         (5, 5),              # "--"
         (5, 5),              # "--"
-        (5, 5),              # "--"
+        # (5, 5),              # "--"
     ]
     palette = ["green", "blue", "green", "blue",]
 
@@ -441,7 +441,7 @@ def plot_robust_moving(df, model, output_directory):
     plt.xlabel("Iterations")
     plt.ylabel("Reward" if use_reward(model) else "Reachability")
     plt.ylim(bottom=-450)
-    plt.title(f"HM {model}")
+    plt.title(f"HM Moving Obstacles")
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(os.path.join(output_directory,
@@ -730,15 +730,15 @@ def generate_convergence_curves_single(benchmark_stats, output_directory, saynt_
 
 def generate_convergence_robust():
 
-    base_directory = "./models/models_robust"
+    base_directory = "./models/models_table_camera_ready"
     output_directory = "./convergence_curves"
     benchmark_stats = load_all_benchmark_directories(base_directory)
     # generate_convergence_curves(benchmark_stats, output_directory)
-    base_directory = "./models/models_gru_experiment"
-    output_directory = "./convergence_curves_gru_experiment"
-    benchmark_stats = load_all_benchmark_directories(base_directory)
+    # base_directory = "./models/models_gru_experiment"
+    # output_directory = "./convergence_curves_gru_experiment"
+    # benchmark_stats = load_all_benchmark_directories(base_directory)
     generate_convergence_curves(
-        benchmark_stats, output_directory, gru_extracted=True)
+        benchmark_stats, output_directory, gru_extracted=False)
 
 
 def generate_convergence_single():

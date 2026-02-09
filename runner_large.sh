@@ -3,7 +3,7 @@
 
 models_dir="models/models_robust"
 
-seeds=(90123 01234) # (89012 90123 01234)
+seeds=(12345 23456 34567 45678 56789 67890 78901 89012 90123 01234)
 
 # Generate data for robust experiments.
 for seed in "${seeds[@]}"; do
@@ -19,10 +19,6 @@ for seed in "${seeds[@]}"; do
                 echo "Skipping $model as it is not a directory"
                 continue
             fi
-            if [ ! "$model" == "avoid-large" ] && [ ! "$model" == "drone-2-6-1" ]; then
-                echo "Skipping $model for extraction method $extraction_method"
-                continue
-            fi 
             echo "Evaluating $model with extraction method $extraction_method and seed $seed"
             timeout 3600 prerequisites/venv/bin/python3 robust_pomdps_rl.py --project-path "$models_dir/$model" \
                 --batched-vec-storm \
@@ -34,22 +30,6 @@ for seed in "${seeds[@]}"; do
         done
     done
 done
-
-timeout 3600 prerequisites/venv/bin/python3 robust_pomdps_rl.py --project-path "$models_dir/obstacles-8-5" \
-                --batched-vec-storm \
-                --geometric-batched-vec-storm \
-                --extraction-method "alergia" \
-                --seed 01234 \
-                > "results_robust_large/alergia_seed01234/obstacles-8-5_output.txt" 2>&1
-
-timeout 3600 prerequisites/venv/bin/python3 robust_pomdps_rl.py --project-path "$models_dir/rover" \
-                --batched-vec-storm \
-                --geometric-batched-vec-storm \
-                --extraction-method "alergia" \
-                --seed 01234 \
-                > "results_robust_large/alergia_seed01234/rover_output.txt" 2>&1
-
-exit 0
 
 models_dir="models/models_single_pomdp"
 seeds=(12345 23456 34567 45678 56789 67890 78901 89012 90123 01234)
