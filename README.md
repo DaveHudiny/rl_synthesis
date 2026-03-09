@@ -1,7 +1,10 @@
 # Lexpop
 
-This toolkit implements the PAYNT-DRL loop called Lexpop (Learning-based policy EXtraction for POMDP Planning). The implementation contains the modified version of the PAYNT project and our DRL extension containing SOTA methods for POMDP planning using LSTM networks.
+This toolkit implements the PAYNT-DRL loop called Lexpop (Learning-based policy EXtraction for POMDP Planning). The implementation contains the modified version of the PAYNT project and our DRL extension containing SOTA methods for POMDP planning using LSTM networks with our novel Self-Interpretable Gumbel softmax networks (SIG) for controller extraction.
 
+Lexpop is described in:
+
+ - [1] Finite-State Controllers for (Hidden-Model) POMDPs using Deep Reinforcement Learning by David Hudák, Maris F. L. Galesloot, Martin Tappler, Martin Kurečka, Nils Jansen and Milan Češka. In: AAMAS'26. 
 
 
 ## Installation
@@ -23,6 +26,7 @@ If you want to experiment with our robust RL loop, please use the robust_pomdps_
 
 ## Framework and Sources
 The implementation is primarily based on PAYNT with Stormpy, TensorFlow Agents framework, which implements many important blocks of this project as reinforcement learning algorithms, and the AALpy Automata learning library (https://github.com/DES-Lab/AALpy). We also took some inspiration and in case of .rl_src/environment/pomdp_builder, we took the code from repository: [Shielding](https://github.com/stevencarrau/safe_RL_POMDPs).
+
 
 ## Credits
 

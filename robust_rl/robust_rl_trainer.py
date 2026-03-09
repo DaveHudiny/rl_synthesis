@@ -1,12 +1,11 @@
 # using Paynt for POMDP sketches
 
-from robust_rl.robust_rl_tools import create_json_file_name, assignment_to_pomdp, generate_table_based_fsc_from_paynt_fsc
+from robust_rl.robust_rl_tools import create_json_file_name, assignment_to_pomdp
 import paynt.quotient.fsc
 import paynt.synthesizer.synthesizer_ar
 
 from robust_rl.rnn_analyzer import RNNAnalyzer
 
-import os
 
 
 from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
@@ -30,12 +29,9 @@ import logging
 
 from robust_rl.benchmark_stats import BenchmarkStats
 
-from paynt.quotient.fsc import FscFactored
 
 from robust_rl.config_file import Config
 
-from rl_src.interpreters.extracted_fsc.table_based_policy import TableBasedPolicy
-from rl_src.tools.evaluators import evaluate_policy_in_model
 
 
 logger = logging.getLogger(__name__)
@@ -111,8 +107,6 @@ class RobustTrainer:
         if not self.extraction_type == "bottleneck":
             self.direct_extractor.num_data_steps = num_data_steps
             self.direct_extractor.training_epochs = training_epochs
-        # agent.set_agent_greedy()
-        # agent.set_policy_masking()
         if use_masking:
             agent.set_policy_masking()
         else:
@@ -138,10 +132,6 @@ class RobustTrainer:
         return paynt_fsc
 
     def train_on_new_pomdp(self, pomdp=None, agent: Recurrent_PPO_agent = None, nr_iterations=1500):
-        # environment = EnvironmentWrapperVec(pomdp, self.args, num_envs=256, enforce_compilation=True,
-        #                                     obs_evaluator=self.obs_evaluator,
-        #                                     quotient_state_valuations=self.quotient_state_valuations,
-        #                                     observation_to_actions=self.pomdp_sketch.observation_to_actions)
         if pomdp is not None and self.args.batched_vec_storm:
             self.environment.add_new_pomdp(pomdp)
         elif pomdp is not None and not self.args.batched_vec_storm:
@@ -219,8 +209,8 @@ class RobustTrainer:
                 pomdp, self.agent, nr_iterations=nr_iterations)
 
             # Analysis of the dormant neurons. Not mentioned in the paper, but used during the tuning.
-            # nr_clusters = rnn_analyzer.analyze(self.agent, self.tf_env)
-            # self.benchmark_stats.add_nr_clusters(nr_clusters)
+            nr_clusters = rnn_analyzer.analyze(self.agent, self.tf_env)
+            self.benchmark_stats.add_nr_clusters(nr_clusters)
 
             nr_iterations = config.nr_inner_iter if not self.args.periodic_restarts else 401
 

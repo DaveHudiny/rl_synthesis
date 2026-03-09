@@ -7,7 +7,6 @@ import numpy as np
 import tensorflow as tf
 from aalpy import MealyMachine, Onfsm, StochasticMealyMachine, StochasticMealyState, run_RPNI, run_Alergia
 from aalpy.learning_algs import run_k_tails
-from aalpy.learning_algs.general_passive.GeneralizedStateMerging import GeneralizedStateMerging
 from aalpy.learning_algs.general_passive.GsmNode import GsmNode
 from aalpy.learning_algs.general_passive.ScoreFunctionsGSM import differential_info, hoeffding_compatibility, \
     ScoreCalculation, ScoreFunction
