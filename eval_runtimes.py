@@ -1,12 +1,17 @@
+
 import os
 import click
 import subprocess
 import tqdm
 import itertools
 import pandas as pd
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 
-def add_result_to_csv(csv_path, df, model, agent, nu, shield, shield_name, risk, reward, shield_calls, blocked_actions, earliest_shielded_step,eval_time):
+def add_result_to_csv(csv_path, df, model, agent, nu, shield, shield_name, risk, reward, shield_calls, blocked_actions, earliest_shielded_step,eval_time,memory_usage):
     exists = (
             (df['model'] == model)
             & (df['agent'] == agent)
@@ -18,7 +23,7 @@ def add_result_to_csv(csv_path, df, model, agent, nu, shield, shield_name, risk,
         print(f"Result for model={model}, agent={agent}, nu={nu}, shield={shield}, shield_name={shield_name} already exists in CSV. Skipping addition.")
         return
     with open(csv_path, "a") as f:
-        f.write(f"{model},{agent},{nu},{shield},{shield_name},{risk},{reward},{shield_calls},{blocked_actions},{earliest_shielded_step},{eval_time}\n")
+        f.write(f"{model},{agent},{nu},{shield},{shield_name},{risk},{reward},{shield_calls},{blocked_actions},{earliest_shielded_step},{eval_time},{memory_usage}\n")
 
 
 @click.command()
@@ -33,7 +38,7 @@ def main(results_folder, shield_memory, shield_path, model_eval, number_of_evalu
     if not os.path.exists(results_folder):
         os.makedirs(results_folder, exist_ok=True)
     main_csv_path = os.path.join(results_folder, "evaluation_results.csv")
-    header = "model,agent,nu,shield,shield_name,risk,reward,shield_calls,blocked_actions,earliest_shielded_step,eval_time\n"
+    header = "model,agent,nu,shield,shield_name,risk,reward,shield_calls,blocked_actions,earliest_shielded_step,eval_time,memory_usage\n"
     if not os.path.exists(main_csv_path):
         with open(main_csv_path, "w") as f:
             f.write(header)
@@ -113,6 +118,7 @@ def main(results_folder, shield_memory, shield_path, model_eval, number_of_evalu
         total_blocked_actions = 0
         total_eval_time = 0.0
         wrong_results_detected = False
+        peak_memory_mb = None
         for eval_iter in range(number_of_evaluations):
             command = f"python3 shielding.py {models[model]} --episode-length 50 --load-agent {agents[model][agent]} {shield_string} --nu {nu} {model_settings[model]} {log_settings}"
 
@@ -123,7 +129,30 @@ def main(results_folder, shield_memory, shield_path, model_eval, number_of_evalu
                 stderr=subprocess.STDOUT,
                 cwd=os.path.dirname(os.path.abspath(__file__))
             )
-            output, _ = process.communicate()
+
+            # Monitor memory usage if psutil is available
+            if psutil is not None:
+                proc = psutil.Process(process.pid)
+                peak_memory = 0
+                import threading
+                import time
+                def monitor():
+                    nonlocal peak_memory
+                    try:
+                        while process.poll() is None:
+                            mem = proc.memory_info().rss
+                            if mem > peak_memory:
+                                peak_memory = mem
+                            time.sleep(0.05)
+                    except Exception:
+                        pass
+                t = threading.Thread(target=monitor)
+                t.start()
+                output, _ = process.communicate()
+                t.join()
+                peak_memory_mb = peak_memory / (1024 * 1024)
+            else:
+                output, _ = process.communicate()
             with open(script_log_path, "a") as f:
                 f.write(output.decode())
 
@@ -151,7 +180,7 @@ def main(results_folder, shield_memory, shield_path, model_eval, number_of_evalu
         avg_blocked_actions = total_blocked_actions / number_of_evaluations
         avg_time_eval = total_eval_time / number_of_evaluations
 
-        add_result_to_csv(main_csv_path, df, model, agent, nu, shield, shield_name, avg_risk, avg_reward, avg_shield_calls, avg_blocked_actions, earliest_shielded_step, avg_time_eval)
+        add_result_to_csv(main_csv_path, df, model, agent, nu, shield, shield_name, avg_risk, avg_reward, avg_shield_calls, avg_blocked_actions, earliest_shielded_step, avg_time_eval, peak_memory_mb)
 
 
 
