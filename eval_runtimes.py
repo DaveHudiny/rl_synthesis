@@ -130,7 +130,7 @@ def main(results_folder, shield_memory, shield_path, model_eval, number_of_evalu
                 cwd=os.path.dirname(os.path.abspath(__file__))
             )
 
-            # Monitor memory usage if psutil is available
+            # Monitor memory usage if psutil is available (sum over all children)
             if psutil is not None:
                 proc = psutil.Process(process.pid)
                 peak_memory = 0
@@ -140,10 +140,16 @@ def main(results_folder, shield_memory, shield_path, model_eval, number_of_evalu
                     nonlocal peak_memory
                     try:
                         while process.poll() is None:
+                            # Sum RSS of process and all children
                             mem = proc.memory_info().rss
+                            for child in proc.children(recursive=True):
+                                try:
+                                    mem += child.memory_info().rss
+                                except Exception:
+                                    pass
                             if mem > peak_memory:
                                 peak_memory = mem
-                            time.sleep(0.05)
+                            time.sleep(0.5)
                     except Exception:
                         pass
                 t = threading.Thread(target=monitor)
