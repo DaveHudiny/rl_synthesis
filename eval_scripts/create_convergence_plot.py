@@ -3,12 +3,16 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 @click.command()
-@click.argument('csv_file', type=click.Path(exists=True))
-@click.option('--output', type=click.Path(), default=None, help='Output file for the plot (e.g., plot.png). If not set, shows the plot interactively.')
+@click.option('--csv-file', type=click.Path(exists=True), default='22-01-convergence-data.csv', show_default=True, help='CSV data file to load.')
+@click.option('--output', type=click.Path(), default='convergence.pdf', show_default=True, help='Output file for the plot. If set to .pgf, uses LaTeX PGF backend.')
 @click.option('--xmax', type=float, default=None, help='Maximum value for the x-axis.')
 @click.option('--plot-risk', is_flag=True, default=False, help='Plot the risk column on the y-axis instead of expected allowed actions.')
 @click.option('--log-scale', is_flag=True, default=False, help='Use log scale for the x-axis with ticks at 10, 1000, 100000.')
-def plot_convergence(csv_file, output, xmax, plot_risk, log_scale):
+@click.option('--dpi', type=int, default=300, help='DPI for raster outputs (PNG, PDF). Ignored for PGF output.')
+@click.option('--target-width-in', type=float, default=None, help='Target figure width in inches; useful for small figures in papers.')
+@click.option('--textwidth-cm', type=float, default=12.2, help='LaTeX \\textwidth in cm; figure width set to 0.47*textwidth.')
+@click.option('--font-size', type=float, default=None, help='Base font size (pt) for axes, ticks, and legend.')
+def plot_convergence(csv_file, output, xmax, plot_risk, log_scale, dpi, target_width_in, textwidth_cm, font_size):
 
     # Load data
     df = pd.read_csv(csv_file, sep=',')
@@ -48,6 +52,7 @@ def plot_convergence(csv_file, output, xmax, plot_risk, log_scale):
         raise ValueError("blocked_actions and/or shield_calls columns are missing in the data.")
 
     import matplotlib
+    # Configure PGF backend for LaTeX if requested
     if output and str(output).endswith('.pgf'):
         matplotlib.use('pgf')
         plt.rcParams.update({
@@ -56,7 +61,65 @@ def plot_convergence(csv_file, output, xmax, plot_risk, log_scale):
             "font.family": "serif",
             "pgf.rcfonts": False,
         })
-    plt.figure(figsize=(10, 7))
+
+    # Determine target figure width and height (maintain original 10:7 aspect ratio)
+    aspect_w = 10.0
+    aspect_h = 5.0
+    aspect_ratio = aspect_h / aspect_w
+
+    fig_width_in = None
+    if target_width_in is not None:
+        fig_width_in = float(target_width_in)
+    elif textwidth_cm is not None:
+        # Convert cm to inches and apply 0.47*textwidth scaling
+        fig_width_in = 0.47 * float(textwidth_cm) / 2.54
+    else:
+        fig_width_in = aspect_w  # default to original width
+
+    fig_height_in = fig_width_in * aspect_ratio
+
+    # Adjust font sizes for small figures or if explicitly provided
+    if font_size is not None:
+        base = float(font_size)
+        plt.rcParams.update({
+            "font.size": base,
+            "axes.labelsize": base,
+            "xtick.labelsize": max(base - 1, 6),
+            "ytick.labelsize": max(base - 1, 6),
+            "legend.fontsize": max(base - 1, 6),
+            "axes.titlesize": base,
+        })
+    else:
+        # Heuristic: if very small figure width, use compact fonts
+        if fig_width_in <= 3.0:
+            plt.rcParams.update({
+                "font.size": 4,
+                "axes.labelsize": 5,
+                "xtick.labelsize": 4,
+                "ytick.labelsize": 4,
+                "legend.fontsize": 4,
+                "axes.titlesize": 5,
+            })
+
+    # Create figure with computed size; DPI applies to raster outputs
+    if output and str(output).endswith('.pgf'):
+        plt.figure(figsize=(fig_width_in, fig_height_in))
+    else:
+        plt.figure(figsize=(fig_width_in, fig_height_in), dpi=dpi)
+
+    # Make axes compact: reduce label/tick padding and margins
+    plt.rcParams.update({
+        "axes.labelpad": 2,
+        "xtick.major.pad": 1,
+        "ytick.major.pad": 1,
+        "legend.handlelength": 1.0,
+        "legend.handletextpad": 0.3,
+        "legend.borderaxespad": 0.3,
+        "legend.labelspacing": 0.2,
+        "legend.borderpad": 0.2,
+        "legend.columnspacing": 0.6,
+    })
+    plt.margins(x=0.01, y=0.02)
 
     
 
@@ -98,12 +161,20 @@ def plot_convergence(csv_file, output, xmax, plot_risk, log_scale):
             y,
             color=get_model_color(model),
             linestyle=get_agent_linestyle(agent),
-            linewidth=2.5,
+            linewidth=1.2,
             alpha=0.85 if agent != 'random' else 0.6
         )
+        # Shorten dash patterns for compact stripes
+        style = get_agent_linestyle(agent)
+        if style == '--':
+            line.set_dashes([2, 1])
+        elif style == ':':
+            line.set_dashes([0.6, 1.2])
+        elif style == '-.':
+            line.set_dashes([2, 1, 0.6, 1])
         # Only add one handle per model for color legend
         if model not in model_handles:
-            model_handles[model] = Line2D([0], [0], color=get_model_color(model), lw=3)
+            model_handles[model] = Line2D([0], [0], color=get_model_color(model), lw=1.2)
         # Only add one handle per agent type for style legend (all in black)
         style = get_agent_linestyle(agent)
         agent_key = None
@@ -114,14 +185,22 @@ def plot_convergence(csv_file, output, xmax, plot_risk, log_scale):
         elif 'random' in agent:
             agent_key = 'random'
         if agent_key and agent_key not in agent_handles:
-            agent_handles[agent_key] = Line2D([0], [0], color='black', linestyle=style, lw=3)
+            handle = Line2D([0], [0], color='black', linestyle=style, lw=1.2)
+            # Compact dash patterns in legend to avoid long stripes
+            if style == '--':
+                handle.set_dashes([2, 1])
+            elif style == ':':
+                handle.set_dashes([0.6, 1.2])
+            elif style == '-.':
+                handle.set_dashes([2, 1, 0.6, 1])
+            agent_handles[agent_key] = handle
 
 
     plt.xlabel('Construction steps')
     if plot_risk:
         plt.ylabel('Risk')
     else:
-        plt.ylabel('Expected allowed actions')
+        plt.ylabel('Allowed actions percentage')
     # plt.xscale('symlog')
 
     if log_scale:
@@ -150,20 +229,23 @@ def plot_convergence(csv_file, output, xmax, plot_risk, log_scale):
             plt.xticks(xticks, xlabels)
             plt.xlim(left=0, right=xmax)
         else:
-            xticks = [200000, 400000, 600000, 800000, 1000000]
-            xlabels = ['200k', '400k', '600k', '800k', '1M']
+            xticks = [4000, 200000, 400000, 600000, 800000, 1000000]
+            xlabels = ['4k','200k', '400k', '600k', '800k', '1M']
             plt.xticks(xticks, xlabels)
 
     # Custom legend: 4 model colors, 3 agent styles
     model_labels = [model for model in model_handles]
     model_lines = [model_handles[model] for model in model_labels]
-    agent_labels = ['greedy agent (solid)', 'timid agent (dashed)', 'random agent (dotted)']
+    agent_labels = ['greedy', 'timid', 'random']
     agent_keys = ['greedy', 'safe', 'random']
     agent_lines = [agent_handles[k] for k in agent_keys if k in agent_handles]
-    legend1 = plt.legend(model_lines, model_labels, title='Model', loc='center right')
-    legend2 = plt.legend(agent_lines, agent_labels[:len(agent_lines)], title='Agent', loc='lower right')
+    # Reserve space on the right for legends, so they don't overlap data
+    plt.tight_layout(rect=[0, 0, 0.78, 1])
+
+    # Place legends outside the axes to the right
+    legend1 = plt.legend(model_lines, model_labels, title='Model', loc='upper left', bbox_to_anchor=(1.02, 1.0))
+    legend2 = plt.legend(agent_lines, agent_labels[:len(agent_lines)], title='Agent', loc='lower left', bbox_to_anchor=(1.02, 0.0))
     plt.gca().add_artist(legend1)
-    plt.tight_layout()
 
     if output:
         plt.savefig(output)

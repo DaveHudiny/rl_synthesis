@@ -1,7 +1,6 @@
 """Constructed shield data."""
 
 from dataclasses import dataclass
-import stormpy
 from rl_src.shielding.shields import Node
 
 

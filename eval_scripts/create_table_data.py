@@ -36,7 +36,7 @@ def create_latex_table_data(csv_file, split_offline, show_identity):
             ("standard", "standard"),
             ("delta", "delta"),
             ("optimistic", "optimistic"),
-            # ("pessimistic", "pessimistic"),
+            ("pessimistic", "pessimistic"),
             ("online", "online"),
             ("offline", None),  # merged offline column
             ("mem1", None),     # new mem1 column
