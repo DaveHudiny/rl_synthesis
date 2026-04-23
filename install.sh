@@ -23,7 +23,7 @@ python3.10 -m pip install --upgrade pip
 # python3.10 -m venv ${PREREQUISITES}/venv
 # source ${PREREQUISITES}/venv/bin/activate
 pip3 install wheel
-# pip3 install paynt
+pip3 install paynt
 
 # paynt dependencies
 sudo apt -y install graphviz
