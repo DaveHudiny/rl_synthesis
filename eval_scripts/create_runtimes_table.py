@@ -1,16 +1,22 @@
 # Script to generate LaTeX table data from runtimes CSV
+
 import csv
 from collections import defaultdict, OrderedDict
+import click
 
-CSV_PATH = 'test_data/31-03-runtimes.csv'
 
-def main():
+@click.command()
+@click.argument('csv_path', type=click.Path(exists=True))
+@click.option('--artifact-review', is_flag=True, default=False, help='Generate artifact review table.')
+@click.option("--data-type", type=click.Choice(['calls_per_second', 'time', 'memory']), default='calls_per_second', required=True, help="Type of data to put in table.")
+def main(csv_path, artifact_review, data_type):
+	"""Generate LaTeX table data from runtimes CSV."""
 	# Read CSV and collect data
 	models = set()
 	shield_types = []
 	data = defaultdict(dict)
 
-	with open(CSV_PATH, newline='') as csvfile:
+	with open(csv_path, newline='') as csvfile:
 		reader = csv.DictReader(csvfile)
 		for row in reader:
 			model = row['model']
@@ -24,7 +30,12 @@ def main():
 				memory_usage = float(row['memory_usage'])
 				# value = shield_calls / eval_time if eval_time != 0 else 0.0 # shield calls per second
 				# value = (eval_time / shield_calls) * 1000000 if shield_calls != 0 else 0.0 # runtime normalized to 1M shield calls
-				value = memory_usage
+				if data_type == 'calls_per_second':
+					value = shield_calls / eval_time if eval_time != 0 else 0.0
+				elif data_type == 'time':
+					value = eval_time
+				elif data_type == 'memory':
+					value = memory_usage
 			except Exception:
 				value = '-'
 			data[model][shield] = value

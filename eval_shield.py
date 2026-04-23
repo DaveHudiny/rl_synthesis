@@ -32,7 +32,9 @@ def add_result_to_csv(csv_path, df, model, agent, nu, shield, shield_name, risk,
 @click.option("--shield-construction-agent", type=str, required=False, default=None, help="Agent used for shield construction if applicable.")
 @click.option("--eval-agent", type=str, required=False, default=None, help="Agent used for evaluation.")
 @click.option("--eval-based-on-shield-name", is_flag=True, default=False, help="Whether to base evaluation on shield name.")
-def main(results_folder, shield, shield_memory, shield_path, number_of_evaluations, shield_nu, shield_model, shield_construction_agent, eval_agent, eval_based_on_shield_name):
+@click.option("--auto-offline-shield-name", is_flag=True, default=False, help="Whether to automatically generate shield path.")
+@click.option("--smoke-test", is_flag=True, default=False, help="Whether to only generate smoke test data.")
+def main(results_folder, shield, shield_memory, shield_path, number_of_evaluations, shield_nu, shield_model, shield_construction_agent, eval_agent, eval_based_on_shield_name, auto_offline_shield_name, smoke_test):
 
     # init results file
     if not os.path.exists(results_folder):
@@ -106,7 +108,7 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
             else:
                 shield_name = f"{eval_agent}"
             shield_string = f"--load-shield {shield_path} --shield-memory {shield_memory}"
-        else:
+        elif not auto_offline_shield_name:
             if shield_path == "":
                 raise RuntimeError("Offline shield requires a shield path to be specified. (--shield-path)")
             shield_string = f"--load-shield {shield_path} --shield-memory {shield_memory}"
@@ -137,6 +139,13 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
     for model, agent, nu in tqdm.tqdm(eval_combinations):
         
         # Check if result already exists in df
+        if auto_offline_shield_name:
+            shield_name = agent
+            shield_string = f"--load-shield {agent}-nu{str(nu).replace('.','')}-mem{shield_memory}--eval-0-iter-final-shield.pickle --shield-memory {shield_memory}"
+
+            if smoke_test:
+                shield_string = f"--load-shield {agent}-nu{str(nu).replace('.','')}-mem{shield_memory}-smoke-test-eval-0-iter-final-shield.pickle --shield-memory {shield_memory}"
+
         exists = (
             (df['model'] == model)
             & (df['agent'] == agent)

@@ -5,7 +5,8 @@ import pandas as pd
 @click.argument('csv_file', type=click.Path(exists=True))
 @click.option('--split-offline', default=False, type=bool, is_flag=True, help='Split offline shields into separate columns (default) or merge into one using shield_name==agent.')
 @click.option('--show-identity', default=False, type=bool, is_flag=True, help='Show identity shield column in the table.')
-def create_latex_table_data(csv_file, split_offline, show_identity):
+@click.option('--artifact-review', is_flag=True, default=False, help='Generate artifact review table.')
+def create_latex_table_data(csv_file, split_offline, show_identity, artifact_review):
     """
     Create LaTeX table data from CSV evaluation results.
     """
@@ -18,29 +19,24 @@ def create_latex_table_data(csv_file, split_offline, show_identity):
     df['nu'] = df['nu'].apply(lambda x: nu_remap[x] if x in nu_remap else x)
 
     # Define shield columns and their mapping to (shield, shield_name)
-    if split_offline:
+    shield_columns = [
+        ("identity", "identity"),
+        ("standard", "standard"),
+        ("delta", "delta"),
+        ("optimistic", "optimistic"),
+        ("pessimistic", "pessimistic"),
+        ("online", "online"),
+        ("offline", None),  # merged offline column
+        ("mem1", None),     # new mem1 column
+    ]
+
+    if artifact_review:
         shield_columns = [
-            ("identity", "identity"),
-            ("standard", "standard"),
-            ("delta", "delta"),
-            ("optimistic", "optimistic"),
-            ("pessimistic", "pessimistic"),
-            ("online", "online"),
-            ("offline", "greedy"),
-            ("offline", "safe"),
-            ("offline", "random"),
-        ]
-    else:
-        shield_columns = [
-            ("identity", "identity"),
-            ("standard", "standard"),
-            ("delta", "delta"),
-            ("optimistic", "optimistic"),
-            ("pessimistic", "pessimistic"),
-            ("online", "online"),
-            ("offline", None),  # merged offline column
-            ("mem1", None),     # new mem1 column
-        ]
+        ("standard", "standard"),
+        ("delta", "delta"),
+        ("offline", None),  # merged offline column
+    ]
+
     # Remove identity shield column unless show_identity is True
     if not show_identity:
         shield_columns = [col for col in shield_columns if col[0] != "identity"]
@@ -179,7 +175,8 @@ def create_latex_table_data(csv_file, split_offline, show_identity):
                         else:
                             return val_str
                     last_identity_risk_str = format_val(last_identity_risk)
-                    row.append(f"({last_identity_risk_str})")
+                    # row.append(f"({last_identity_risk_str})")
+                    row.append('')
                 else:
                     row.append('')
                 # nu column
@@ -229,9 +226,78 @@ def create_latex_table_data(csv_file, split_offline, show_identity):
             # cmidrule for model block: starts at model column (1), ends at last column
             output_lines.append(f" \\cmidrule(lr){{1-{num_columns}}}")
 
+    if artifact_review:
+        print(
+'''
+\\documentclass{article}
+
+\\usepackage{booktabs}
+\\usepackage{multirow, multicol}
+\\usepackage[table]{xcolor}
+
+\\begin{document}
+
+\\begin{table}[h]
+\\renewcommand{\\arraystretch}{0.82}%
+\setlength{\\tabcolsep}{1pt}
+
+\\begin{tabular}{l@{\\hskip 12pt} l@{\\hskip 12pt} r@{\\hskip 12pt} rr@{\\hskip 12pt} rr@{\\hskip 12pt} rr@{\\hskip 12pt}}
+\\toprule
+\multirow{2}{*}{Model} & Agent & \multirow{2}{*}{\\(\\nu\\)} & \\multicolumn{2}{c@{\\hskip 12pt}}{\\(sh_{Safe}\\)} & 
+\\multicolumn{2}{c@{\\hskip 12pt}}{\\(sh_{\delta}\\)} &  \\multicolumn{2}{c@{\\hskip 12pt}}{\\(sh_{off}\\)} \\\\
+
+& (value) & & \\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{green!30!black}{SAFE}}} & \\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{red!80}{UNSAFE}}} & \\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{green!30!black}{SAFE}}} \\\\
+\midrule
+
+'''
+        )
+    else:
+        print(
+'''
+\\documentclass{article}
+
+\\usepackage{booktabs}
+\\usepackage{multirow, multicol}
+\\usepackage[table]{xcolor}
+
+\\begin{document}
+
+\\begin{table}[h]
+\\renewcommand{\\arraystretch}{0.82}%
+\setlength{\\tabcolsep}{1pt}
+
+\\begin{tabular}{l@{\\hskip 12pt} l@{\\hskip 12pt} r@{\\hskip 12pt} rr@{\\hskip 12pt} rr@{\\hskip 12pt} rr@{\\hskip 12pt} rr@{\\hskip 12pt} rr@{\\hskip 12pt} rr@{\\hskip 12pt} rr@{\\hskip 12pt}}
+\\toprule
+\multirow{2}{*}{Model} & Agent & \multirow{2}{*}{\\(\\nu\\)} & \\multicolumn{2}{c@{\\hskip 12pt}}{\\(sh_{Safe}\\)} & 
+\\multicolumn{2}{c@{\\hskip 12pt}}{\\(sh_{\delta}\\)} & 
+\\multicolumn{2}{c@{\\hskip 12pt}}{\\(sh^{*}_{opt}\\)}& 
+\\multicolumn{2}{c@{\\hskip 12pt}}{\\(sh^{*}_{pes}\\)}& 
+\\multicolumn{2}{c@{\\hskip 12pt}}{\\(sh^{*}_{onl}\\)} & \\multicolumn{2}{c@{\\hskip 12pt}}{\\(sh_{off}\\)} & \\multicolumn{2}{c@{\\hskip 12pt}}{\\(sh_{nom}\\)} \\\\
+
+& (value) & & \\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{green!30!black}{SAFE}}} & 
+\\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{red!80}{UNSAFE}}} &
+\\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{red!80}{UNSAFE}}} & 
+\\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{green!30!black}{SAFE}}} &
+\\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{green!30!black}{SAFE}}} & \\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{green!30!black}{SAFE}}} & \\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{green!30!black}{SAFE}}} \\\\
+\midrule
+
+'''
+        )
+
     # Print output
     for line in output_lines:
         print(line)
+
+    print(
+'''
+\\bottomrule
+\\end{tabular}
+
+\\end{table}
+
+\\end{document}
+'''
+    )
 
 if __name__ == '__main__':
     create_latex_table_data()

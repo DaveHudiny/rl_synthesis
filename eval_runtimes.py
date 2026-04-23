@@ -31,8 +31,10 @@ def add_result_to_csv(csv_path, df, model, agent, nu, shield, shield_name, risk,
 @click.option("--shield-memory", type=int, required=False, default=0, help="Memory size for the shield.")
 @click.option("--shield-path", type=str, required=False, default="greedy-mem_0-nu_02--eval_0-iter-final-shield.pickle", help="Path to the shield file if applicable.")
 @click.option("--model-eval", type=str, required=False, default=None, help="Model to use for evaluation: 'dpm', 'corridor', 'drone', or 'drone-b'.")
-@click.option("--number-of-evaluations", type=int, required=False, default=3, help="Number of evaluations to run for the shield.")
-def main(results_folder, shield_memory, shield_path, model_eval, number_of_evaluations):
+@click.option("--number-of-evaluations", type=int, required=False, default=1, help="Number of evaluations to run for the shield.")
+@click.option("--auto-offline-shield-name", is_flag=True, default=False, help="Whether to automatically generate shield path.")
+@click.option("--artifact-review", is_flag=True, default=False, help="Artifact review data only.")
+def main(results_folder, shield_memory, shield_path, model_eval, number_of_evaluations, auto_offline_shield_name, artifact_review):
 
     # init results file
     if not os.path.exists(results_folder):
@@ -69,6 +71,8 @@ def main(results_folder, shield_memory, shield_path, model_eval, number_of_evalu
     nus = {'dpm' : [0.2], 'corridor' : [0.2], 'drone' : [0.2], 'drone-b' : [0.2]} # USED FOR GENERATING COMMAND
     model_settings = {'dpm' : '--goal-rew 0.0 --fail-rew 0.0', 'corridor' : '', 'drone' : '', 'drone-b' : ''} # USED FOR GENERATING COMMAND
     shields = ['identity', 'standard', 'delta', 'pessimistic', 'optimistic', 'online', 'offline']
+    if artifact_review:
+        shields = ['standard', 'delta', 'online', 'offline']
 
     # prepare what to run combinations
     eval_combinations = []
@@ -91,9 +95,13 @@ def main(results_folder, shield_memory, shield_path, model_eval, number_of_evalu
         shield_string = f"--shield {shield} --shield-memory {shield_memory} --num-environments 2048 --num-parallel-environments 16 --min-episodes-per-environment 10"         # USED FOR GENERATING COMMAND
         shield_name = shield
         if shield in ['offline']:
-            if shield_path == "":
-                raise RuntimeError("Offline shield requires a shield path to be specified. (--shield-path)")
-            shield_string = f"--load-shield {shield_path} --shield-memory {shield_memory} --num-environments 2048 --num-parallel-environments 16 --min-episodes-per-environment 10"
+            if auto_offline_shield_name:
+                shield_name = agent
+                shield_string = f"--load-shield {agent}-nu{str(nu).replace('.','')}-mem{shield_memory}--eval-0-iter-final-shield.pickle --shield-memory {shield_memory}  --num-environments 2048 --num-parallel-environments 16 --min-episodes-per-environment 10"
+            else:
+                if shield_path == "":
+                    raise RuntimeError("Offline shield requires a shield path to be specified. (--shield-path)")
+                shield_string = f"--load-shield {shield_path} --shield-memory {shield_memory} --num-environments 2048 --num-parallel-environments 16 --min-episodes-per-environment 10"
         if shield in ['online']:
             shield_string = f"--shield self-constructing-safe --shield-memory {shield_memory} --num-environments 2048 --num-parallel-environments 16 --min-episodes-per-environment 10"
         
