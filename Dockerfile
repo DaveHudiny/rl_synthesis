@@ -23,7 +23,10 @@ RUN apt-get update -qq && \
     libeigen3-dev \
     maven \
     uuid-dev \
-    graphviz && \
+    graphviz \
+    texlive-latex-base \
+    texlive-latex-recommended \
+    texlive-latex-extra && \
     rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p ${PAYNT_ROOT}/prerequisites

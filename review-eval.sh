@@ -4,6 +4,7 @@
 
 ./eval-scripts/artifact_review/runtimes.sh
 
+mkdir -p results/temp-files
 python3 eval_scripts/create_table_data.py results/eval-shield-review/evaluation_results.csv --artifact-review > results/temp-files/review-table-data.tex
 
 cd results/temp-files && pdflatex review-table-data.tex && mv review-table-data.pdf ../review-table.pdf && cd -
