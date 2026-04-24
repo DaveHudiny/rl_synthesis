@@ -36,7 +36,7 @@ def main(results_folder, shield_memory, shield_name, number_of_evaluations, shie
     if artifact_review:
         environments_settings = "--num-environments 512 --num-parallel-environments 256"
     elif smoke_test:
-        environments_settings = "--num-environments 64 --num-parallel-environments 64"
+        environments_settings = "--num-environments 64 --num-parallel-environments 32"
 
     assert shield_model is None or shield_model in models.keys(), "If specified, shield model must be one of: 'dpm', 'corridor', 'drone'"
     assert shield_construction_agent is None or shield_construction_agent in ['greedy', 'safe', 'random'], "If specified, shield construction agent must be one of: 'greedy', 'safe', 'random'"

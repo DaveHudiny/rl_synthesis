@@ -246,7 +246,7 @@ def create_latex_table_data(csv_file, split_offline, show_identity, artifact_rev
 \multirow{2}{*}{Model} & Agent & \multirow{2}{*}{\\(\\nu\\)} & \\multicolumn{2}{c@{\\hskip 12pt}}{\\(sh_{Safe}\\)} & 
 \\multicolumn{2}{c@{\\hskip 12pt}}{\\(sh_{\delta}\\)} &  \\multicolumn{2}{c@{\\hskip 12pt}}{\\(sh_{off}\\)} \\\\
 
-& (value) & & \\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{green!30!black}{SAFE}}} & \\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{red!80}{UNSAFE}}} & \\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{green!30!black}{SAFE}}} \\\\
+& & & \\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{green!30!black}{SAFE}}} & \\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{red!80}{UNSAFE}}} & \\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{green!30!black}{SAFE}}} \\\\
 \midrule
 
 '''
@@ -274,7 +274,7 @@ def create_latex_table_data(csv_file, split_offline, show_identity, artifact_rev
 \\multicolumn{2}{c@{\\hskip 12pt}}{\\(sh^{*}_{pes}\\)}& 
 \\multicolumn{2}{c@{\\hskip 12pt}}{\\(sh^{*}_{onl}\\)} & \\multicolumn{2}{c@{\\hskip 12pt}}{\\(sh_{off}\\)} & \\multicolumn{2}{c@{\\hskip 12pt}}{\\(sh_{nom}\\)} \\\\
 
-& (value) & & \\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{green!30!black}{SAFE}}} & 
+& & & \\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{green!30!black}{SAFE}}} & 
 \\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{red!80}{UNSAFE}}} &
 \\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{red!80}{UNSAFE}}} & 
 \\multicolumn{2}{c@{\\hskip 12pt}}{\\texttt{\\textcolor{green!30!black}{SAFE}}} &

@@ -127,7 +127,7 @@ def main(results_folder, shield, shield_memory, shield_path, number_of_evaluatio
 
     # prepare what to run combinations
     eval_combinations = []
-    model_list = models.keys() if not custom_model else [shield_model]
+    model_list = models.keys() if not shield_model is not None else [shield_model]
     for model in model_list:
         agent_list = agents[model].keys() if eval_agent is None else [eval_agent]
         assert all(agent in agents[model].keys() for agent in agent_list), f"One or more specified eval agents are not valid for model {model}."
