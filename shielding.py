@@ -197,8 +197,8 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
         model, args, num_envs=args.num_environments, enforce_compilation=True, goal_value=goal_rew, antigoal_value=fail_rew)
     
     if save_shield is not None:
-        os.makedirs(f"trained_agents/shields/{project_name}", exist_ok=True)
-        shield_folder = f"trained_agents/shields/{project_name}/{save_shield}"
+        os.makedirs(f"results/shields/{project_name}", exist_ok=True)
+        shield_folder = f"results/shields/{project_name}/{save_shield}"
     else:
         shield_folder = None
     
@@ -212,7 +212,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
             print(f"WARNING: Loading shield and therefore ignoring the provided shield type {shield}.")
             shield_processor = None
         shield_processor = ShieldProcessor(environment.action_keywords, model, nu, 'self-constructing-static', args=args, shield_memory=shield_memory, debug=model_debug, shield_folder=None, deterministic_agent=deterministic_agent)
-        shield_processor.load_shield(f"trained_agents/shields/{project_name}/{load_shield}")
+        shield_processor.load_shield(f"results/shields/{project_name}/{load_shield}")
 
     if load_agent is not None:
         assert not agent_training, "Cannot load and train an agent at the same time."

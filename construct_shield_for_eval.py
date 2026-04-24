@@ -64,7 +64,7 @@ def main(results_folder, shield_memory, shield_name, number_of_evaluations, shie
         if smoke_test:
             save_shield_name = f"{agent}-nu{str(nu).replace('.','')}-mem{shield_memory}-smoke-test-eval-{eval_idx}"
 
-        full_shield_path = 'trained_agents/shields/' + project_name + '/' + save_shield_name + '-iter-final-shield' + '.pickle'
+        full_shield_path = 'results/shields/' + project_name + '/' + save_shield_name + '-iter-final-shield' + '.pickle'
 
         if os.path.exists(full_shield_path):
             print(f"Shield {full_shield_path} already exists. Skipping shield construction.")
