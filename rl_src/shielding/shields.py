@@ -38,7 +38,7 @@ class Shield:
         self.added_nonoptimal_actions = 0
         self.trace_count = 0
 
-    def correct(self, last_action: any, current_state: any, distribution, reset, trace_index=0):
+    def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
         """Correct a distribution."""
         raise NotImplementedError("Not implemented")
     
@@ -48,7 +48,7 @@ class Shield:
 class IdentityShield(Shield):
     def __init__(self, model_info, actions):
         super().__init__(model_info, actions)
-    def correct(self, last_action, current_state, distribution, reset, trace_index=0):
+    def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
         self.shield_calls += 1
 
         return distribution
@@ -67,7 +67,7 @@ class StandardShield(Shield):
         vmin_state_rounded = round(self.model_info.vmin[state], self.rounding_precision)
         return next_val_rounded <= vmin_state_rounded
 
-    def correct(self, last_action, current_state, distribution, reset, trace_index=0):
+    def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
         self.shield_calls += 1
 
         actions = self.model_info.model.get_nr_available_actions(current_state)
@@ -100,7 +100,7 @@ class PessimisticShield(Shield):
                 qmax += prob * entry.value() * self.model_info.vmax[entry.column]
         return qmax
 
-    def correct(self, last_action, current_state, distribution, reset, trace_index=0):
+    def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
         self.shield_calls += 1
 
         if trace_index >= len(self.incurred_safeties):
@@ -116,7 +116,6 @@ class PessimisticShield(Shield):
         else:
             assert self.last_states[trace_index] is not None, "Last state is None on non-reset."
             assert self.last_distrs[trace_index] is not None, "Last distribution is None on non-reset."
-            last_action = last_action[0]
             last_action_label = self.actions[last_action]
 
             prev_state_choice_labels = []
@@ -180,7 +179,7 @@ class OptimisticShield(Shield):
                 qmin += prob * entry.value() * self.model_info.vmin[entry.column]
         return qmin
 
-    def correct(self, last_action, current_state, distribution, reset, trace_index=0):
+    def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
         self.shield_calls += 1
 
         if trace_index >= len(self.incurred_risks):
@@ -196,7 +195,6 @@ class OptimisticShield(Shield):
         else:
             assert self.last_states[trace_index] is not None, "Last state is None on non-reset."
             assert self.last_distrs[trace_index] is not None, "Last distribution is None on non-reset."
-            last_action = last_action[0]
             last_action_label = self.actions[last_action]
 
             prev_state_choice_labels = []
@@ -248,7 +246,7 @@ class DeltaShield(Shield):
         self.delta = delta
         self.standard_shield = StandardShield(model_info, actions)
 
-    def correct(self, last_action, current_state, distribution, reset, trace_index=0):
+    def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
         self.shield_calls += 1
 
         # compute expected value of the distribution
@@ -514,7 +512,7 @@ class SelfConstructingShield(Shield):
 
         return output_distribution
 
-    def correct(self, last_action, current_state, distribution, reset, trace_index=0):
+    def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
         self.shield_calls += 1
 
         if trace_index >= len(self.current_nodes):
@@ -578,7 +576,7 @@ class SelfConstructingShieldConstructionUnsafe(SelfConstructingShield):
     def __init__(self, model_info: ModelInfo, actions, nu: float, memory: int = 0):
         super().__init__(model_info, actions, nu, memory=memory)
 
-    def correct(self, last_action, current_state, distribution, reset, trace_index=0):
+    def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
         self.shield_calls += 1
 
         if trace_index >= len(self.current_nodes):
@@ -700,7 +698,7 @@ class SelfConstructingShieldConstructionSafe(SelfConstructingShield):
             if value_restore_needed:
                 self.back_propagate_values(blocked_distributions[-1][0])
 
-    def correct(self, last_action, current_state, distribution, reset, trace_index=0):
+    def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
         self.shield_calls += 1
 
         if trace_index >= len(self.current_nodes):

@@ -181,7 +181,11 @@ class ShieldProcessor:
             if "goal" in self.shield.model_info.model.labeling.get_labels_of_state(current_state) or "fail" in self.shield.model_info.model.labeling.get_labels_of_state(current_state):
                 distribution = mapped_played_distribution
             else:
-                distribution = self.shield.correct(prev_actions[i], current_state, mapped_played_distribution, resets[i], i)
+                if (type(prev_actions[i]) == list):
+                    prev_actions_i = prev_actions[i][0]
+                else:
+                    prev_actions_i = prev_actions[i]
+                distribution = self.shield.correct(prev_actions_i, current_state, mapped_played_distribution, resets[i], i)
 
             distribution = [distribution[current_state_choice_labels.index(action)] if action in current_state_choice_labels else 0.0 for action in self.actions]
 
