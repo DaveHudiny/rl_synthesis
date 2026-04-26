@@ -32,7 +32,7 @@ def main(results_folder, shield_memory, shield_name, number_of_evaluations, shie
               'drone-b' : {'greedy' : 'greedy-iter-500 --deterministic-agent', 'safe' : 'safe-iter-500', 'random' : 'random --uniform-random-policy'}} # USED FOR GENERATING COMMAND
     nus = {'dpm' : [0.01, 0.05, 0.2], 'corridor' : [0.05, 0.1, 0.2], 'drone' : [0.01, 0.05, 0.2], 'drone-b' : [0.01, 0.05, 0.2]} # USED FOR GENERATING COMMAND
     model_settings = {'dpm' : '--goal-rew 0.0 --fail-rew 0.0', 'corridor' : '', 'drone' : '', 'drone-b' : ''} # USED FOR GENERATING COMMAND
-    environments_settings = "--num-environments 2048 --num-parallel-environments 256"
+    environments_settings = "--num-environments 1024 --num-parallel-environments 256"
     if artifact_review:
         environments_settings = "--num-environments 512 --num-parallel-environments 256"
     elif smoke_test:
@@ -74,7 +74,9 @@ def main(results_folder, shield_memory, shield_name, number_of_evaluations, shie
             if model == 'drone-b':
                 environments_settings = "--num-environments 512 --num-parallel-environments 256"
             elif model == 'drone':
-                environments_settings = "--num-environments 1024 --num-parallel-environments 256"
+                environments_settings = "--num-environments 1024 --num-parallel-environments 256 --min-episodes-per-environment 10"
+            elif model == 'corridor':
+                environments_settings = "--num-environments 2048 --num-parallel-environments 256"
             else:
                 environments_settings = "--num-environments 2048 --num-parallel-environments 256 --min-episodes-per-environment 10"
 

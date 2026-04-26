@@ -139,12 +139,20 @@ def main(results_folder, shield_memory, shield_nu, shield_model, shield_construc
 
             for eval_it in range(number_of_evaluations):
 
+                project_name = os.path.basename(os.path.normpath(models[model]))
+
                 shield_partial_name = f"{agent}-mem_{shield_memory}-nu_{str(nu).replace('.','')}-{shield_name}-eval_{eval_it}"
 
                 model_shield_partial_name = f"{model}-{shield_partial_name}"
 
                 if model_shield_partial_name in constructed_shields:
                     print(f"Shield {model_shield_partial_name} already constructed. Skipping construction.")
+                    continue
+
+                full_shield_path = 'results/shields/' + project_name + '/' + shield_partial_name + '-iter-final-shield' + '.pickle'
+
+                if os.path.exists(full_shield_path):
+                    print(f"Shield {full_shield_path} already exists. Skipping shield construction.")
                     continue
 
                 command = f"python3 shielding.py {models[model]} --episode-length 50 --load-agent {agents[model][agent]} {shield_string} --save-shield {shield_partial_name} --nu {nu} {model_settings[model]} {log_settings} --num-environments 2048 --num-parallel-environments 8 --min-episodes-per-environment 10"
