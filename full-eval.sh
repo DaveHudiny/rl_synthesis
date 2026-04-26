@@ -2,18 +2,23 @@
 
 set -e pipefail
 
-./eval_scripts/artifact_review/construct_shields.sh
+./eval_scripts/full_eval/construct_shields.sh
 
-./eval_scripts/artifact_review/eval_shields.sh
+if [ -d results/eval-shield-review ] && [ ! -d results/eval-shield-full ]; then
+	mkdir -p results/eval-shield-full
+	cp -a results/eval-shield-review/. results/eval-shield-full/
+fi
 
-./eval_scripts/artifact_review/runtimes.sh
+./eval_scripts/full_eval/eval_shields.sh
+
+./eval_scripts/full_eval/runtimes.sh
 
 mkdir -p results/temp-files
-python3 eval_scripts/create_table_data.py results/eval-shield-review/evaluation_results.csv --artifact-review > results/temp-files/review-table-data.tex
+python3 eval_scripts/create_table_data.py results/eval-shield-full/evaluation_results.csv --artifact-review > results/temp-files/full-table-data.tex
 
 cd results/temp-files
-pdflatex review-table-data.tex 1>/dev/null
-mv review-table-data.pdf ../review-table.pdf
+pdflatex full-table-data.tex 1>/dev/null
+mv full-table-data.pdf ../full-table.pdf
 cd -
 
 python3 eval_scripts/create_runtimes_table.py results/runtimes-review/evaluation_results.csv --artifact-review > results/review-calls-per-second-table.tex

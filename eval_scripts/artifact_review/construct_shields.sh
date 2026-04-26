@@ -4,6 +4,6 @@ python3 construct_shield_for_eval.py --results-folder results/shield-constructio
 
 python3 construct_shield_for_eval.py --results-folder results/shield-construction-review --shield-model drone&
 
-python3 construct_shield_for_eval.py --results-folder results/shield-construction-review --shield-model drone-b&
+python3 construct_shield_for_eval.py --results-folder results/shield-construction-review --shield-model drone-b --artifact-review&
 
 wait

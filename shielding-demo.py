@@ -2,8 +2,11 @@ from rl_src.shielding.model_info import ModelInfo
 import rl_src.shielding.shields
 
 import stormpy
+import stormpy.simulator
 
 import click
+
+import numpy as np
 
 
 def get_builder_options():
@@ -101,6 +104,43 @@ def shielding_demo(model_path, shield_type, nu):
     # action_distribution - list of floats, the length of this list should match the number of available actions in the current state, and the values should sum to 1.0
     # reset - bool, whether this is the first step in a new episode (i.e. the current state is the initial state)
     # shielded_distribution = shield.correct(last_action_index, current_state_index, action_distribution, reset)
+
+    simulator = stormpy.simulator.create_simulator(model)
+
+    bad_episodes = 0
+    for episode in range(100):
+        # simulate an episode
+        current_state, _prob, _labels = simulator.restart()
+        last_action = None
+        for step in range(100):
+            # get available actions in the current state
+            nr_available_actions = model.get_nr_available_actions(current_state)
+            # uniform distribution over available actions
+            action_distribution = [1.0 / nr_available_actions for _ in range(nr_available_actions)]
+
+            print(f"Step {step}, State {current_state}, Action distribution before shielding: {action_distribution}")
+
+            # get shielded distribution
+            shielded_distribution = shield.correct(last_action, current_state, action_distribution, step == 0)
+
+            print(f"Current node: {shield.current_nodes[0].node_index}, {shield.current_nodes[0].state_index}, {shield.current_nodes[0].value}, {shield.current_nodes[0].distributions}")
+            print(f"Action distribution after shielding: {shielded_distribution}")
+
+            # sample an action from the shielded distribution
+            action_index = np.random.choice(len(actions), p=shielded_distribution)
+            last_action = action_index
+
+            next_state, _prob, labels = simulator.step(action_index)
+
+            # check if we reached a bad state (for demonstration purposes, we assume that any state labeled "bad" is a bad state)
+            if "bad" in labels:
+                print(f"Reached a bad state in episode {episode}")
+                bad_episodes += 1
+                break
+
+            current_state = next_state
+
+    print(f"Number of episodes that reached a bad state: {bad_episodes} out of 100")
 
 
 

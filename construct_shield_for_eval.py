@@ -70,6 +70,15 @@ def main(results_folder, shield_memory, shield_name, number_of_evaluations, shie
             print(f"Shield {full_shield_path} already exists. Skipping shield construction.")
             continue
 
+        if artifact_review:
+            if model == 'drone-b':
+                environments_settings = "--num-environments 512 --num-parallel-environments 256"
+            elif model == 'drone':
+                environments_settings = "--num-environments 1024 --num-parallel-environments 256"
+            else:
+                environments_settings = "--num-environments 2048 --num-parallel-environments 256 --min-episodes-per-environment 10"
+
+
         command = f"python3 shielding.py {models[model]} --episode-length 50 --load-agent {agents[model][agent]} --shield self-constructing-unsafe --shield-memory {shield_memory} --nu {nu} {model_settings[model]} --eval-file {script_raw_results_path} {environments_settings} --save-shield {save_shield_name}"
 
         process = subprocess.Popen(

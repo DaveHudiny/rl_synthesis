@@ -185,7 +185,10 @@ class ShieldProcessor:
                     prev_actions_i = prev_actions[i][0]
                 else:
                     prev_actions_i = prev_actions[i]
+                # print(f"state: {current_state}, distribution: {mapped_played_distribution}")
                 distribution = self.shield.correct(prev_actions_i, current_state, mapped_played_distribution, resets[i], i)
+                # print(f"Current node: {self.shield.current_nodes[0].node_index}, {self.shield.current_nodes[0].state_index}, {self.shield.current_nodes[0].value}, {self.shield.current_nodes[0].distributions}")
+                # print(f"Corrected distribution: {distribution}")
 
             distribution = [distribution[current_state_choice_labels.index(action)] if action in current_state_choice_labels else 0.0 for action in self.actions]
 

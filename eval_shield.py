@@ -26,7 +26,7 @@ def add_result_to_csv(csv_path, df, model, agent, nu, shield, shield_name, risk,
 @click.option("--shield", type=click.Choice(['identity', 'standard', 'delta', 'pessimistic', 'optimistic', 'online', 'offline']), required=True, help="Type of shield to evaluate.")
 @click.option("--shield-memory", type=int, required=False, default=0, help="Memory size for the shield.")
 @click.option("--shield-path", type=str, required=False, default="", help="Path to the shield file if applicable.")
-@click.option("--number-of-evaluations", type=int, required=False, default=3, help="Number of evaluations to run for the shield.")
+@click.option("--number-of-evaluations", type=int, required=False, default=1, help="Number of evaluations to run for the shield.")
 @click.option("--shield-nu", type=float, required=False, default=None, help="Nu parameter for shielding.")
 @click.option("--shield-model", type=str, required=False, default=None, help="Model to use for evaluation: 'dpm', 'corridor', or 'drone'.")
 @click.option("--shield-construction-agent", type=str, required=False, default=None, help="Agent used for shield construction if applicable.")
