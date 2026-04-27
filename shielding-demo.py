@@ -110,33 +110,35 @@ def shielding_demo(model_path, shield_type, nu):
     bad_episodes = 0
     for episode in range(100):
         # simulate an episode
-        current_state, _prob, _labels = simulator.restart()
+        # simulator returns observation index; map to model state index for shield
+        current_obs, _prob, _labels = simulator.restart()
+        current_state = model_info.observation_to_state[current_obs]
         last_action = None
         for step in range(100):
-            # get available actions in the current state
-            nr_available_actions = model.get_nr_available_actions(current_state)
+            # get available actions in the current state and their labels (local ordering)
+            current_state_choice_labels = []
+            for choice in range(model.transition_matrix.get_row_group_start(current_state), model.transition_matrix.get_row_group_end(current_state)):
+                current_state_choice_labels.append(model.choice_labeling.get_labels_of_choice(choice).pop())
+            nr_available_actions = len(current_state_choice_labels)
             # uniform distribution over available actions
             action_distribution = [1.0 / nr_available_actions for _ in range(nr_available_actions)]
 
-            # get shielded distribution
+            # get shielded distribution (shield uses model state indices)
             shielded_distribution = shield.correct(last_action, current_state, action_distribution, step == 0)
-            prev_last_action = last_action
 
-            # sample an action from the shielded distribution
-            last_action = np.random.choice(len(actions), p=shielded_distribution)
+            # sample a local action index from the shielded distribution
+            local_action = np.random.choice(len(shielded_distribution), p=shielded_distribution)
 
-            next_state, _prob, labels = simulator.step(last_action)
-            if next_state != current_state:
-                print(prev_last_action, current_state, action_distribution, step == 0)
-                print(f"Transitioned from state {current_state} to state {next_state} using distributions {shielded_distribution} and action {actions[last_action]}")
+            # map local action index to global action index (required by shield.correct for next step)
+            last_action = actions.index(current_state_choice_labels[local_action])
 
-            # check if we reached a bad state (for demonstration purposes, we assume that any state labeled "bad" is a bad state)
+            next_obs, _prob, labels = simulator.step(local_action)
+            current_state = model_info.observation_to_state[next_obs]
+
+            # check if we reached a bad state
             if "bad" in labels:
-                print(f"Reached a bad state in episode {episode}")
                 bad_episodes += 1
                 break
-
-            current_state = next_state
 
     print(f"Number of episodes that reached a bad state: {bad_episodes} out of 100")
 
