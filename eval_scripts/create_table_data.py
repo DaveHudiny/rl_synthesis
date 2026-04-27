@@ -291,7 +291,21 @@ def create_latex_table_data(csv_file, split_offline, show_identity, artifact_rev
     for line in output_lines:
         print(line)
 
-    print(
+    if artifact_review:
+        print(
+'''
+\\bottomrule
+\\end{tabular}
+
+\\end{table}
+
+\\end{document}
+'''
+        )
+
+    else:
+
+        print(
 '''
 \\bottomrule
 \\end{tabular}
@@ -302,7 +316,7 @@ def create_latex_table_data(csv_file, split_offline, show_identity, artifact_rev
 
 \\end{document}
 '''
-    )
+        )
 
 if __name__ == '__main__':
     create_latex_table_data()
