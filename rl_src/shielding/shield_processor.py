@@ -85,20 +85,20 @@ class ShieldProcessor:
         elif shield_type == 'self-constructing-static':
             self.shield = rl_src.shielding.shields.SelfConstructingShield(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
         elif shield_type == 'self-constructing-safe':
-            self.shield = rl_src.shielding.shields.SelfConstructingShieldConstructionSafe(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
+            self.shield = rl_src.shielding.shields.SelfConstructingShieldOnline(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
         elif shield_type == 'self-constructing-unsafe':
-            self.shield = rl_src.shielding.shields.SelfConstructingShieldConstructionUnsafe(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
+            self.shield = rl_src.shielding.shields.SelfConstructingShieldOffline(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
         else:
             raise ValueError(f"Unknown shield type: {shield_type}")
         
         self.shield.rounding_precision = 6
         
         if self.shield_folder is not None:
-            assert type(self.shield) in [rl_src.shielding.shields.SelfConstructingShieldConstructionSafe, rl_src.shielding.shields.SelfConstructingShieldConstructionUnsafe], "Saving shield can only be used with self-constructing shields."
+            assert type(self.shield) in [rl_src.shielding.shields.SelfConstructingShieldOnline, rl_src.shielding.shields.SelfConstructingShieldOffline], "Saving shield can only be used with self-constructing shields."
         
     def save_shield(self, path: str, iteration = None):
         """Saves the shield to a file."""
-        if not type(self.shield) in [rl_src.shielding.shields.SelfConstructingShieldConstructionSafe, rl_src.shielding.shields.SelfConstructingShieldConstructionUnsafe]:
+        if not type(self.shield) in [rl_src.shielding.shields.SelfConstructingShieldOnline, rl_src.shielding.shields.SelfConstructingShieldOffline]:
             return
         shield_data = ShieldData(
             actions=self.shield.actions,

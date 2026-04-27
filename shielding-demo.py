@@ -87,9 +87,9 @@ def shielding_demo(model_path, shield_type, nu):
     elif shield_type == 'delta':
         shield = rl_src.shielding.shields.DeltaShield(model_info=model_info, actions=actions, delta=nu)
     elif shield_type == 'online':
-        shield = rl_src.shielding.shields.SelfConstructingShieldConstructionSafe(model_info=model_info, actions=actions, nu=nu)
+        shield = rl_src.shielding.shields.SelfConstructingShieldOnline(model_info=model_info, actions=actions, nu=nu)
     elif shield_type == 'offline':
-        shield = rl_src.shielding.shields.SelfConstructingShieldConstructionUnsafe(model_info=model_info, actions=actions, nu=nu)
+        shield = rl_src.shielding.shields.SelfConstructingShieldOffline(model_info=model_info, actions=actions, nu=nu)
     else:
         raise ValueError(f"Unknown shield type: {shield_type}")
     

@@ -321,7 +321,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
     # agent.evaluation_result.save_to_json(json_path, new_pomdp=False)
 
     if shield_processor:
-        if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShieldConstructionSafe]:
+        if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShieldOnline]:
             shield_processor.shield.finalize_all_unfinished_traces()
         if shield_processor.shield_folder is not None:
             shield_processor.save_shield(shield_processor.shield_folder, "final")
@@ -330,7 +330,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
         print(f"Shield calls: {shield_processor.shield.shield_calls}")
         print(f"Blocked actions: {shield_processor.shield.blocked_actions}")
         # print(f"Bad episodes encountered during evaluation: {shield_processor.bad_epsisodes} ({shield_processor.bad_epsisodes / evaluation_result.counted_episodes[-1]})")
-        if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShield, rl_src.shielding.shields.SelfConstructingShieldConstructionSafe, rl_src.shielding.shields.SelfConstructingShieldConstructionUnsafe]:
+        if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShield, rl_src.shielding.shields.SelfConstructingShieldOnline, rl_src.shielding.shields.SelfConstructingShieldOffline]:
             if shield_processor.shield.memory > 0:
                 final_allow_mdp = payntbind.synthesis.createMdpFromVectorMatrix(shield_processor.shield.memory_unfolded_model, shield_processor.shield.current_matrix_vector)
                 result = stormpy.model_checking(final_allow_mdp, shield_processor.shield.safety_property[0])
@@ -344,7 +344,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
 
         print()
         print(eval_result["counted_episodes"], eval_result["average_episode_length"], shield_processor.shield.shield_calls, eval_elapsed_time, eval_result["virtual_returns"], eval_result["reach_probs"],  eval_result["average_bad_outcome_prob"], shield_processor.shield.blocked_actions, shield_processor.shield.added_nonoptimal_actions, end=";", sep=";")
-        if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShield, rl_src.shielding.shields.SelfConstructingShieldConstructionSafe, rl_src.shielding.shields.SelfConstructingShieldConstructionUnsafe]:
+        if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShield, rl_src.shielding.shields.SelfConstructingShieldOnline, rl_src.shielding.shields.SelfConstructingShieldOffline]:
             if shield_processor.shield.memory > 0:
                 print(result.get_values()[final_allow_mdp.initial_states[0]], end="", sep=";")
             else:
@@ -364,7 +364,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
                     shield = f"constructed-{shield}"
                 f.write(f"{project_name};{agent_str};{shield};{shield_memory};{nu};") 
                 f.write(f'{eval_result["counted_episodes"]};{eval_result["average_episode_length"]};{shield_processor.shield.shield_calls};{eval_elapsed_time};{eval_result["virtual_returns"]};{eval_result["reach_probs"]};{eval_result["average_bad_outcome_prob"]};{shield_processor.shield.blocked_actions};{shield_processor.shield.added_nonoptimal_actions};')
-                if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShield, rl_src.shielding.shields.SelfConstructingShieldConstructionSafe, rl_src.shielding.shields.SelfConstructingShieldConstructionUnsafe]:
+                if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShield, rl_src.shielding.shields.SelfConstructingShieldOnline, rl_src.shielding.shields.SelfConstructingShieldOffline]:
                     if shield_processor.shield.memory > 0:
                         f.write(f"{result.get_values()[final_allow_mdp.initial_states[0]]};\n")
                     else:

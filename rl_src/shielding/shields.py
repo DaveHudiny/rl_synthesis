@@ -572,7 +572,7 @@ class SelfConstructingShield(Shield):
 
         return output_distribution
 
-class SelfConstructingShieldConstructionUnsafe(SelfConstructingShield):
+class SelfConstructingShieldOffline(SelfConstructingShield):
     def __init__(self, model_info: ModelInfo, actions, nu: float, memory: int = 0):
         super().__init__(model_info, actions, nu, memory=memory)
 
@@ -655,7 +655,7 @@ class SelfConstructingShieldConstructionUnsafe(SelfConstructingShield):
         return output_distribution
 
 
-class SelfConstructingShieldConstructionSafe(SelfConstructingShield):
+class SelfConstructingShieldOnline(SelfConstructingShield):
     def __init__(self, model_info: ModelInfo, actions, nu: float, memory: int = 0):
         super().__init__(model_info, actions, nu, memory=memory)
         self.blocked_distributions = [[]]
