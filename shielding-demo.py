@@ -4,9 +4,9 @@ import rl_src.shielding.shields
 import stormpy
 import stormpy.simulator
 
-import click
-
 import numpy as np
+
+import click
 
 
 def get_builder_options():
@@ -73,7 +73,7 @@ def shielding_demo(model_path, shield_type, nu):
     assert model.initial_states is not None and len(model.initial_states) == 1, "We currently only support single initial state models."
 
     model_info = get_model_info(model)
-    actions = model.choice_labeling.get_labels()
+    actions = list(model.choice_labeling.get_labels())
 
 
     # SHIELD INITIALIZATION
@@ -99,11 +99,11 @@ def shielding_demo(model_path, shield_type, nu):
     # RUNNING SHIELD
 
     # you can call shield.correct() to get the shielded distribution
-    # last_action_index - int
-    # current_state_index - int
-    # action_distribution - list of floats, the length of this list should match the number of available actions in the current state, and the values should sum to 1.0
-    # reset - bool, whether this is the first step in a new episode (i.e. the current state is the initial state)
     # shielded_distribution = shield.correct(last_action_index, current_state_index, action_distribution, reset)
+    # last_action - int
+    # current_state - int
+    # distribution - list of floats, the length of this list should match the number of available actions in the current state, and the values should sum to 1.0
+    # reset - bool, whether this is the first step in a new episode (i.e. the current state is the initial state)
 
     simulator = stormpy.simulator.create_simulator(model)
 
@@ -118,19 +118,17 @@ def shielding_demo(model_path, shield_type, nu):
             # uniform distribution over available actions
             action_distribution = [1.0 / nr_available_actions for _ in range(nr_available_actions)]
 
-            print(f"Step {step}, State {current_state}, Action distribution before shielding: {action_distribution}")
-
             # get shielded distribution
             shielded_distribution = shield.correct(last_action, current_state, action_distribution, step == 0)
-
-            print(f"Current node: {shield.current_nodes[0].node_index}, {shield.current_nodes[0].state_index}, {shield.current_nodes[0].value}, {shield.current_nodes[0].distributions}")
-            print(f"Action distribution after shielding: {shielded_distribution}")
+            prev_last_action = last_action
 
             # sample an action from the shielded distribution
-            action_index = np.random.choice(len(actions), p=shielded_distribution)
-            last_action = action_index
+            last_action = np.random.choice(len(actions), p=shielded_distribution)
 
-            next_state, _prob, labels = simulator.step(action_index)
+            next_state, _prob, labels = simulator.step(last_action)
+            if next_state != current_state:
+                print(prev_last_action, current_state, action_distribution, step == 0)
+                print(f"Transitioned from state {current_state} to state {next_state} using distributions {shielded_distribution} and action {actions[last_action]}")
 
             # check if we reached a bad state (for demonstration purposes, we assume that any state labeled "bad" is a bad state)
             if "bad" in labels:
@@ -141,9 +139,6 @@ def shielding_demo(model_path, shield_type, nu):
             current_state = next_state
 
     print(f"Number of episodes that reached a bad state: {bad_episodes} out of 100")
-
-
-
 
 if __name__ == "__main__":
     shielding_demo()
