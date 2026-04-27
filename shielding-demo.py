@@ -1,18 +1,6 @@
 #!/usr/bin/env python3
 """
 Probabilistic Shielding Demo
-=============================
-
-Demonstrates shielding for MDPs as described in:
-  "Shields to Guarantee Probabilistic Safety in MDPs"
-  
-Run inside Docker:
-
-  docker build -t cav26-shielding . && \\
-  docker run -v "$PWD/results:/app/results" --rm -it cav26-shielding \\
-      /bin/bash -c "python3 shielding-demo.py \\
-          models/shielding/test-corridor/sketch.templ \\
-          --shield-type online --nu 0.1"
 """
 
 import os
