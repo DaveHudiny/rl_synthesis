@@ -72,21 +72,6 @@ def build_model_info(model: stormpy.storage.SparsePomdp) -> ModelInfo:
     )
 
 
-# Helper: saving a shield
-def save_shield(shield, path) -> None:
-    """Pickle the learned data of a self-constructing shield to *path*."""
-    data = ShieldData(
-        actions=shield.actions,
-        original_model_nr_states=shield.model_info.model.nr_states,
-        observation_to_state=shield.model_info.observation_to_state,
-        memory=shield.memory,
-        rounding_precision=shield.rounding_precision,
-        initial_node=shield.initial_node,
-        current_action_distributions=shield.current_action_distributions,
-    )
-    with open(path, "wb") as f:
-        pickle.dump(data, f)
-    print(f"Shield saved to {path}")
 
 # ---------------------------------------------------------------------------
 # Simulation
@@ -100,19 +85,19 @@ def run_episodes(
     n_episodes: int,
     episode_length: int = 20,
 ) -> int:
-    """Simulate *n_episodes* with a uniform random policy shaped by *shield*.
+    """Simulate *n_episodes* with a uniform random policy shielded by *shield*.
 
-    The shield's ``correct()`` call signature is::
+    The shield's `correct()` call signature is::
 
         shielded_dist = shield.correct(last_action, current_state, agent_dist, reset)
 
     where
-      - ``last_action``   is the global action index played in the previous step
-                          (``None`` at the first step of an episode),
-      - ``current_state`` is the model state index,
-      - ``agent_dist``    is a list of floats of length == nr available actions,
+      - `last_action`   is the global action index played in the previous step
+                          (`None` at the first step of an episode),
+      - `current_state` is the model state index,
+      - `agent_dist`    is a list of floats of length == nr available actions,
                           summing to 1.0 (the agent's proposed distribution),
-      - ``reset``         is ``True`` only at the first step of each episode.
+      - `reset`         is `True` only at the first step of each episode.
 
     Returns the number of episodes that reached a bad state.
     """
@@ -158,8 +143,24 @@ def run_episodes(
 
 
 # ---------------------------------------------------------------------------
-# Load for self-constructing shields
+# Load and save for self-constructing shields
 # ---------------------------------------------------------------------------
+
+def save_shield(shield, path) -> None:
+    """Pickle the learned data of a self-constructing shield to *path*."""
+    data = ShieldData(
+        actions=shield.actions,
+        original_model_nr_states=shield.model_info.model.nr_states,
+        observation_to_state=shield.model_info.observation_to_state,
+        memory=shield.memory,
+        rounding_precision=shield.rounding_precision,
+        initial_node=shield.initial_node,
+        current_action_distributions=shield.current_action_distributions,
+    )
+    with open(path, "wb") as f:
+        pickle.dump(data, f)
+    print(f"Shield saved to {path}")
+
 
 def load_shield_as_static(
     path: str,
@@ -198,7 +199,6 @@ def load_shield_as_static(
 
     print(f"  Loaded ← {path}  (tree nodes: {static.initial_node.number_of_tree_nodes()})")
     return static
-
 
 # ---------------------------------------------------------------------------
 # CLI
