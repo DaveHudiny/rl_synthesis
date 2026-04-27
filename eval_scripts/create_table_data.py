@@ -20,7 +20,7 @@ def create_latex_table_data(csv_file, split_offline, show_identity, artifact_rev
 
     # Define shield columns and their mapping to (shield, shield_name)
     shield_columns = [
-        ("identity", "identity"),
+        # ("identity", "identity"),
         ("standard", "standard"),
         ("delta", "delta"),
         ("optimistic", "optimistic"),
@@ -259,12 +259,15 @@ def create_latex_table_data(csv_file, split_offline, show_identity, artifact_rev
 \\usepackage{booktabs}
 \\usepackage{multirow, multicol}
 \\usepackage[table]{xcolor}
+\\usepackage{graphicx}
 
 \\begin{document}
 
 \\begin{table}[h]
 \\renewcommand{\\arraystretch}{0.82}%
 \setlength{\\tabcolsep}{1pt}
+
+\\scalebox{0.8}{
 
 \\begin{tabular}{l@{\\hskip 12pt} l@{\\hskip 12pt} r@{\\hskip 12pt} rr@{\\hskip 12pt} rr@{\\hskip 12pt} rr@{\\hskip 12pt} rr@{\\hskip 12pt} rr@{\\hskip 12pt} rr@{\\hskip 12pt} rr@{\\hskip 12pt}}
 \\toprule
@@ -292,6 +295,8 @@ def create_latex_table_data(csv_file, split_offline, show_identity, artifact_rev
 '''
 \\bottomrule
 \\end{tabular}
+
+}
 
 \\end{table}
 

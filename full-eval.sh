@@ -14,7 +14,7 @@ fi
 ./eval_scripts/full_eval/runtimes.sh
 
 mkdir -p results/temp-files
-python3 eval_scripts/create_table_data.py results/eval-shield-full/evaluation_results.csv --artifact-review > results/temp-files/full-table-data.tex
+python3 eval_scripts/create_table_data.py results/eval-shield-full/evaluation_results.csv > results/temp-files/full-table-data.tex
 
 cd results/temp-files
 pdflatex full-table-data.tex 1>/dev/null

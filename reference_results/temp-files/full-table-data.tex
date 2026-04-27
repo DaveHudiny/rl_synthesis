@@ -1,0 +1,89 @@
+
+\documentclass{article}
+
+\usepackage{booktabs}
+\usepackage{multirow, multicol}
+\usepackage[table]{xcolor}
+\usepackage{graphicx}
+
+\begin{document}
+
+\begin{table}[h]
+\renewcommand{\arraystretch}{0.82}%
+\setlength{\tabcolsep}{1pt}
+
+\scalebox{0.8}{
+
+\begin{tabular}{l@{\hskip 12pt} l@{\hskip 12pt} r@{\hskip 12pt} rr@{\hskip 12pt} rr@{\hskip 12pt} rr@{\hskip 12pt} rr@{\hskip 12pt} rr@{\hskip 12pt} rr@{\hskip 12pt} rr@{\hskip 12pt}}
+\toprule
+\multirow{2}{*}{Model} & Agent & \multirow{2}{*}{\(\nu\)} & \multicolumn{2}{c@{\hskip 12pt}}{\(sh_{Safe}\)} & 
+\multicolumn{2}{c@{\hskip 12pt}}{\(sh_{\delta}\)} & 
+\multicolumn{2}{c@{\hskip 12pt}}{\(sh^{*}_{opt}\)}& 
+\multicolumn{2}{c@{\hskip 12pt}}{\(sh^{*}_{pes}\)}& 
+\multicolumn{2}{c@{\hskip 12pt}}{\(sh^{*}_{onl}\)} & \multicolumn{2}{c@{\hskip 12pt}}{\(sh_{off}\)} & \multicolumn{2}{c@{\hskip 12pt}}{\(sh_{nom}\)} \\
+
+& & & \multicolumn{2}{c@{\hskip 12pt}}{\texttt{\textcolor{green!30!black}{SAFE}}} & 
+\multicolumn{2}{c@{\hskip 12pt}}{\texttt{\textcolor{red!80}{UNSAFE}}} &
+\multicolumn{2}{c@{\hskip 12pt}}{\texttt{\textcolor{red!80}{UNSAFE}}} & 
+\multicolumn{2}{c@{\hskip 12pt}}{\texttt{\textcolor{green!30!black}{SAFE}}} &
+\multicolumn{2}{c@{\hskip 12pt}}{\texttt{\textcolor{green!30!black}{SAFE}}} & \multicolumn{2}{c@{\hskip 12pt}}{\texttt{\textcolor{green!30!black}{SAFE}}} & \multicolumn{2}{c@{\hskip 12pt}}{\texttt{\textcolor{green!30!black}{SAFE}}} \\
+\midrule
+
+
+\multirow{9}{*}{corridor} & \multirow{3}{*}{greedy} & 0.05 & \textbf{.000} & \textbf{.020} & \textbf{.000} & \textbf{.020} & .000 & .020 & \textbf{.000} & \textbf{.020} & \textbf{.000} & \textbf{.020} & \textbf{.000} & \textbf{.020} & \textbf{.000} & \textbf{.020} \\
+ &  & 0.1 & .000 & .020 & .000 & .020 & \cellcolor{red!20}.101 & \cellcolor{red!20}.209 & .000 & .020 & \cellcolor{red!20}.101 & \cellcolor{red!20}.204 & \textbf{.100} & \textbf{.201} & .000 & .020 \\
+ &  & 0.2 & .000 & .020 & .125 & .735 & .125 & ~~{=}1 & .000 & .020 & .125 & .936 & \textbf{.125} & \textbf{.952} & .125 & .735 \\
+ \cmidrule(lr){2-17}
+ & \multirow{3}{*}{timid} & 0.05 & \textbf{.000} & \textbf{.020} & \textbf{.000} & \textbf{.020} & .000 & .020 & \textbf{.000} & \textbf{.020} & \textbf{.000} & \textbf{.020} & \textbf{.000} & \textbf{.020} & \textbf{.000} & \textbf{.020} \\
+ &  & 0.1 & .000 & .020 & .000 & .020 & .100 & .408 & .000 & .020 & \textbf{.100} & \textbf{.406} & \textbf{.100} & \textbf{.406} & .000 & .020 \\
+ &  & 0.2 & .000 & .020 & \textbf{.125} & \textbf{~~{=}1} & .125 & ~~{=}1 & .000 & .020 & .124 & .993 & .125 & .996 & .125 & .925 \\
+ \cmidrule(lr){2-17}
+ & \multirow{3}{*}{random} & 0.05 & .000 & .116 & .000 & .116 & \cellcolor{red!20}.731 & \cellcolor{red!20}~~{=}1 & .000 & .116 & \textbf{.049} & \textbf{.134} & .050 & .125 & .000 & .116 \\
+ &  & 0.1 & .000 & .116 & .000 & .116 & \cellcolor{red!20}.732 & \cellcolor{red!20}~~{=}1 & .000 & .116 & \cellcolor{red!20}.102 & \cellcolor{red!20}.149 & \textbf{.100} & \textbf{.157} & .000 & .116 \\
+ &  & 0.2 & .000 & .116 & .000 & .116 & \cellcolor{red!20}.729 & \cellcolor{red!20}~~{=}1 & .000 & .116 & .199 & .190 & \textbf{.200} & \textbf{.195} & .000 & .116 \\
+ \cmidrule(lr){1-17}
+\multirow{9}{*}{dpm} & \multirow{3}{*}{greedy} & 0.01 & .000 & .771 & \cellcolor{red!20}.479 & \cellcolor{red!20}~~{=}1 & \cellcolor{red!20}.165 & \cellcolor{red!20}~~{=}1 & .000 & .767 & .010 & .790 & \textbf{.010} & \textbf{.796} & .009 & .794 \\
+ &  & 0.05 & .000 & .771 & \cellcolor{red!20}.479 & \cellcolor{red!20}~~{=}1 & \cellcolor{red!20}.161 & \cellcolor{red!20}~~{=}1 & .000 & .767 & .047 & .839 & \textbf{.050} & \textbf{.849} & .044 & .844 \\
+ &  & 0.2 & .000 & .771 & \cellcolor{red!20}.479 & \cellcolor{red!20}~~{=}1 & .165 & ~~{=}1 & .000 & .767 & .062 & .870 & .097 & .908 & \textbf{.155} & \textbf{.924} \\
+ \cmidrule(lr){2-17}
+ & \multirow{3}{*}{timid} & 0.01 & \textbf{.000} & \textbf{.981} & \cellcolor{red!20}.063 & \cellcolor{red!20}~~{=}1 & .002 & ~~{=}1 & .000 & .979 & .000 & .979 & \textbf{.000} & \textbf{.981} & \textbf{.000} & \textbf{.981} \\
+ &  & 0.05 & .000 & .981 & \cellcolor{red!20}.063 & \cellcolor{red!20}~~{=}1 & .002 & ~~{=}1 & .000 & .979 & .000 & .979 & .000 & .981 & \textbf{.010} & \textbf{.984} \\
+ &  & 0.2 & .000 & .981 & \textbf{.063} & \textbf{~~{=}1} & .002 & ~~{=}1 & .000 & .979 & .000 & .979 & .000 & .981 & \textbf{.063} & \textbf{~~{=}1} \\
+ \cmidrule(lr){2-17}
+ & \multirow{3}{*}{random} & 0.01 & .000 & .798 & \cellcolor{red!20}.131 & \cellcolor{red!20}~~{=}1 & \cellcolor{red!20}.029 & \cellcolor{red!20}~~{=}1 & .000 & .794 & .005 & .831 & \textbf{.006} & \textbf{.841} & .006 & .839 \\
+ &  & 0.05 & .000 & .798 & \cellcolor{red!20}.131 & \cellcolor{red!20}~~{=}1 & .028 & ~~{=}1 & .000 & .794 & .005 & .831 & .006 & .841 & \textbf{.037} & \textbf{.989} \\
+ &  & 0.2 & .000 & .798 & \textbf{.131} & \textbf{~~{=}1} & .029 & ~~{=}1 & .000 & .794 & .005 & .831 & .006 & .841 & \textbf{.131} & \textbf{~~{=}1} \\
+ \cmidrule(lr){1-17}
+\multirow{9}{*}{drone} & \multirow{3}{*}{greedy} & 0.01 & .000 & .207 & .001 & .211 & \cellcolor{red!20}.161 & \cellcolor{red!20}.591 & .000 & .207 & .009 & .214 & \textbf{.010} & \textbf{.215} & .000 & .208 \\
+ &  & 0.05 & .000 & .207 & .001 & .211 & \cellcolor{red!20}.234 & \cellcolor{red!20}.813 & .000 & .207 & \textbf{.049} & \textbf{.254} & .050 & .253 & .000 & .208 \\
+ &  & 0.2 & .000 & .207 & \cellcolor{red!20}.240 & \cellcolor{red!20}~~{=}1 & \cellcolor{red!20}.242 & \cellcolor{red!20}~~{=}1 & .000 & .207 & .160 & .538 & \textbf{.194} & \textbf{.626} & .054 & .239 \\
+ \cmidrule(lr){2-17}
+ & \multirow{3}{*}{timid} & 0.01 & .000 & .554 & .002 & .728 & \cellcolor{red!20}.014 & \cellcolor{red!20}~~{=}1 & .000 & .558 & .009 & .808 & \textbf{.010} & \textbf{.826} & .000 & .554 \\
+ &  & 0.05 & .000 & .554 & .002 & .728 & .014 & ~~{=}1 & .000 & .558 & .008 & .811 & \textbf{.010} & \textbf{.824} & .000 & .554 \\
+ &  & 0.2 & .000 & .554 & \textbf{.014} & \textbf{~~{=}1} & .015 & ~~{=}1 & .000 & .557 & .009 & .810 & .010 & .826 & .001 & .640 \\
+ \cmidrule(lr){2-17}
+ & \multirow{3}{*}{random} & 0.01 & \textbf{.000} & \textbf{.722} & \cellcolor{red!20}.052 & \cellcolor{red!20}.839 & \cellcolor{red!20}.270 & \cellcolor{red!20}~~{=}1 & .000 & .719 & .000 & .721 & \textbf{.000} & \textbf{.722} & \textbf{.000} & \textbf{.722} \\
+ &  & 0.05 & .000 & .722 & \cellcolor{red!20}.052 & \cellcolor{red!20}.839 & \cellcolor{red!20}.269 & \cellcolor{red!20}~~{=}1 & .000 & .721 & .000 & .723 & .000 & .722 & \textbf{.006} & \textbf{.749} \\
+ &  & 0.2 & .000 & .722 & \textbf{.052} & \textbf{.839} & \cellcolor{red!20}.269 & \cellcolor{red!20}~~{=}1 & .000 & .722 & .000 & .722 & .000 & .722 & .027 & .812 \\
+ \cmidrule(lr){1-17}
+\multirow{9}{*}{drone-b} & \multirow{3}{*}{greedy} & 0.01 & \textbf{.000} & \textbf{.160} & \textbf{.000} & \textbf{.160} & .000 & .160 & \textbf{.000} & \textbf{.160} & \textbf{.000} & \textbf{.160} & \textbf{.000} & \textbf{.160} & \textbf{.000} & \textbf{.160} \\
+ &  & 0.05 & .000 & .160 & .000 & .160 & \cellcolor{red!20}.052 & \cellcolor{red!20}.260 & .000 & .160 & \cellcolor{red!20}.051 & \cellcolor{red!20}.257 & \textbf{.050} & \textbf{.256} & .000 & .160 \\
+ &  & 0.2 & .000 & .160 & \textbf{.139} & \textbf{.915} & \cellcolor{red!20}.586 & \cellcolor{red!20}.967 & .000 & .160 & .197 & .733 & .200 & .788 & .000 & .160 \\
+ \cmidrule(lr){2-17}
+ & \multirow{3}{*}{timid} & 0.01 & .000 & .987 & .000 & .987 & \cellcolor{red!20}.015 & \cellcolor{red!20}~~{=}1 & .000 & .987 & \textbf{.002} & \textbf{.989} & \textbf{.003} & \textbf{.989} & .000 & .987 \\
+ &  & 0.05 & .000 & .987 & \textbf{.014} & \textbf{.999} & .014 & ~~{=}1 & .000 & .987 & .002 & .989 & .002 & .989 & .000 & .987 \\
+ &  & 0.2 & .000 & .987 & \textbf{.014} & \textbf{.999} & .015 & ~~{=}1 & .000 & .987 & .002 & .989 & .002 & .989 & .000 & .987 \\
+ \cmidrule(lr){2-17}
+ & \multirow{3}{*}{random} & 0.01 & \textbf{.000} & \textbf{.762} & \cellcolor{red!20}.016 & \cellcolor{red!20}.764 & \cellcolor{red!20}.785 & \cellcolor{red!20}~~{=}1 & \textbf{.000} & \textbf{.762} & \cellcolor{red!20}.011 & \cellcolor{red!20}.762 & \textbf{.010} & \textbf{.762} & \textbf{.000} & \textbf{.762} \\
+ &  & 0.05 & .000 & .762 & \cellcolor{red!20}.101 & \cellcolor{red!20}.764 & \cellcolor{red!20}.782 & \cellcolor{red!20}~~{=}1 & .000 & .761 & \textbf{.042} & \textbf{.764} & \textbf{.050} & \textbf{.764} & .000 & .762 \\
+ &  & 0.2 & .000 & .762 & \textbf{.101} & \textbf{.764} & \cellcolor{red!20}.781 & \cellcolor{red!20}~~{=}1 & .000 & .761 & .044 & .763 & \textbf{.051} & \textbf{.764} & .000 & .762 \\
+
+\bottomrule
+\end{tabular}
+
+}
+
+\end{table}
+
+\end{document}
+
