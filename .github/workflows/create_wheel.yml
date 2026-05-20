@@ -65,7 +65,7 @@ jobs:
           apt install software-properties-common -y
           add-apt-repository ppa:deadsnakes/ppa -y
           apt-get update
-          apt-get install python3.10 python3.10-venv python3.10-dev python3.10-pip -y
+          apt-get install python3.10 python3.10-venv python3.10-dev -y
 
           # Look for a matching wheel in the current directory
           WHEEL=$(ls compact_rl-*.whl 2>/dev/null | head -n1 || true)
