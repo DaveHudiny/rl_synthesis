@@ -4,10 +4,10 @@ requires = ["setuptools>=61.0", "wheel>=0.37.1"]
 
 [project]
 name = "compact_rl"
+version = "0.1.0"
 description = "RL for PRISM models"
 readme = "README.md"
 license.file = "LICENSE"
-dynamic = ["version"]
 authors = [
     { name = "D. Hudák", email = "ihudak@fit.vut.cz" },
     { name = "R. Andriushchenko", email = "iandri@fit.vut.cz" },
@@ -46,7 +46,8 @@ Homepage = "https://github.com/DaveHudiny/rl_synthesis"
 "Bug Tracker" = "https://github.com/DaveHudiny/rl_synthesis/issues"
 
 [tool.setuptools.packages.find]
-where = ["VecStorm", "rl_src"]
+where = ["."]
+include = ["VecStorm", "rl_src"]
 
 # [tool.cibuildwheel]
 # manylinux-x86_64-image = "manylinux_2_34"
