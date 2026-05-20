@@ -61,6 +61,8 @@ jobs:
           cd /wheel
 
           # Install Python & pip
+          apt-get update
+          apt install software-properties-common
           add-apt-repository ppa:deadsnakes/ppa
           apt-get update
           apt-get install python3.10 python3.10-venv python3.10-dev python3.10-pip -y
