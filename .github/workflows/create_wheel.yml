@@ -4,52 +4,29 @@ on:
   workflow_call:
   # needed to trigger the workflow manually
   workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
 
 jobs:
   build_wheels:
-    name: Build wheels for ${{ matrix.os }}
-    runs-on: ${{ matrix.runs-on }}
-    strategy:
-      matrix:
-        os: [ linux-intel, linux-arm, macos-intel, macos-arm ]
-        include:
-          # Set defaults
-          - archs: auto
-            platform: auto
-            xcode: ""
-            deploy_target: 13.0
-          - os: linux-intel
-            runs-on: ubuntu-latest
-            archs: x86_64
-          - os: linux-arm
-            runs-on: ubuntu-24.04-arm
-            archs: aarch64
-          - os: macos-intel
-            runs-on: macos-15-intel # x86_64 runner
-            xcode: latest-stable
-            deploy_target: 15.0
-          - os: macos-arm
-            runs-on: macos-14 # macos-14+ (including latest) are ARM64 runners
-            xcode: latest-stable
-            deploy_target: 14.0
-      fail-fast: false
+    name: Build wheels
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: maxim-lobanov/setup-xcode@v1
-        if: ${{ matrix.xcode != '' }}
+      - name: Set up Python
+        uses: actions/setup-python@v2
         with:
-          xcode-version: ${{ matrix.xcode }}
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v3.2.1
-        env:
-          CIBW_PLATFORM: ${{ matrix.platform }}
-          CIBW_ARCHS: ${{ matrix.archs }}
-          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.deploy_target }}
-          CIBW_ENVIRONMENT: NR_JOBS=4
+          python-version: 3.10
+      - name: Build wheel and install
+        run: |
+          python -m pip install --user --upgrade build
+          python -m build
       - uses: actions/upload-artifact@v4
         with:
-          name: paynt-wheels-${{ matrix.os }}
-          path: ./wheelhouse/*.whl
+          name: compact-rl-wheels
+          path: ./dist/*.whl
 
 
   build_sdist:
@@ -61,49 +38,24 @@ jobs:
         run: pipx run build --sdist
       - uses: actions/upload-artifact@v4
         with:
-          name: paynt-sdist
+          name: compact-rl-sdist
           path: dist/*.tar.gz
 
 
-  test_wheels_linux:
-    name: Test wheel on ${{ matrix.distro }} and ${{ matrix.arch.name }}
+  test_wheels:
+    name: Test wheel
     needs: [build_wheels]
-    runs-on: ${{ matrix.arch.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        arch:
-          - {name: linux-intel,
-             runner: ubuntu-latest
-          }
-          - {name: linux-arm,
-             runner: ubuntu-24.04-arm
-          }
-        distro:
-          - ubuntu:latest
-          - ubuntu:rolling
-          - debian:latest
-          - fedora:latest
-          - archlinux:latest
-        exclude:
-          - arch: {name: linux-arm, runner: ubuntu-24.04-arm}
-            distro: archlinux:latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v5
         with:
-          pattern: paynt-wheels-${{ matrix.arch.name }}
+          pattern: compact-rl-wheels
           path: dist
           merge-multiple: true
-      - name: Checkout test files
-        uses: actions/checkout@v5
-        with:
-          path: dist/test_files
-          sparse-checkout: |
-            tests
       - name: Install from wheel and test
         # TODO run tests
         run: |
-          docker run -i --rm -v ./dist:/wheel ${{ matrix.distro }} /bin/bash << 'EOF'
+          docker run -i --rm -v ./dist:/wheel ubuntu:latest /bin/bash << 'EOF'
           set -euo pipefail
           set -x
 
@@ -123,10 +75,10 @@ jobs:
           echo "Python version: $PY_VER"
 
           # Look for a matching wheel in the current directory
-          WHEEL=$(ls paynt-*-cp${PY_VER}-*.whl 2>/dev/null | head -n1 || true)
+          WHEEL=$(ls compact-rl-*-cp${PY_VER}-*.whl 2>/dev/null | head -n1 || true)
           echo "Found wheel: $WHEEL"
           if [ -z "$WHEEL" ]; then
-            echo "Error: No paynt wheel found for Python ${PY_VER:0:1}.${PY_VER:1}." >&2
+            echo "Error: No compact-rl wheel found for Python ${PY_VER:0:1}.${PY_VER:1}." >&2
             exit 1
           fi
 
@@ -136,68 +88,5 @@ jobs:
           python3 -m pip install "$WHEEL"
 
           # Run a basic import test (replace with pytest if needed)
-          python3 -c "import paynt; import payntbind; print('Import successful')"
+          python3 -c "import compact_rl; print('Import successful')"
           EOF
-
-
-  test_wheels_mac:
-    name: Test wheel on ${{ matrix.distro.name }}
-    needs: [build_wheels]
-    runs-on: ${{ matrix.distro.distro }}
-    strategy:
-      fail-fast: false
-      matrix:
-        distro:
-          - {name: "XCode 15.4, ARM",
-             os: macos-arm,
-             distro: "macos-14",
-             xcode: "15.4"
-          }
-          - {name: "XCode Latest, ARM",
-             os: macos-arm,
-             distro: "macos-15",
-             xcode: "latest-stable"
-          }
-          - {name: "XCode Latest, Intel",
-             os: macos-intel,
-             distro: "macos-15-intel",
-             xcode: "latest-stable"
-          }
-    steps:
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: ${{ matrix.distro.xcode }}
-      - uses: actions/download-artifact@v5
-        with:
-          pattern: paynt-wheels-${{ matrix.distro.os }}
-          path: dist
-          merge-multiple: true
-      - name: Install from wheel and test
-        working-directory: dist
-        run: |
-          # Get major+minor version (e.g. "311" for Python 3.11)
-          PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}{sys.version_info.minor}')")
-          echo "Python version: $PY_VER"
-          # Look for a matching wheel in the current directory
-          WHEEL=$(ls paynt-*-cp${PY_VER}-*.whl 2>/dev/null | head -n1 || true)
-          echo "Found wheel: $WHEEL"
-          if [ -z "$WHEEL" ]; then
-            echo "Error: No paynt wheel found for Python ${PY_VER:0:1}.${PY_VER:1}." >&2
-            exit 1
-          fi
-          echo "Installing $WHEEL..."
-          python3 -m venv venv
-          source venv/bin/activate
-          python3 -m pip install "$WHEEL"
-      - name: Checkout test files
-        uses: actions/checkout@v5
-        with:
-          path: dist/test_files
-          sparse-checkout: |
-            tests
-      - name: Test
-        # TODO run tests
-        working-directory: dist
-        run: |
-          source venv/bin/activate
-          python3 -c "import paynt; import payntbind; print('Import successful')"
