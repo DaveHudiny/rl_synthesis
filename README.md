@@ -6,7 +6,7 @@ This toolkit implements the PAYNT-DRL loop. The implementation contains the modi
 
 ## Installation
   The installation was tried on PC with Ubuntu 24.04. Before the installation, please install python3.10 (https://askubuntu.com/questions/682869/how-do-i-install-a-different-python-version-using-apt-get), since the official version of TensorFlow Agents currently does not support newer versions of Python. 
-  Then run ./install.sh script. Or build a new docker image using our integrated Dockerfile.
+  Then run ./install.sh script. Or build a new docker image using our integrated Dockerfile. Furthermore, if you create your own environemnt, you can install through pip install . using the pyproject.toml file.
 
 ## Usage and the Expected Output
 

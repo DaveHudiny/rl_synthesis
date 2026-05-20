@@ -5,7 +5,7 @@ setup(
     version="2024.10.0",
     packages=find_packages(),
     install_requires=[
-        "jax",
+        "jax==0.4.18",
         "chex",
         "numpy",
         "stormpy"
