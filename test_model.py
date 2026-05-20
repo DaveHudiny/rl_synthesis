@@ -8,16 +8,16 @@ from learn_aut import learn_automaton
 
 import tensorflow as tf
 
-from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
-from rl_src.environment.tf_py_environment import TFPyEnvironment
+from compact_rl.rl.environment.environment_wrapper_vec import EnvironmentWrapperVec
+from compact_rl.rl.environment.tf_py_environment import TFPyEnvironment
 
-from rl_src.tools.args_emulator import ArgsEmulator
+from compact_rl.rl.tools.args_emulator import ArgsEmulator
 
-from rl_src.tests.general_test_tools import initialize_prism_model
+from compact_rl.rl.tests.general_test_tools import initialize_prism_model
 
-from rl_src.interpreters.extracted_fsc.table_based_policy import TableBasedPolicy
-from rl_src.tools.evaluators import evaluate_policy_in_model
-from rl_src.agents.recurrent_ppo_agent import Recurrent_PPO_agent
+from compact_rl.rl.interpreters.extracted_fsc.table_based_policy import TableBasedPolicy
+from compact_rl.rl.tools.evaluators import evaluate_policy_in_model
+from compact_rl.rl.agents.recurrent_ppo_agent import Recurrent_PPO_agent
 
 from paynt.quotient.fsc import FscFactored
 from paynt.rl_extension.family_extractors.direct_fsc_construction import ConstructorFSC

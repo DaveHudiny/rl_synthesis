@@ -1,7 +1,7 @@
 
-from robust_rl.robust_rl_trainer import initialize_extractor
-from robust_rl.robust_rl_tools import parse_args
-from robust_rl.robust_rl_tools import assignment_to_pomdp, load_sketch
+from compact_rl.robust_rl.robust_rl_trainer import initialize_extractor
+from compact_rl.robust_rl.robust_rl_tools import parse_args
+from compact_rl.robust_rl.robust_rl_tools import assignment_to_pomdp, load_sketch
 import paynt.cli
 
 import os
@@ -11,7 +11,7 @@ import paynt.utils
 import paynt.utils.timer
 from paynt.quotient.pomdp_family import PomdpFamilyQuotient
 
-from tests.general_test_tools import init_args
+from compact_rl.rl.tests.general_test_tools import init_args
 
 from paynt.rl_extension.robust_rl.family_quotient_numpy import FamilyQuotientNumpy
 

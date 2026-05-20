@@ -6,7 +6,7 @@ from tf_agents.environments import TFPyEnvironment
 from tf_agents.policies import TFPolicy
 from stormpy.simulator import SparseSimulator
 
-from rl_src.environment.environment_wrapper import Environment_Wrapper
+from compact_rl.rl.environment.environment_wrapper import Environment_Wrapper
 
 class Step:
     def __init__(self, state=None, observation=None, action=None, success=False):

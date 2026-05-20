@@ -1,11 +1,11 @@
-from rl_src.tools.evaluation_results_class import EvaluationResults
-from rl_src.interpreters.fsc_based_interpreter import NaiveFSCPolicyExtraction
+from compact_rl.rl.tools.evaluation_results_class import EvaluationResults
+from compact_rl.rl.interpreters.fsc_based_interpreter import NaiveFSCPolicyExtraction
 from paynt.family.family import Family
 from paynt.rl_extension.family_extractors.external_family_wrapper import ExtractedFamilyWrapper
 
-from rl_src.experimental_interface import ArgsEmulator
-from rl_src.interpreters.bottlenecking.quantized_bottleneck_extractor import BottleneckExtractor
-from rl_src.tools.evaluators import evaluate_policy_in_model
+from compact_rl.rl.experimental_interface import ArgsEmulator
+from compact_rl.rl.interpreters.bottlenecking.quantized_bottleneck_extractor import BottleneckExtractor
+from compact_rl.rl.tools.evaluators import evaluate_policy_in_model
 from paynt.rl_extension.self_interpretable_interface.black_box_extraction import *
 
 from .synthesizer_onebyone import SynthesizerOneByOne
@@ -16,7 +16,7 @@ from paynt.rl_extension.saynt_rl_tools.rl_saynt_combo_modes import RL_SAYNT_Comb
 from paynt.quotient.storm_pomdp_control import StormPOMDPControl
 from paynt.quotient.pomdp import PomdpQuotient
 
-from rl_src.tools.specification_check import SpecificationChecker
+from compact_rl.rl.tools.specification_check import SpecificationChecker
 
 import time
 
@@ -26,11 +26,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 from paynt.rl_extension.self_interpretable_interface.black_box_extraction import BlackBoxExtractor
-from rl_src.interpreters.direct_fsc_extraction.extraction_stats import ExtractionStats
-from rl_src.interpreters.aalpy_extraction.aalpy_extractor import AALpyExtractor
+from compact_rl.rl.interpreters.direct_fsc_extraction.extraction_stats import ExtractionStats
+from compact_rl.rl.interpreters.aalpy_extraction.aalpy_extractor import AALpyExtractor
 from paynt.rl_extension.extraction_benchmark_res import ExtractionBenchmarkRes, ExtractionBenchmarkResManager
 
-from rl_src.interpreters.extracted_fsc.table_based_policy import TableBasedPolicy
+from compact_rl.rl.interpreters.extracted_fsc.table_based_policy import TableBasedPolicy
 
 from paynt.rl_extension.family_extractors.direct_fsc_construction import ConstructorFSC
 

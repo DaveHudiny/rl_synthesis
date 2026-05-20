@@ -1,18 +1,18 @@
-from robust_rl.robust_rl_tools import load_sketch
+from compact_rl.robust_rl.robust_rl_tools import load_sketch
 
 import os
 
 import numpy as np
 
 # RL implementation imports
-from environment.environment_wrapper_vec import EnvironmentWrapperVec
-from environment.tf_py_environment import TFPyEnvironment
-from agents.recurrent_ppo_agent import Recurrent_PPO_agent
-from agents.father_agent import FatherAgent
-from interpreters.extracted_fsc.table_based_policy import TableBasedPolicy
-from tools.args_emulator import ArgsEmulator
-from tools.evaluators import evaluate_policy_in_model
-from tests.general_test_tools import init_args
+from compact_rl.rl.environment.environment_wrapper_vec import EnvironmentWrapperVec
+from compact_rl.rl.environment.tf_py_environment import TFPyEnvironment
+from compact_rl.rl.agents.recurrent_ppo_agent import Recurrent_PPO_agent
+from compact_rl.rl.agents.father_agent import FatherAgent
+from compact_rl.rl.interpreters.extracted_fsc.table_based_policy import TableBasedPolicy
+from compact_rl.rl.tools.args_emulator import ArgsEmulator
+from compact_rl.rl.tools.evaluators import evaluate_policy_in_model
+from compact_rl.rl.tests.general_test_tools import init_args
 
 # PAYNT implementation imports
 from paynt.parser.sketch import Sketch

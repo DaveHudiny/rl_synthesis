@@ -47,4 +47,4 @@ Homepage = "https://github.com/DaveHudiny/rl_synthesis"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["VecStorm", "rl_src"]
+include = ["compact_rl*"]

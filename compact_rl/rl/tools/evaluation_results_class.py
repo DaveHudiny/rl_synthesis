@@ -1,0 +1,203 @@
+import tensorflow as tf
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+import numpy as np
+
+from compact_rl.rl.tools.args_emulator import ArgsEmulator
+
+class EvaluationResults:
+    """Class for storing evaluation results."""
+
+    def __init__(self, goal_value: tf.Tensor = tf.constant(0.0), args: ArgsEmulator = None):
+        self.best_episode_return = tf.float32.min
+        self.best_return = tf.float32.min
+        self.goal_value = goal_value.numpy()
+        self.returns_episodic = []
+        self.returns = []
+        self.reach_probs = []
+        self.trap_reach_probs = []
+        self.best_reach_prob = 0.0
+        self.losses = []
+        self.best_updated = False
+        # self.each_episode_returns = []
+        # self.each_episode_successes = []
+        self.each_episode_variance = []
+        self.each_episode_virtual_variance = []
+        self.combined_variance = []
+        self.num_episodes = []
+        self.paynt_bounds = [] # Shape (n, 2), where n is the number of iterations of PAYNT<->RL loop and 2 is the bound and number of iteration of each bound given the current iteration of RL.
+        self.last_from_interpretation = False
+
+        self.extracted_fsc_episode_return = -1.0
+        self.extracted_fsc_return = -1.0
+        self.extracted_fsc_reach_prob = -1.0
+        self.extracted_fsc_variance = -1.0
+        self.extracted_fsc_num_episodes = -1
+        self.extracted_fsc_virtual_variance = -1.0
+        self.extracted_fsc_combined_variance = -1.0
+
+        self.artificial_reward_means = []
+        self.artificial_reward_stds = []
+        self.average_episode_length = []
+        self.counted_episodes = []
+        self.discounted_rewards = []
+        self.new_pomdp_iteration_numbers = []
+        self.dormant_neurons_percentages = []
+        self.average_bad_outcome_prob = []
+        self.args = args
+
+    def add_artificial_reward(self, artificial_rewards_buffer : list[np.ndarray]):
+        """Add artificial rewards to the evaluation results."""
+        if len(artificial_rewards_buffer) > 0:
+            self.artificial_reward_means.append(np.mean(artificial_rewards_buffer))
+            self.artificial_reward_stds.append(np.std(artificial_rewards_buffer))
+        else:
+            self.artificial_reward_means.append(float("nan"))
+            self.artificial_reward_stds.append(float("nan"))
+    
+    def add_dormant_neurons_percentage(self, percentage: float):
+        """Add percentage of dormant neurons to the evaluation results."""
+        self.dormant_neurons_percentages.append(percentage)
+
+    def set_experiment_settings(self, learning_algorithm: str = "", learning_rate: float = float("nan"),
+                                nn_details: dict = {}, max_steps: int = float("nan")):
+        self.learning_algorithm = learning_algorithm
+        self.learning_rate = learning_rate
+        self.nn_details = "Not implemented yet"
+        self.max_steps = max_steps
+
+    def add_paynt_bound(self, bound: float):
+        number_of_iterations = len(self.returns)
+        self.paynt_bounds.append([bound, number_of_iterations])
+
+    def save_to_json(self, filename, evaluation_time: float = float("nan"), split_iteration = -1, new_pomdp=False):
+        import json
+        filename_training = filename.replace(".json", "_training.json")
+        if new_pomdp:
+            self.new_pomdp_iteration_numbers.append(len(self.returns))
+        with open(filename_training, "w") as file:
+            _dict_ = self.__dict__.copy()
+            del _dict_["best_updated"]
+            for key in _dict_:
+                _dict_[key] = str(_dict_[key])
+            _dict_["evaluation_time"] = evaluation_time
+            _dict_["split_iteration"] = split_iteration
+            json.dump(_dict_, file)
+        filename_args = filename.replace(".json", "_args.json")
+        if self.args is not None:
+            with open(filename_args, "w") as file_args:
+                args_dict = self.args.__dict__.copy()
+                for key in args_dict:
+                    if isinstance(args_dict[key], np.ndarray):
+                        args_dict[key] = args_dict[key].tolist()
+                json.dump(args_dict, file_args)
+
+    def load_from_json(self, filename):
+        import json  # TODO probably not working with float32 conversion
+        with open(filename, "r") as file:
+            json_dict = json.load(file)
+            self.__dict__.update(json_dict)
+
+    def __str__(self):
+        return str(self.__dict__)
+
+    def update(self, avg_return, avg_episodic_return, reach_prob, episodes_variance=None, num_episodes=1, trap_reach_prob=0.0, virtual_variance=None, combined_variance=None,
+                 average_episode_length=None, counted_episodes=None, discounted_rewards=None, average_bad_outcome_prob=None):
+        """Update the evaluation results in the object of EvaluationResults.
+
+        Args:
+            avg_episodic_return (tf.float32): Cumulative return of the policy virtual goal.
+            avg_return (tf.float32): Cumulative return of the policy.
+            reach_prob (tf.float32): Probability of reaching the goal.
+        """
+        self.best_updated = False
+        self.returns_episodic.append(avg_episodic_return)
+        self.returns.append(avg_return)
+        self.reach_probs.append(reach_prob)
+        self.each_episode_variance.append(episodes_variance)
+        self.num_episodes.append(num_episodes)
+        self.trap_reach_probs.append(trap_reach_prob)
+        self.average_bad_outcome_prob.append(average_bad_outcome_prob)
+        if avg_return > self.best_return:
+            self.best_return = avg_return
+            if avg_episodic_return >= self.best_episode_return:
+                self.best_updated = True
+        if avg_episodic_return > self.best_episode_return:
+            self.best_episode_return = avg_episodic_return
+            self.best_updated = True
+        if reach_prob > self.best_reach_prob:
+            self.best_reach_prob = reach_prob
+        if virtual_variance is not None:
+            self.each_episode_virtual_variance.append(virtual_variance)
+        if combined_variance is not None:
+            self.combined_variance.append(combined_variance)
+        if average_episode_length is not None:
+            self.average_episode_length.append(average_episode_length)
+        if counted_episodes is not None:
+            self.counted_episodes.append(counted_episodes)
+        if discounted_rewards is not None:
+            self.discounted_rewards.append(discounted_rewards)
+
+    def add_loss(self, loss):
+        """Add loss to the list of losses."""
+        self.losses.append(loss)
+
+    def log_evaluation_info(self):
+        logger.info('Average Return = {0}'.format(
+            self.returns[-1]))
+        logger.info('Average Virtual Goal Value = {0}'.format(
+            self.returns_episodic[-1]))
+        logger.info('Average Discounted Reward = {0}'.format(
+            self.discounted_rewards[-1]))
+        logger.info('Goal Reach Probability = {0}'.format(
+            self.reach_probs[-1]))
+        logger.info('Trap Reach Probability = {0}'.format(
+            self.trap_reach_probs[-1]))
+        logger.info('Variance of Return = {0}'.format(
+            self.each_episode_variance[-1]))
+        logger.info('Current Best Return = {0}'.format(
+            self.best_return))
+        logger.info('Current Best Reach Probability = {0}'.format(
+            self.best_reach_prob))
+        logger.info('Average Episode Length = {0}'.format(
+            self.average_episode_length[-1]))
+        logger.info('Counted Episodes = {0}'.format(
+            self.counted_episodes[-1]))
+        logger.info('Percentage of bad outcomes = {0}'.format(
+            self.average_bad_outcome_prob[-1]))
+        
+    def compute_weighted_evaluation_info(self):
+        """Computes the same values as log_evaluation_info, but averaged and weighted by the number of episodes."""
+        total_episodes = sum(self.num_episodes)
+        evaluated_data = {
+            "returns": self.returns,
+            "virtual_returns": self.returns_episodic,
+            "reach_probs": self.reach_probs,
+            "trap_reach_probs": self.trap_reach_probs,
+            "variances": self.each_episode_variance,
+            "average_episode_length": self.average_episode_length,
+            "counted_episodes": self.counted_episodes,
+            "average_bad_outcome_prob": self.average_bad_outcome_prob
+        }
+        weighted_averages = {}
+        for key, values in evaluated_data.items():
+            weighted_sum = sum(value * num_ep for value, num_ep in zip(values, self.num_episodes))
+            weighted_average = weighted_sum / total_episodes if total_episodes > 0 else float("nan")
+            weighted_averages[key] = weighted_average
+        return weighted_averages
+    
+        
+
+
+def set_fsc_values_to_evaluation_result(external_evaluation_result : EvaluationResults, evaluation_result : EvaluationResults):
+    external_evaluation_result.last_from_interpretation = True
+    external_evaluation_result.extracted_fsc_episode_return = evaluation_result.returns_episodic[-1]
+    external_evaluation_result.extracted_fsc_return = evaluation_result.returns[-1]
+    external_evaluation_result.extracted_fsc_reach_prob = evaluation_result.reach_probs[-1]
+    external_evaluation_result.extracted_fsc_num_episodes = evaluation_result.num_episodes[-1]
+    external_evaluation_result.extracted_fsc_variance = evaluation_result.each_episode_variance[-1]
+    external_evaluation_result.extracted_fsc_virtual_variance = evaluation_result.each_episode_virtual_variance[-1]
+    external_evaluation_result.extracted_fsc_combined_variance = evaluation_result.combined_variance[-1]

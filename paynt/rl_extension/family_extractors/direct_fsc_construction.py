@@ -1,8 +1,8 @@
 
 import tensorflow as tf
 
-from rl_src.interpreters.extracted_fsc.table_based_policy import TableBasedPolicy
-from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
+from compact_rl.rl.interpreters.extracted_fsc.table_based_policy import TableBasedPolicy
+from compact_rl.rl.environment.environment_wrapper_vec import EnvironmentWrapperVec
 
 from paynt.quotient.fsc import FscFactored
 from paynt.quotient.fsc import Fsc
@@ -268,8 +268,8 @@ class ConstructorFSC:
 
 
 def test_fsc_constructors():
-    from robust_rl.robust_rl_tools import assignment_to_pomdp, load_sketch
-    from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
+    from compact_rl.robust_rl.robust_rl_tools import assignment_to_pomdp, load_sketch
+    from compact_rl.rl.environment.environment_wrapper_vec import EnvironmentWrapperVec
     from tests.general_test_tools import init_args
 
     # Test the FSC construction from a table-based policy
