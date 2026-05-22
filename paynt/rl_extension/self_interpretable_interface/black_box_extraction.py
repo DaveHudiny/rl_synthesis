@@ -14,36 +14,36 @@ from aalpy.learning_algs.general_passive.ScoreFunctionsGSM import differential_i
 from scipy.stats import chi2
 
 from comp_checker import ChiSquareChecker
-from rl_src.interpreters.direct_fsc_extraction.test_functions import *
-from rl_src.interpreters.direct_fsc_extraction.encoding_functions import get_encoding_functions
+from compact_rl.rl.interpreters.direct_fsc_extraction.test_functions import *
+from compact_rl.rl.interpreters.direct_fsc_extraction.encoding_functions import get_encoding_functions
 
 from tf_agents.policies import TFPolicy
 from tf_agents.replay_buffers.tf_uniform_replay_buffer import TFUniformReplayBuffer
 from tf_agents.policies.py_tf_eager_policy import PyTFEagerPolicy
 
-from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
+from compact_rl.rl.environment.environment_wrapper_vec import EnvironmentWrapperVec
 from learn_aut import create_trajectories, create_mealy_learn_traj
-from rl_src.tools.evaluation_results_class import EvaluationResults
+from compact_rl.rl.tools.evaluation_results_class import EvaluationResults
 
-from rl_src.tests.general_test_tools import init_environment, init_args
-from rl_src.agents.recurrent_ppo_agent import Recurrent_PPO_agent
-from rl_src.tools.evaluators import evaluate_policy_in_model
+from compact_rl.rl.tests.general_test_tools import init_environment, init_args
+from compact_rl.rl.agents.recurrent_ppo_agent import Recurrent_PPO_agent
+from compact_rl.rl.tools.evaluators import evaluate_policy_in_model
 
-from rl_src.interpreters.bottlenecking.quantized_bottleneck_extractor import TableBasedPolicy
-from rl_src.tools.specification_check import SpecificationChecker
+from compact_rl.rl.interpreters.bottlenecking.quantized_bottleneck_extractor import TableBasedPolicy
+from compact_rl.rl.tools.specification_check import SpecificationChecker
 
 import logging
 
 import os
 
-from rl_src.interpreters.direct_fsc_extraction.extraction_stats import ExtractionStats
-from rl_src.interpreters.direct_fsc_extraction.data_sampler import sample_data_with_policy
-from rl_src.interpreters.direct_fsc_extraction.cloned_fsc_actor_policy import ClonedFSCActorPolicy
-from rl_src.interpreters.direct_fsc_extraction.cloned_lstm_network_policy import ClonedLSTMActorPolicy
+from compact_rl.rl.interpreters.direct_fsc_extraction.extraction_stats import ExtractionStats
+from compact_rl.rl.interpreters.direct_fsc_extraction.data_sampler import sample_data_with_policy
+from compact_rl.rl.interpreters.direct_fsc_extraction.cloned_fsc_actor_policy import ClonedFSCActorPolicy
+from compact_rl.rl.interpreters.direct_fsc_extraction.cloned_lstm_network_policy import ClonedLSTMActorPolicy
 
-from rl_src.interpreters.aalpy_extraction.mealy_automata_learner import MealyAutomataLearner
+from compact_rl.rl.interpreters.aalpy_extraction.mealy_automata_learner import MealyAutomataLearner
 
-from rl_src.agents.policies.policy_mask_wrapper import PolicyMaskWrapper
+from compact_rl.rl.agents.policies.policy_mask_wrapper import PolicyMaskWrapper
 
 from paynt.rl_extension.robust_rl.family_quotient_numpy import FamilyQuotientNumpy
 

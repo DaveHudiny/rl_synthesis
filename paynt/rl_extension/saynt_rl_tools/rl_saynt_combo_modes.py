@@ -1,6 +1,6 @@
 from enum import Enum
-from rl_src.tools.args_emulator import ArgsEmulator
-from rl_src.tools.args_emulator import ReplayBufferOptions
+from compact_rl.rl.tools.args_emulator import ArgsEmulator
+from compact_rl.rl.tools.args_emulator import ReplayBufferOptions
 
 import logging
 logger = logging.getLogger(__name__)

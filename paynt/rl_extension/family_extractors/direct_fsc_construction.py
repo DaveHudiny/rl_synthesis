@@ -1,8 +1,8 @@
 
 import tensorflow as tf
 
-from rl_src.interpreters.extracted_fsc.table_based_policy import TableBasedPolicy
-from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
+from compact_rl.rl.interpreters.extracted_fsc.table_based_policy import TableBasedPolicy
+from compact_rl.rl.environment.environment_wrapper_vec import EnvironmentWrapperVec
 
 from paynt.quotient.fsc import FscFactored
 from paynt.quotient.fsc import Fsc
@@ -18,7 +18,21 @@ class ConstructorFSC:
     """
 
     @staticmethod
-    def __create_action_function(tf_action_function: tf.Tensor, family_quotient_numpy: FamilyQuotientNumpy = None, original_action_labels: list[str] = None, cut_probs=0.0):
+    def __cut_probs_1(action_for_memory, np_action_function, family_quotient_numpy: FamilyQuotientNumpy = None, original_action_labels: list[str] = None, memory=0, observation=0):
+        most_probable_action = np.argmax(
+            np_action_function[memory][observation])
+        most_probable_action = int(most_probable_action) if (family_quotient_numpy and original_action_labels) is None else family_quotient_numpy.action_labels.tolist(
+        ).index(original_action_labels[most_probable_action])
+        if family_quotient_numpy is not None and not family_quotient_numpy.observation_to_legal_action_mask[observation][most_probable_action]:
+            # If the most probable action is illegal, choose a random legal action
+            legal_actions = [action for action in range(len(
+                family_quotient_numpy.action_labels)) if family_quotient_numpy.observation_to_legal_action_mask[observation][action]]
+            most_probable_action = np.random.choice(
+                legal_actions)
+        action_for_memory.append(int(most_probable_action))
+
+    @staticmethod
+    def _create_action_function(tf_action_function: tf.Tensor, family_quotient_numpy: FamilyQuotientNumpy = None, original_action_labels: list[str] = None, cut_probs=0.0):
         """Creates the action function for the FSC.
         Args:
             tf_action_function (tf.Tensor): The action function to be used in the FSC.
@@ -37,18 +51,8 @@ class ConstructorFSC:
                 action_for_memory = []
                 for observation in range(np_action_function.shape[1]):
                     if cut_probs >= 1.0:
-                        most_probable_action = np.argmax(
-                            np_action_function[memory][observation])
-                        most_probable_action = int(most_probable_action) if (family_quotient_numpy and original_action_labels) is None else family_quotient_numpy.action_labels.tolist(
-                        ).index(original_action_labels[most_probable_action])
-                        if family_quotient_numpy is not None and not family_quotient_numpy.observation_to_legal_action_mask[observation][most_probable_action]:
-                            # If the most probable action is illegal, choose a random legal action
-                            legal_actions = [action for action in range(len(
-                                family_quotient_numpy.action_labels)) if family_quotient_numpy.observation_to_legal_action_mask[observation][action]]
-                            most_probable_action = np.random.choice(
-                                legal_actions)
-                        action_for_memory.append(int(most_probable_action))
-
+                        ConstructorFSC.__cut_probs_1(
+                            action_for_memory, np_action_function, family_quotient_numpy, original_action_labels, memory, observation)
                         continue
                     action_dict = {}
                     illegal_action_prob = 0.0
@@ -60,10 +64,15 @@ class ConstructorFSC:
                                 illegal_action_prob += prob
                                 continue
                             else:
-                                action_dict[action] = prob + 0.0001  # To avoid zero probabilities
+                                # To avoid zero probabilities
+                                action_dict[action] = prob # + 0.0001
                         else:
+                            action = int(action) if (family_quotient_numpy and original_action_labels) is None else family_quotient_numpy.action_labels.tolist(
+                            ).index(original_action_labels[action])
                             if family_quotient_numpy is not None and family_quotient_numpy.observation_to_legal_action_mask[observation][action]:
-                                action_dict[action] = 0.0001  # To avoid zero probabilities
+                                # To avoid zero probabilities
+                                # action_dict[action] = 0 # .0001
+                                pass
 
                     if action_dict == {}:
                         if family_quotient_numpy is not None:
@@ -83,6 +92,13 @@ class ConstructorFSC:
                     if total_prob > 0:
                         action_dict = {
                             action: prob / total_prob for action, prob in action_dict.items()}
+                    else:
+                        # If total_prob is 0, assign uniform distribution over legal actions
+                        if family_quotient_numpy is not None:
+                            action_dict = {action: 1.0 for action in range(len(
+                                family_quotient_numpy.action_labels)) if family_quotient_numpy.observation_to_legal_action_mask[observation][action]}
+                            action_dict = {
+                                action: 1.0 / len(action_dict) for action in action_dict}
                     action_for_memory.append(action_dict)
                 action_function.append(action_for_memory)
             return action_function
@@ -147,7 +163,7 @@ class ConstructorFSC:
         Returns:
             FscFactored: The constructed FSC.
         """
-        action_function = ConstructorFSC.__create_action_function(
+        action_function = ConstructorFSC._create_action_function(
             table_based_policy.tf_observation_to_action_table, family_quotient_numpy, table_based_policy.action_keywords, cut_probs)
         update_function = ConstructorFSC.__create_update_function(
             table_based_policy.tf_observation_to_update_table, cut_probs)
@@ -249,3 +265,45 @@ class ConstructorFSC:
             return ConstructorFSC.__construct_factored_fsc(table_based_policy, pomdp_quotient, family_quotient_numpy, cut_probs)
         else:
             return ConstructorFSC.__construct_joint_fsc(table_based_policy, pomdp_quotient, family_quotient_numpy)
+
+
+def test_fsc_constructors():
+    from compact_rl.robust_rl.robust_rl_tools import assignment_to_pomdp, load_sketch
+    from compact_rl.rl.environment.environment_wrapper_vec import EnvironmentWrapperVec
+    from tests.general_test_tools import init_args
+
+    # Test the FSC construction from a table-based policy
+    family_quotient = load_sketch("models/models_robust/network")
+
+    family_quotient_numpy = FamilyQuotientNumpy(
+        family_quotient=family_quotient)
+
+    hole_assignment = family_quotient.family.pick_random()
+    pomdp, _, _ = assignment_to_pomdp(family_quotient, hole_assignment)
+    args = init_args("ahoj/sketch.templ", "ahoj/sketch.props")
+    env = EnvironmentWrapperVec(pomdp, args, enforce_compilation=True,
+                                obs_evaluator=family_quotient.obs_evaluator,
+                                quotient_state_valuations=family_quotient.quotient_mdp.state_valuations,
+                                observation_to_actions=family_quotient.observation_to_actions)
+
+    # tf_action_function = np.random.uniform(
+    #     low=0, high=1, size=[4, family_quotient_numpy.observation_to_legal_action_mask.shape[0], env.action_keywords])
+    tf_action_function = tf.random.uniform(
+        shape=[4, family_quotient_numpy.observation_to_legal_action_mask.shape[0], len(env.action_keywords)], minval=0, maxval=1, dtype=tf.float32)
+    tf_action_function = tf_action_function.numpy()
+    tf_action_function = tf_action_function.reshape(
+        (4, family_quotient_numpy.observation_to_legal_action_mask.shape[0], len(env.action_keywords)))
+    # Remove illegal actions from tf_action_function
+    for obs in range(family_quotient_numpy.observation_to_legal_action_mask.shape[0]):
+        for action in env.action_keywords:
+            if not family_quotient_numpy.observation_to_legal_action_mask[obs][family_quotient_numpy.action_labels.tolist().index(action)]:
+                tf_action_function[:, obs,
+                                   env.action_keywords.index(action)] = 0.0
+        if np.sum(tf_action_function[:, obs, :]) == 0.0:
+            # If all actions are illegal, assign uniform distribution
+            for action in range(len(env.action_keywords)):
+                tf_action_function[:, obs, action] = 1.0 / \
+                    len(env.action_keywords)
+    tf_action_function /= np.sum(tf_action_function, axis=-1, keepdims=True)
+    tf_action_function = tf.convert_to_tensor(
+        tf_action_function, dtype=tf.float32)

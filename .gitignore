@@ -25,6 +25,7 @@ sdist/
 var/
 wheels/
 trained_agents/
+models/models_table_camera_ready/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
@@ -164,9 +165,8 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-profiling/
+experiments/
+results_*/
 results/
-results-backup/
-results-backup2/
-
-venv-test/
+profiling/
+venv*

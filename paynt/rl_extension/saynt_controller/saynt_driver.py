@@ -1,4 +1,4 @@
-from rl_src.tools.encoding_methods import *
+from compact_rl.rl.tools.encoding_methods import *
 from paynt.quotient.fsc import FscFactored
 
 import paynt.quotient.storm_pomdp_control as Storm_POMDP_Control
@@ -10,7 +10,7 @@ from tf_agents.trajectories import StepType
 
 import tf_agents.trajectories as Trajectories
 
-from rl_src.environment import tf_py_environment
+from compact_rl.rl.environment import tf_py_environment
 
 from paynt.quotient.fsc import FscFactored
 

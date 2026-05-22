@@ -1,14 +1,14 @@
 import numpy as np
 import tensorflow as tf
-from rl_src.tools.args_emulator import ArgsEmulator
+from compact_rl.rl.tools.args_emulator import ArgsEmulator
 
-from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
-from rl_src.environment.tf_py_environment import TFPyEnvironment
+from compact_rl.rl.environment.environment_wrapper_vec import EnvironmentWrapperVec
+from compact_rl.rl.environment.tf_py_environment import TFPyEnvironment
 
-from rl_src.interpreters.extracted_fsc.table_based_policy import TableBasedPolicy, initialize_random_independent_fsc_function
+from compact_rl.rl.interpreters.extracted_fsc.table_based_policy import TableBasedPolicy, initialize_random_independent_fsc_function
 
-from rl_src.tools.evaluators import evaluate_policy_in_model
-from rl_src.tests.general_test_tools import init_args, init_environment
+from compact_rl.rl.tools.evaluators import evaluate_policy_in_model
+from compact_rl.rl.tests.general_test_tools import init_args, init_environment
 
 import tqdm
 

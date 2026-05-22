@@ -1,0 +1,50 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools>=61.0", "wheel>=0.37.1"]
+
+[project]
+name = "compact_rl"
+version = "0.1.0"
+description = "RL for PRISM models"
+readme = "README.md"
+license.file = "LICENSE"
+authors = [
+    { name = "D. Hudák", email = "ihudak@fit.vut.cz" },
+    { name = "R. Andriushchenko", email = "iandri@fit.vut.cz" },
+    { name = "F. Macák", email = "imacak@fit.vut.cz" },
+]
+requires-python = ">=3.10,<3.12"
+dependencies = [
+    "paynt==0.3.0",
+    "jax==0.4.18",
+    "jaxlib==0.4.18",
+    "tensorflow==2.15",
+    "ml-dtypes==0.2.0",
+    "tf_agents==0.19.0",
+    "tqdm", "dill", "matplotlib", "pandas", "seaborn", "networkx",
+    "aalpy",
+    "scikit-learn",
+    "chex",
+    "stormpy"
+]
+classifiers = [
+    'Intended Audience :: Science/Research',
+    'Topic :: Scientific/Engineering',
+    'Topic :: Software Development :: Libraries :: Python Modules',
+]
+keywords = [
+    "stormpy", 
+    "synthesis", 
+    "paynt", 
+    "storm",
+    "RL",
+    "Scalability"
+]
+
+[project.urls]
+Homepage = "https://github.com/DaveHudiny/rl_synthesis"
+"Bug Tracker" = "https://github.com/DaveHudiny/rl_synthesis/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["compact_rl*"]

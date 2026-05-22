@@ -1,9 +1,9 @@
 from paynt.rl_extension.saynt_rl_tools.agents_wrapper import AgentsWrapper
 import numpy as np
-from rl_src.tools.args_emulator import ArgsEmulator
-from rl_src.tools.evaluators import evaluate_policy_in_model
-from rl_src.interpreters.fsc_based_interpreter import NaiveFSCPolicyExtraction
-from rl_src.interpreters.bottlenecking.quantized_bottleneck_extractor import TableBasedPolicy
+from compact_rl.rl.tools.args_emulator import ArgsEmulator
+from compact_rl.rl.tools.evaluators import evaluate_policy_in_model
+from compact_rl.rl.interpreters.fsc_based_interpreter import NaiveFSCPolicyExtraction
+from compact_rl.rl.interpreters.bottlenecking.quantized_bottleneck_extractor import TableBasedPolicy
 import logging
 import re
 

@@ -1,16 +1,16 @@
-from rl_src.experimental_interface import ArgsEmulator, ExperimentInterface
-from rl_src.interpreters.tracing_interpret import TracingInterpret
-from rl_src.agents.policies.parallel_fsc_policy import FSC_Policy
-from rl_src.tools.saving_tools import save_statistics_to_new_json
-from rl_src.tools.encoding_methods import *
-from rl_src.tools.evaluation_results_class import EvaluationResults
+from compact_rl.rl.experimental_interface import ArgsEmulator, ExperimentInterface
+from compact_rl.rl.interpreters.tracing_interpret import TracingInterpret
+from compact_rl.rl.agents.policies.parallel_fsc_policy import FSC_Policy
+from compact_rl.rl.tools.saving_tools import save_statistics_to_new_json
+from compact_rl.rl.tools.encoding_methods import *
+from compact_rl.rl.tools.evaluation_results_class import EvaluationResults
 from paynt.quotient.fsc import FscFactored
-from rl_src.agents.recurrent_ppo_agent import Recurrent_PPO_agent
+from compact_rl.rl.agents.recurrent_ppo_agent import Recurrent_PPO_agent
 
 from paynt.quotient.fsc import FscFactored
 from paynt.rl_extension.saynt_controller.saynt_driver import SAYNT_Driver
 
-from rl_src.agents.alternative_training.behavioral_trainers import ActorValuePretrainer
+from compact_rl.rl.agents.alternative_training.behavioral_trainers import ActorValuePretrainer
 
 
 import logging
@@ -129,7 +129,7 @@ class AgentsWrapper:
         self.agent.train_agent_off_policy(iterations)
 
     def sample_trajectories_with_fsc(self, episodes = 10, fsc = None, soft_decision = False, fsc_multiplier = None, switch_probability = False):
-        from rl_src.tools.encoding_methods import observation_and_action_constraint_splitter
+        from compact_rl.rl.tools.encoding_methods import observation_and_action_constraint_splitter
         fsc_policy = FSC_Policy(self.interface.tf_environment, fsc,
                                      observation_and_action_constraint_splitter=observation_and_action_constraint_splitter,
                                      tf_action_keywords=self.interface.environment.action_keywords,
