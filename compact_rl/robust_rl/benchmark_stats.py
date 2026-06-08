@@ -155,8 +155,8 @@ class BenchmarkStats:
             "worst_case_evaluation_times_fsc": str(benchmark_stats.worst_case_evaluation_times_fsc),
             "lstm_extracted_result_times": str(benchmark_stats.lstm_extracted_result_times),
             "cluster_evaluation_times": str(benchmark_stats.cluster_evaluation_times),
-            "large_fsc_extracted_reachabilities": {str(k): v for k, v in benchmark_stats.large_fsc_extracted_reachabilities.items()},
-            "large_fsc_extracted_returns": {str(k): v for k, v in benchmark_stats.large_fsc_extracted_returns.items()}
+            "large_fsc_extracted_reachabilities": {str(k): str(v) for k, v in benchmark_stats.large_fsc_extracted_reachabilities.items()},
+            "large_fsc_extracted_returns": {str(k): str(v) for k, v in benchmark_stats.large_fsc_extracted_returns.items()}
         }
         with open(path, 'w') as f:
             json.dump(stats, f, indent=4)

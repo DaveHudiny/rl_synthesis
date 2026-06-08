@@ -430,7 +430,7 @@ class BlackBoxExtractor:
             )
             extraction_stats.add_lstm_result(extraction_stats_lstm.extracted_policy_reachabilities[-1], extraction_stats_lstm.extracted_policy_rewards[-1])
 
-        if True: # Experiment with larger FSCs with matrix setting
+        if False: # Experiment with larger FSCs with matrix setting
             for size in [9, 16, 25, 36, 49, 64]:
                 fsc_actor_sized = ClonedFSCActorPolicy(
                     original_policy, size, original_policy.observation_and_action_constraint_splitter,
