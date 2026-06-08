@@ -4,11 +4,11 @@ from tf_agents.trajectories.time_step import StepType
 from keras import layers, models, activations
 from tf_agents.keras_layers import dynamic_unroll_layer
 
-class LSTMActorNetwork(models.Model):
+class GRUActorNetwork(models.Model):
     def __init__(self, observation_shape: tf.TensorShape,
                  action_range: int,
                  lstm_units: int = 32):
-        super(LSTMActorNetwork, self).__init__()
+        super(GRUActorNetwork, self).__init__()
         self.observation_shape = observation_shape
         self.action_range = action_range
         self.dense1 = layers.Dense(128, activation='relu')

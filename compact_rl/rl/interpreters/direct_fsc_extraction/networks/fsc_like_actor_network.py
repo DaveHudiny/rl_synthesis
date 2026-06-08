@@ -5,8 +5,11 @@ from keras import layers, models, activations
 from tf_agents.keras_layers import dynamic_unroll_layer
 
 import tensorflow_probability as tfp
+import math
+
 
 class FSCLikeActorNetwork(models.Model):
+
     def __init__(self, observation_shape: tf.TensorShape,
                  action_range: int,
                  memory_len: int,
@@ -14,7 +17,9 @@ class FSCLikeActorNetwork(models.Model):
                  use_residual_connection: bool = True,
                  gumbel_softmax_one_hot: bool = True,
                  stochastic_updates: bool = True,
-                 seed: int = 42):
+                 seed: int = 42,
+                 use_matrices : bool = False 
+                ):
         super(FSCLikeActorNetwork, self).__init__()
         self.observation_shape = observation_shape
         self.action_range = action_range
@@ -41,23 +46,11 @@ class FSCLikeActorNetwork(models.Model):
         self.gumbel_softmax_one_hot = gumbel_softmax_one_hot
         self.temperature = 0.5
         self.seed = seed
-        if gumbel_softmax_one_hot:
+        self.use_matrices = use_matrices
+        if gumbel_softmax_one_hot and use_matrices:
             assert use_one_hot, "Gumbel softmax requires one-hot encoding."
-            self.projection_network = layers.Dense(memory_len, activation='relu')
-            self.memory_function = layers.Lambda(
-                lambda x: self.gumbel_softmax(x, temperature=self.temperature, seed=self.seed))
-            self.one_hot_constant = 1
-            if stochastic_updates:
-                self.quantization_layer = layers.Lambda(lambda x:
-                                                        tf.one_hot(
-                                                            tf.reshape(tf.random.categorical(
-                                                                logits=tf.math.log(x), num_samples=1, dtype=tf.int32, seed=self.seed),
-                                                                shape=(x.shape[0], -1)),
-                                                            depth=self.memory_len,
-                                                            dtype=tf.float32, axis=-1))
-            else:
-                self.quantization_layer = layers.Lambda(lambda x: tf.one_hot(tf.argmax(x, axis=-1),
-                                                                         depth=self.memory_len, dtype=tf.float32))
+        if gumbel_softmax_one_hot:
+            self._set_gumbel_softmax_one_hot(use_one_hot, stochastic_updates, use_matrices)
         elif not use_one_hot:
 
             self.memory_function = layers.Lambda(
@@ -74,6 +67,78 @@ class FSCLikeActorNetwork(models.Model):
         
         self.noise_level = 0.35
 
+    def _set_single_vector_gumbel_softmax(self, use_one_hot: bool, stochastic_updates: bool):
+        assert use_one_hot, "Gumbel softmax requires one-hot encoding."
+        
+        self.projection_network = layers.Dense(self.memory_len, activation='relu')
+        self.memory_function = layers.Lambda(
+            lambda x: self.gumbel_softmax(x, temperature=self.temperature, seed=self.seed))
+        self.one_hot_constant = 1
+        if stochastic_updates:
+            self.quantization_layer = layers.Lambda(lambda x:
+                                                    tf.one_hot(
+                                                        tf.reshape(tf.random.categorical(
+                                                            logits=tf.math.log(x), num_samples=1, dtype=tf.int32, seed=self.seed),
+                                                            shape=(x.shape[0], -1)),
+                                                        depth=self.memory_len,
+                                                        dtype=tf.float32, axis=-1))
+        else:
+            self.quantization_layer = layers.Lambda(lambda x: tf.one_hot(tf.argmax(x, axis=-1),
+                                                                         depth=self.memory_len, dtype=tf.float32))
+
+    def _set_matrix_gumbel_softmax(self, use_one_hot: bool, stochastic_updates: bool):
+        assert use_one_hot, "Gumbel softmax requires one-hot encoding."
+        # Assure that memory_len is a perfect square for matrix reshaping.
+        assert self.nr_classes_per_row ** 2 == self.memory_len, "Memory length must be a perfect square for matrix reshaping."
+        self.projection_network = layers.Dense(self.memory_len, activation='relu') # Project to the matrix size.
+        self.memory_function = layers.Lambda(
+            lambda x: tf.reshape(self.gumbel_softmax(tf.reshape(x, (
+                                                                    tf.shape(x)[0], 
+                                                                    self.nr_classes_per_row, 
+                                                                    self.nr_classes_per_row
+                                                                   )
+                                                                ), 
+                                                     temperature=self.temperature, 
+                                                     seed=self.seed), 
+                                 (tf.shape(x)[0], self.memory_len)
+                                )
+            )
+        self.one_hot_constant = 1
+        if stochastic_updates:
+            self.quantization_layer = layers.Lambda(lambda x:
+                                                    tf.reshape(tf.one_hot(
+                                                        tf.random.categorical(
+                                                            logits=tf.math.log(tf.reshape(x, (
+                                                                tf.shape(x)[0], 
+                                                                self.nr_classes_per_row, 
+                                                                self.nr_classes_per_row
+                                                            )), axis=-1), num_samples=1, dtype=tf.int32, seed=self.seed),
+                                                        depth=self.nr_classes_per_row,
+                                                        dtype=tf.float32, axis=-1),
+                                 (tf.shape(x)[0], self.memory_len)
+                                ))
+        else:
+            self.quantization_layer = layers.Lambda(lambda x: tf.reshape(tf.one_hot(
+                                                        tf.argmax(tf.reshape(x, (
+                                                            tf.shape(x)[0], 
+                                                            self.nr_classes_per_row, 
+                                                            self.nr_classes_per_row
+                                                        ), axis=-1), axis=-1),
+                                                        depth=self.nr_classes_per_row,
+                                                        dtype=tf.float32, axis=-1),
+                                 (tf.shape(x)[0], self.memory_len)
+                                ))
+        
+
+    def _set_gumbel_softmax_one_hot(self, use_one_hot: bool, stochastic_updates: bool, use_matrices: bool):
+        if use_matrices:
+            self.nr_classes_per_row = int(math.sqrt(self.memory_len))
+            self._set_matrix_gumbel_softmax(use_one_hot, stochastic_updates)
+        else:
+            self._set_single_vector_gumbel_softmax(use_one_hot, stochastic_updates)
+        
+                
+
     def set_return_probs(self, return_probs: bool):
         """
         Set whether the network should return probabilities or not.
@@ -87,9 +152,18 @@ class FSCLikeActorNetwork(models.Model):
         self.temperature = temperature
 
     def get_initial_state(self, batch_size):
-        zeros_like = tf.zeros(
-            (batch_size, self.memory_len - self.one_hot_constant))
-        return tf.concat([tf.ones((batch_size, self.one_hot_constant)), zeros_like], axis=-1)
+        if self.use_matrices:
+            zeros_like = tf.zeros((batch_size, 
+                                   self.nr_classes_per_row, 
+                                   self.nr_classes_per_row - self.one_hot_constant)
+                                 )
+            init_memory_matrix = tf.concat([tf.ones((batch_size, self.nr_classes_per_row, self.one_hot_constant)), zeros_like], axis=-1)
+            return tf.reshape(init_memory_matrix, (batch_size, self.memory_len))
+        else:
+            zeros_like = tf.zeros(
+                (batch_size, self.memory_len - self.one_hot_constant))
+        
+            return tf.concat([tf.ones((batch_size, self.one_hot_constant)), zeros_like], axis=-1)
     
     def sample_gumbel(self, shape, eps = 1e-20, seed=None):
         """

@@ -1,4 +1,6 @@
 
+import argparse
+
 from compact_rl.robust_rl.robust_rl_trainer import initialize_extractor
 from compact_rl.robust_rl.robust_rl_tools import parse_args
 from compact_rl.robust_rl.robust_rl_tools import assignment_to_pomdp, load_sketch
@@ -19,6 +21,8 @@ import random
 import numpy as np
 import tensorflow as tf
 
+from compact_rl.rl.tools.args_emulator import ArgsEmulator
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -28,6 +32,20 @@ def set_global_seeds(seed):
     tf.random.set_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
+
+def set_args_emulated_defaults(args_emulated : ArgsEmulator, args_cmd : argparse.Namespace, project_path : str):
+    args_emulated.width_of_lstm = args_cmd.lstm_width
+    args_emulated.batched_vec_storm = args_cmd.batched_vec_storm
+    args_emulated.extraction_type = args_cmd.extraction_method
+    args_emulated.model_name = project_path.split("/")[-1]
+    args_emulated.max_steps = 601
+    args_emulated.geometric_batched_vec_storm = args_cmd.geometric_batched_vec_storm
+    args_emulated.without_extraction = args_cmd.without_extraction
+    args_emulated.periodic_restarts = args_cmd.periodic_restarts
+    args_emulated.noisy_observations = args_cmd.noisy_observations
+    args_emulated.single_pomdp_experiment = args_cmd.single_pomdp_setting
+    args_emulated.seed = args_cmd.seed
+    args_emulated.with_gru = args_cmd.with_gru
 
 def main():
     args_cmd = parse_args()
@@ -62,18 +80,7 @@ def main():
     # Masked_training is used to train the agent with masking, i.e. the agent will be forbidden to take illegal actions.
     args_emulated = init_args(
         prism_path=prism_path, properties_path=properties_path, batched_vec_storm=True, masked_training=False)
-    args_emulated.width_of_lstm = args_cmd.lstm_width
-    args_emulated.batched_vec_storm = args_cmd.batched_vec_storm
-    args_emulated.extraction_type = args_cmd.extraction_method
-    args_emulated.model_name = project_path.split("/")[-1]
-    args_emulated.max_steps = 601
-    args_emulated.geometric_batched_vec_storm = args_cmd.geometric_batched_vec_storm
-    args_emulated.without_extraction = args_cmd.without_extraction
-    args_emulated.periodic_restarts = args_cmd.periodic_restarts
-    args_emulated.noisy_observations = args_cmd.noisy_observations
-    args_emulated.single_pomdp_experiment = args_cmd.single_pomdp_setting
-    args_emulated.seed = args_cmd.seed
-    args_emulated.with_gru = args_cmd.with_gru
+    set_args_emulated_defaults(args_emulated, args_cmd, project_path)
 
     set_global_seeds(args_emulated.seed)
 

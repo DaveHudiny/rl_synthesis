@@ -45,6 +45,9 @@ class BenchmarkStats:
         self.lstm_extracted_reachability = []
         self.seed = seed
 
+        self.large_fsc_extracted_reachabilities = {}
+        self.large_fsc_extracted_returns = {}
+
         self.initialize_time_metrics()
 
     def initialize_time_metrics(self):
@@ -102,6 +105,13 @@ class BenchmarkStats:
         self.nr_of_clusters.append(nr_clusters)
         self.cluster_evaluation_times.append(time.time() - self.initial_time)
 
+    def add_large_fsc_extracted_results(self, memory_size: int, reachability: float, return_value: float):
+        if memory_size not in self.large_fsc_extracted_reachabilities:
+            self.large_fsc_extracted_reachabilities[memory_size] = []
+            self.large_fsc_extracted_returns[memory_size] = []
+        self.large_fsc_extracted_reachabilities[memory_size].append(reachability)
+        self.large_fsc_extracted_returns[memory_size].append(return_value)
+
     def save_stats(self, path):
 
         benchmark_stats = self
@@ -144,7 +154,9 @@ class BenchmarkStats:
             "worst_case_evaluation_times_rl": str(benchmark_stats.worst_case_evaluation_times_rl),
             "worst_case_evaluation_times_fsc": str(benchmark_stats.worst_case_evaluation_times_fsc),
             "lstm_extracted_result_times": str(benchmark_stats.lstm_extracted_result_times),
-            "cluster_evaluation_times": str(benchmark_stats.cluster_evaluation_times)
+            "cluster_evaluation_times": str(benchmark_stats.cluster_evaluation_times),
+            "large_fsc_extracted_reachabilities": {str(k): v for k, v in benchmark_stats.large_fsc_extracted_reachabilities.items()},
+            "large_fsc_extracted_returns": {str(k): v for k, v in benchmark_stats.large_fsc_extracted_returns.items()}
         }
         with open(path, 'w') as f:
             json.dump(stats, f, indent=4)

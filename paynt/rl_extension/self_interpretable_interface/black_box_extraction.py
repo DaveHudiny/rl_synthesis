@@ -39,7 +39,7 @@ import os
 from compact_rl.rl.interpreters.direct_fsc_extraction.extraction_stats import ExtractionStats
 from compact_rl.rl.interpreters.direct_fsc_extraction.data_sampler import sample_data_with_policy
 from compact_rl.rl.interpreters.direct_fsc_extraction.cloned_fsc_actor_policy import ClonedFSCActorPolicy
-from compact_rl.rl.interpreters.direct_fsc_extraction.cloned_lstm_network_policy import ClonedLSTMActorPolicy
+from compact_rl.rl.interpreters.direct_fsc_extraction.cloned_gru_network_policy import ClonedGRUActorPolicy
 
 from compact_rl.rl.interpreters.aalpy_extraction.mealy_automata_learner import MealyAutomataLearner
 
@@ -416,18 +416,36 @@ class BlackBoxExtractor:
             original_policy, num_samples=self.num_data_steps, environment=env, tf_environment=tf_env)
         logger.info("Data sampled")
         logger.info("Cloning original policy to FSC")
-        extraction_stats_lstm = None
-        if with_gru:
-            cloned_lstm_actor = ClonedLSTMActorPolicy(original_policy, observation_and_action_constraint_splitter=original_policy.observation_and_action_constraint_splitter,
-                                                      observation_length=env.observation_spec_len, lstm_units=32)
-            extraction_stats_lstm = cloned_lstm_actor.behavioral_clone_original_policy_to_fsc(
-                buffer, num_epochs=5001, environment=env, tf_environment=tf_env, args=None, extraction_stats=None
-            )
-
 
         extraction_stats = self.cloned_actor.behavioral_clone_original_policy_to_fsc(
             buffer, num_epochs=self.training_epochs, specification_checker=self.specification_checker,
             environment=env, tf_environment=tf_env, args=None, extraction_stats=self.extraction_stats)
+        
+        
+        if with_gru:
+            cloned_lstm_actor = ClonedGRUActorPolicy(original_policy, observation_and_action_constraint_splitter=original_policy.observation_and_action_constraint_splitter,
+                                                      observation_length=env.observation_spec_len, lstm_units=32)
+            extraction_stats_lstm = cloned_lstm_actor.behavioral_clone_original_policy_to_fsc(
+                buffer, num_epochs=5001, environment=env, tf_environment=tf_env, args=None, extraction_stats=None
+            )
+            extraction_stats.add_lstm_result(extraction_stats_lstm.extracted_policy_reachabilities[-1], extraction_stats_lstm.extracted_policy_rewards[-1])
+
+        if True: # Experiment with larger FSCs with matrix setting
+            for size in [9, 16, 25, 36, 49, 64]:
+                fsc_actor_sized = ClonedFSCActorPolicy(
+                    original_policy, size, original_policy.observation_and_action_constraint_splitter,
+                    use_one_hot=self.is_one_hot, use_residual_connection=self.use_residual_connection,
+                    optimization_specification = self.optimizing_specification, model_name = self.model_name + f"_aux_{size}",
+                    find_best_policy=self.get_best_policy_flag,
+                    max_episode_length=self.max_episode_len, observation_length=env.observation_spec_len, 
+                    orig_env_use_stacked_observations=self.stacked_observations,
+                    use_gumbel_softmax=True, seed=self.seed, use_matrices=True)
+                extraction_stats_sized = fsc_actor_sized.behavioral_clone_original_policy_to_fsc(
+                    buffer, num_epochs=5001, specification_checker=self.specification_checker,
+                    environment=env, tf_environment=tf_env, args=None, extraction_stats=None)
+                extraction_stats.add_large_fsc_result(size, extraction_stats_sized.extracted_policy_reachabilities[-1], extraction_stats_sized.extracted_policy_rewards[-1])
+
+        
         del buffer
         self.cloned_actor.set_probs_updates()
         # if self.get_best_policy_flag:
@@ -439,8 +457,6 @@ class BlackBoxExtractor:
         self.cloned_actor.unset_probs_updates()
         fsc_res = evaluate_policy_in_model(fsc, environment=env, tf_environment=tf_env, max_steps=(self.max_episode_len + 1) * 2)
         extraction_stats.add_fsc_result(fsc_res.reach_probs[-1], fsc_res.returns[-1])
-        if extraction_stats_lstm is not None:
-            extraction_stats.add_lstm_result(extraction_stats_lstm.extracted_policy_reachabilities[-1], extraction_stats_lstm.extracted_policy_rewards[-1])
 
         return fsc, extraction_stats
 

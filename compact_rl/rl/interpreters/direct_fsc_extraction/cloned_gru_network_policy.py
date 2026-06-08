@@ -18,7 +18,7 @@ from compact_rl.rl.environment.environment_wrapper_vec import EnvironmentWrapper
 from compact_rl.rl.tools.evaluators import evaluate_policy_in_model
 from compact_rl.rl.interpreters.direct_fsc_extraction.extraction_stats import ExtractionStats
 
-from compact_rl.rl.interpreters.direct_fsc_extraction.networks.lstm_actor_network import LSTMActorNetwork
+from compact_rl.rl.interpreters.direct_fsc_extraction.networks.gru_actor_network import GRUActorNetwork
 
 DEBUG = True
 
@@ -30,7 +30,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class ClonedLSTMActorPolicy(TFPolicy):
+class ClonedGRUActorPolicy(TFPolicy):
     def __init__(self, original_policy: TFPolicy,
                  observation_and_action_constraint_splitter=None,
                  model_name: str = "generic_model",
@@ -40,12 +40,12 @@ class ClonedLSTMActorPolicy(TFPolicy):
         self.original_policy = original_policy
         policy_state_spec = BoundedArraySpec(
             shape=(lstm_units,), dtype=np.float32, minimum=-np.inf, maximum=np.inf, name='policy_state')
-        super(ClonedLSTMActorPolicy, self).__init__(time_step_spec=original_policy.time_step_spec,
+        super(ClonedGRUActorPolicy, self).__init__(time_step_spec=original_policy.time_step_spec,
                                                    action_spec=original_policy.action_spec,
                                                    policy_state_spec=policy_state_spec,
                                                    observation_and_action_constraint_splitter=observation_and_action_constraint_splitter)
         self.lstm_units = lstm_units
-        self.lstm_actor : LSTMActorNetwork = LSTMActorNetwork(
+        self.lstm_actor : GRUActorNetwork = GRUActorNetwork(
             original_policy.time_step_spec.observation["observation"].shape[-1],
             original_policy.action_spec.maximum - original_policy.action_spec.minimum + 1,
             lstm_units=self.lstm_units
@@ -133,7 +133,6 @@ class ClonedLSTMActorPolicy(TFPolicy):
 
         self.evaluation_result = None
         observation_length = environment.observation_spec_len
-
         @tf.function
         def train_step(experience):
             observations = experience.observation["observation"]

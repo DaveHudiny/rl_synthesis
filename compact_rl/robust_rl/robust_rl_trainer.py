@@ -104,6 +104,10 @@ class RobustTrainer:
         if len(extraction_stats.lstm_extracted_reachability) > 0 and len(extraction_stats.lstm_extracted_return) > 0:
             self.benchmark_stats.add_lstm_extracted_results(
                 extraction_stats.lstm_extracted_reachability[-1], extraction_stats.lstm_extracted_return[-1])
+        if extraction_stats.large_fsc_extracted_reachabilities and extraction_stats.large_fsc_extracted_returns:
+            for memory_size in extraction_stats.large_fsc_extracted_reachabilities:
+                self.benchmark_stats.add_large_fsc_extracted_results(
+                    memory_size, extraction_stats.large_fsc_extracted_reachabilities[memory_size][-1], extraction_stats.large_fsc_extracted_returns[memory_size][-1])
         return fsc
 
     def extract_fsc(self, agent: Recurrent_PPO_agent, environment: EnvironmentWrapperVec, quotient, num_data_steps=4001, training_epochs=10001, get_dict=False,
@@ -302,6 +306,8 @@ def initialize_extractor(pomdp_sketch, args_emulated: ArgsEmulator, family_quoti
 
     use_one_hot_memory = True if args_emulated.extraction_type == "si-g" else False
     use_gumbel_softmax = True if args_emulated.extraction_type == "si-g" else False
+    
+
     if "avoid-large" in args_emulated.prism_model or "drone-2-6-1" in args_emulated.prism_model or "moving-obstacles" in args_emulated.prism_model:
         latent_dim = 10  # For these models, we use larger latent dimension => usually larger FSCs
     else:

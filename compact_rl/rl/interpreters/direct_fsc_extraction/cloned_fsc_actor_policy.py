@@ -22,7 +22,7 @@ from compact_rl.rl.environment.environment_wrapper_vec import EnvironmentWrapper
 from compact_rl.rl.tools.evaluators import evaluate_policy_in_model
 from compact_rl.rl.interpreters.direct_fsc_extraction.extraction_stats import ExtractionStats
 
-from compact_rl.rl.interpreters.direct_fsc_extraction.networks.lstm_actor_network import LSTMActorNetwork
+from compact_rl.rl.interpreters.direct_fsc_extraction.networks.gru_actor_network import GRUActorNetwork
 
 DEBUG = True
 
@@ -46,7 +46,8 @@ class ClonedFSCActorPolicy(TFPolicy):
                  observation_length: int = 0,
                  orig_env_use_stacked_observations: bool = True,
                  use_gumbel_softmax: bool = False,
-                 seed=42):
+                 seed=42,
+                 use_matrices: bool = False):
         self.original_policy = original_policy
         self.use_one_hot = use_one_hot
         policy_state_spec = BoundedArraySpec(
@@ -61,7 +62,8 @@ class ClonedFSCActorPolicy(TFPolicy):
             original_policy.action_spec.maximum + 1,
             memory_size,
             use_one_hot=use_one_hot,
-            gumbel_softmax_one_hot=use_gumbel_softmax,)
+            gumbel_softmax_one_hot=use_gumbel_softmax,
+            use_matrices=use_matrices)
         self.model_name = model_name
         self.optimization_specification = optimization_specification
         self.find_best_policy = find_best_policy
@@ -126,50 +128,6 @@ class ClonedFSCActorPolicy(TFPolicy):
         init_state = self.fsc_actor.get_initial_state(batch_size)
         return tf.reshape(init_state, (batch_size, -1))
     
-    def compute_inverted_global_action_distribution(self, buffer: TFUniformReplayBuffer, nr_actions, use_probs_regression=False):
-        """ Computes the inverted global action distribution from the replay buffer, that is used to compute weights for the cross entropy weights.
-        Args:
-            buffer (TFUniformReplayBuffer): The replay buffer containing the experience.
-            nr_actions (int): The number of actions in the environment.
-        Returns:
-            tf.Tensor: A tensor containing the inverted global action distribution."""
-        data = buffer.gather_all()
-        dataset = tf.data.Dataset.from_tensor_slices(data)
-        dataset = dataset.batch(64).prefetch(tf.data.AUTOTUNE)
-        action_counts_or_probs = tf.zeros((nr_actions,), dtype=tf.float32)
-        for experience in dataset:
-            if use_probs_regression:
-                logits = experience.policy_info["dist_params"]["logits"]
-                logits = tf.reshape(logits, (-1, logits.shape[-1]))
-                probs = tf.nn.softmax(logits, axis=-1)
-                action_counts_or_probs += tf.reduce_sum(probs, axis=0)
-            else:
-                actions = experience.action
-                actions = tf.reshape(actions, (-1,))
-                action_counts += tf.math.bincount(actions, minlength=nr_actions)
-        action_counts_or_probs = tf.cast(action_counts_or_probs, tf.float32)
-        action_counts_or_probs = tf.where(
-            action_counts_or_probs == 0, tf.ones_like(action_counts_or_probs), action_counts_or_probs)
-        probs = tf.math.reciprocal(action_counts_or_probs)
-        probs = probs / tf.reduce_sum(probs)
-        inverted_weights = 1 / probs
-        return inverted_weights
-    
-    def get_weighted_cross_entropy_loss(self, weights, nr_actions):
-        """ Returns a weighted cross entropy loss function.
-        Args:
-            weights (tf.Tensor): The weights of each class (used for the cross entropy loss).
-            nr_actions (int): The number of actions in the environment.
-        Returns:
-            function: A loss function that takes logits and labels as input and returns the weighted cross entropy loss.
-        """
-        weights = tf.constant(weights, dtype=tf.float32)
-        def weighted_cross_entropy_loss(gt_probs, logits): # Data are in shape (batch_size, trajectory_length, nr_actions)
-            element_wise = tf.math.multiply(gt_probs, logits)
-            weighted_element_wise = tf.math.multiply(element_wise, weights)
-            loss = -tf.reduce_sum(weighted_element_wise)
-            return loss
-        return weighted_cross_entropy_loss
     
     def schedule_gumbel_temperature(self, epoch: int, network: FSCLikeActorNetwork, total_epochs=10000):
         """Schedules the Gumbel temperature using cosine annealing.
@@ -181,7 +139,7 @@ class ClonedFSCActorPolicy(TFPolicy):
         import math
 
         tau_max = 3.0
-        tau_min = 0.1
+        tau_min = 0.01
         total_epochs = total_epochs
 
         # cosine annealing
@@ -217,7 +175,7 @@ class ClonedFSCActorPolicy(TFPolicy):
                 use_one_hot=self.use_one_hot,
                 number_of_samples=sample_len,
                 memory_size=self.memory_size,
-                residual_connection=self.fsc_actor.use_residual_connection
+                residual_connection=False
             )
 
         
@@ -242,7 +200,8 @@ class ClonedFSCActorPolicy(TFPolicy):
 
         self.evaluation_result = None
         observation_length = environment.observation_spec_len
-        
+
+
         @tf.function
         def train_step_2(experience):
             observations = experience.observation["observation"]
