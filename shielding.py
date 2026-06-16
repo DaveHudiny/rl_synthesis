@@ -1,6 +1,6 @@
 import pickle
-from rl_src.shielding.shielding_options import ShieldingOptions
-from robust_rl.robust_rl_tools import load_sketch
+from compact_rl.rl.shielding.shielding_options import ShieldingOptions
+from compact_rl.robust_rl.robust_rl_tools import load_sketch
 
 import os
 import click
@@ -12,21 +12,21 @@ import math
 import time
 
 # RL implementation imports
-from rl_src.environment.environment_wrapper_vec import EnvironmentWrapperVec
-from rl_src.environment.tf_py_environment import TFPyEnvironment
-from rl_src.agents.recurrent_ppo_agent import Recurrent_PPO_agent
-from rl_src.tools.args_emulator import ArgsEmulator
-from rl_src.tools.evaluators import evaluate_policy_in_model
-from rl_src.tests.general_test_tools import init_args
-from rl_src.shielding.shield_processor import ShieldProcessor
-import rl_src.shielding.shields
-from rl_src.tools.trajectory_buffer import TrajectoryBuffer
+from compact_rl.rl.environment.environment_wrapper_vec import EnvironmentWrapperVec
+from compact_rl.rl.environment.tf_py_environment import TFPyEnvironment
+from compact_rl.rl.agents.recurrent_ppo_agent import Recurrent_PPO_agent
+from compact_rl.rl.tools.args_emulator import ArgsEmulator
+from compact_rl.rl.tools.evaluators import evaluate_policy_in_model
+from compact_rl.rl.tests.general_test_tools import init_args
+from compact_rl.rl.shielding.shield_processor import ShieldProcessor
+import compact_rl.rl.shielding.shields
+from compact_rl.rl.tools.trajectory_buffer import TrajectoryBuffer
 from tf_agents.policies.tf_policy import TFPolicy
-from rl_src.tools.evaluation_results_class import EvaluationResults
+from compact_rl.rl.tools.evaluation_results_class import EvaluationResults
 from tf_agents.trajectories import Trajectory
 
-from rl_src.tools.memoryless_fsc_extraction import extract_memory_less_fsc_actions
-from rl_src.shielding.shielded_model_checking import model_check_given_policy_and_shield
+from compact_rl.rl.tools.memoryless_fsc_extraction import extract_memory_less_fsc_actions
+from compact_rl.rl.shielding.shielded_model_checking import model_check_given_policy_and_shield
 
 from tqdm import tqdm
 
@@ -237,7 +237,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
 
     if uniform_random_policy:
         print("Using uniform random policy for evaluation.")
-        from rl_src.shielding.custom_policy import create_uniform_random_policy
+        from compact_rl.rl.shielding.custom_policy import create_uniform_random_policy
         policy = create_uniform_random_policy(environment)
         compile_policy = False
     else:
@@ -246,7 +246,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
         policy.set_policy_masker()
         policy.set_return_real_logits(True)
         # _, obs_to_action = extract_memory_less_fsc_actions(environment, policy, get_probs = True, compile_policy=True)
-        # from rl_src.shielding.custom_policy import create_custom_policy
+        # from compact_rl.rl.shielding.custom_policy import create_custom_policy
         # policy = create_custom_policy(environment, obs_to_action)
         compile_policy = True
 
@@ -321,7 +321,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
     # agent.evaluation_result.save_to_json(json_path, new_pomdp=False)
 
     if shield_processor:
-        if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShieldOnline]:
+        if type(shield_processor.shield) in [compact_rl.rl.shielding.shields.SelfConstructingShieldOnline]:
             shield_processor.shield.finalize_all_unfinished_traces()
         if shield_processor.shield_folder is not None:
             shield_processor.save_shield(shield_processor.shield_folder, "final")
@@ -330,7 +330,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
         print(f"Shield calls: {shield_processor.shield.shield_calls}")
         print(f"Blocked actions: {shield_processor.shield.blocked_actions}")
         # print(f"Bad episodes encountered during evaluation: {shield_processor.bad_epsisodes} ({shield_processor.bad_epsisodes / evaluation_result.counted_episodes[-1]})")
-        if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShield, rl_src.shielding.shields.SelfConstructingShieldOnline, rl_src.shielding.shields.SelfConstructingShieldOffline]:
+        if type(shield_processor.shield) in [compact_rl.rl.shielding.shields.SelfConstructingShield, compact_rl.rl.shielding.shields.SelfConstructingShieldOnline, compact_rl.rl.shielding.shields.SelfConstructingShieldOffline]:
             if shield_processor.shield.memory > 0:
                 final_allow_mdp = payntbind.synthesis.createMdpFromVectorMatrix(shield_processor.shield.memory_unfolded_model, shield_processor.shield.current_matrix_vector)
                 result = stormpy.model_checking(final_allow_mdp, shield_processor.shield.safety_property[0])
@@ -344,7 +344,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
 
         print()
         print(eval_result["counted_episodes"], eval_result["average_episode_length"], shield_processor.shield.shield_calls, eval_elapsed_time, eval_result["virtual_returns"], eval_result["reach_probs"],  eval_result["average_bad_outcome_prob"], shield_processor.shield.blocked_actions, shield_processor.shield.added_nonoptimal_actions, end=";", sep=";")
-        if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShield, rl_src.shielding.shields.SelfConstructingShieldOnline, rl_src.shielding.shields.SelfConstructingShieldOffline]:
+        if type(shield_processor.shield) in [compact_rl.rl.shielding.shields.SelfConstructingShield, compact_rl.rl.shielding.shields.SelfConstructingShieldOnline, compact_rl.rl.shielding.shields.SelfConstructingShieldOffline]:
             if shield_processor.shield.memory > 0:
                 print(result.get_values()[final_allow_mdp.initial_states[0]], end="", sep=";")
             else:
@@ -364,7 +364,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
                     shield = f"constructed-{shield}"
                 f.write(f"{project_name};{agent_str};{shield};{shield_memory};{nu};") 
                 f.write(f'{eval_result["counted_episodes"]};{eval_result["average_episode_length"]};{shield_processor.shield.shield_calls};{eval_elapsed_time};{eval_result["virtual_returns"]};{eval_result["reach_probs"]};{eval_result["average_bad_outcome_prob"]};{shield_processor.shield.blocked_actions};{shield_processor.shield.added_nonoptimal_actions};')
-                if type(shield_processor.shield) in [rl_src.shielding.shields.SelfConstructingShield, rl_src.shielding.shields.SelfConstructingShieldOnline, rl_src.shielding.shields.SelfConstructingShieldOffline]:
+                if type(shield_processor.shield) in [compact_rl.rl.shielding.shields.SelfConstructingShield, compact_rl.rl.shielding.shields.SelfConstructingShieldOnline, compact_rl.rl.shielding.shields.SelfConstructingShieldOffline]:
                     if shield_processor.shield.memory > 0:
                         f.write(f"{result.get_values()[final_allow_mdp.initial_states[0]]};\n")
                     else:

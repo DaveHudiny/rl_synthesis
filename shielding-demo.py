@@ -11,9 +11,9 @@ import numpy as np
 import stormpy
 import stormpy.simulator
 
-from rl_src.shielding.model_info import ModelInfo
-from rl_src.shielding.shield_processor import ShieldData
-import rl_src.shielding.shields as shields
+from compact_rl.rl.shielding.model_info import ModelInfo
+from compact_rl.rl.shielding.shield_processor import ShieldData
+import compact_rl.rl.shielding.shields as shields
 
 
 # ---------------------------------------------------------------------------
