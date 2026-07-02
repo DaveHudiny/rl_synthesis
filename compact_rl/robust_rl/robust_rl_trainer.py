@@ -110,7 +110,8 @@ class RobustTrainer:
                     memory_size, extraction_stats.large_fsc_extracted_reachabilities[memory_size][-1], extraction_stats.large_fsc_extracted_returns[memory_size][-1])
         return fsc
 
-    def extract_fsc(self, agent: Recurrent_PPO_agent, environment: EnvironmentWrapperVec, quotient, num_data_steps=4001, training_epochs=10001, get_dict=False,
+    def extract_fsc(self, agent: Recurrent_PPO_agent, environment: EnvironmentWrapperVec, quotient, 
+                    num_data_steps=4001, training_epochs=10001, get_dict=False,
                     use_masking: bool = True) -> paynt.quotient.fsc.FscFactored:
         if not self.extraction_type == "bottleneck":
             self.direct_extractor.num_data_steps = num_data_steps

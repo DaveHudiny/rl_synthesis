@@ -38,7 +38,7 @@ import time
 
 OBSERVATION_SIZE = 0  # Constant for valuation encoding
 MAXIMUM_SIZE = 6  # Constant for reward shaping
-
+FLOAT_SETTING = tf.float32
 
 def pad_labels(label):
     current_length = tf.shape(label)[0]
@@ -153,10 +153,10 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         # Initialization of the penalty for illegal actions.
         self.flag_penalty = args.flag_illegal_action_penalty
         self.illegal_action_penalty = tf.constant(
-            [self.args.illegal_action_penalty_per_step] * self.num_envs, dtype=tf.float32)
+            [self.args.illegal_action_penalty_per_step] * self.num_envs, dtype=FLOAT_SETTING)
 
         # Initialization of the rewards before simulation.
-        self.reward = tf.constant(0.0, dtype=tf.float32)
+        self.reward = tf.constant(0.0, dtype=FLOAT_SETTING)
 
         # Initialization of reward model.
         self.model_name = self.get_model_name()
@@ -174,7 +174,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
                 (self.num_envs, self.observation_spec_len * self.observation_length_multiplier), )
 
         # Normalization of the rewards. Useless for PPO with its own normalization.
-        self.goal_value = tf.constant(args.evaluation_goal, dtype=tf.float32)
+        self.goal_value = tf.constant(args.evaluation_goal, dtype=FLOAT_SETTING)
         self.normalize_simulator_rewards = self.args.normalize_simulator_rewards
         if self.normalize_simulator_rewards:
             self.normalizer = 1.0/tf.abs(self.goal_value)
@@ -191,11 +191,11 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
 
         # Add reward shaping
         self.reward_shaper_function = lambda observation, _: tf.zeros(
-            (observation.shape[0],), dtype=tf.float32)
+            (observation.shape[0],), dtype=FLOAT_SETTING)
 
         self.predicate_automata_obs = args.predicate_automata_obs
         self.predicate_automata_states = tf.zeros(
-            (num_envs, 1), dtype=tf.float32)
+            (num_envs, 1), dtype=FLOAT_SETTING)
         self.do_goal_explore = False
         self.go_explore_manager = None
         if self.args.predicate_automata_obs or self.args.go_explore or self.args.curiosity_automata_reward:
@@ -205,7 +205,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
             self.predicate_automata = None
 
         self.current_num_steps = tf.constant(
-            [0] * self.num_envs, dtype=tf.float32)
+            [0] * self.num_envs, dtype=FLOAT_SETTING)
         self.noisy_observations = args.noisy_observations
         self.bad_states = np.zeros((self.vectorized_simulator.nr_states,), dtype=bool)
 
@@ -251,7 +251,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         self.predicate_automata_states = tf.reshape(
             automata_state, (self.num_envs, 1), name="predicate_automata_states")
         self.predicate_automata_states = tf.cast(
-            self.predicate_automata_states, dtype=tf.float32)
+            self.predicate_automata_states, dtype=FLOAT_SETTING)
 
     def predicate_automata_update(self, observation):
         old_states = self.predicate_automata_states
@@ -266,90 +266,90 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         if "penalty" in rew_list[-1] or "time" in rew_list[-1]:
             self.reward_multiplier = -1.0
         self.antigoal_values_vector = tf.constant(
-            [self.args.evaluation_antigoal] * self.num_envs, dtype=tf.float32)
+            [self.args.evaluation_antigoal] * self.num_envs, dtype=FLOAT_SETTING)
         self.goal_values_vector = tf.constant(
-            [self.args.evaluation_goal] * self.num_envs, dtype=tf.float32)
+            [self.args.evaluation_goal] * self.num_envs, dtype=FLOAT_SETTING)
 
     def set_reachability_rewards(self):
         self.reward_multiplier = 0.0
         self.antigoal_values_vector = tf.constant(
-            [0.0] * self.num_envs, dtype=tf.float32)
+            [0.0] * self.num_envs, dtype=FLOAT_SETTING)
         self.goal_values_vector = tf.constant(
-            [self.args.evaluation_goal] * self.num_envs, dtype=tf.float32)
+            [self.args.evaluation_goal] * self.num_envs, dtype=FLOAT_SETTING)
 
     def set_maximizing_rewards(self):
         self.reward_multiplier = 10.0
         self.antigoal_values_vector = tf.constant(
-            [0.0] * self.num_envs, dtype=tf.float32)
+            [0.0] * self.num_envs, dtype=FLOAT_SETTING)
         self.goal_values_vector = tf.constant(
-            [100.0] * self.num_envs, dtype=tf.float32)
+            [100.0] * self.num_envs, dtype=FLOAT_SETTING)
 
     def set_minimizing_rewards(self):
         self.reward_multiplier = -10.0
         self.antigoal_values_vector = tf.constant(
-            [0.0] * self.num_envs, dtype=tf.float32)
+            [0.0] * self.num_envs, dtype=FLOAT_SETTING)
         self.goal_values_vector = tf.constant(  # Decreasing the goal value to make the optimization more reasonable
-            [2.0] * self.num_envs, dtype=tf.float32)
+            [2.0] * self.num_envs, dtype=FLOAT_SETTING)
         
     def set_obstacle_rewards(self):
         self.reward_multiplier = -1.0
         self.antigoal_values_vector = tf.constant(
-            [self.args.evaluation_antigoal * 0] * self.num_envs, dtype=tf.float32)
+            [self.args.evaluation_antigoal * 0] * self.num_envs, dtype=FLOAT_SETTING)
         self.goal_values_vector = tf.constant(
-            [self.args.evaluation_goal * 8] * self.num_envs, dtype=tf.float32)
+            [self.args.evaluation_goal * 8] * self.num_envs, dtype=FLOAT_SETTING)
         self.truncation_values_vector = tf.constant(
-            [-0.0] * self.num_envs, dtype=tf.float32)
+            [-0.0] * self.num_envs, dtype=FLOAT_SETTING)
 
 
     def set_rover_rewards(self):
         self.reward_multiplier = 1.0
         self.antigoal_values_vector = tf.constant(
-            [self.args.evaluation_antigoal * 4] * self.num_envs, dtype=tf.float32)
+            [self.args.evaluation_antigoal * 4] * self.num_envs, dtype=FLOAT_SETTING)
         self.goal_values_vector = tf.constant(
-            [1] * self.num_envs, dtype=tf.float32)
+            [1] * self.num_envs, dtype=FLOAT_SETTING)
         
     def set_negative_goal_rewards(self):
         """Sets the rewards for the negative goal states."""
         self.reward_multiplier = 1.0
         self.antigoal_values_vector = tf.constant(
-            [self.args.evaluation_goal] * self.num_envs, dtype=tf.float32)
+            [self.args.evaluation_goal] * self.num_envs, dtype=FLOAT_SETTING)
         self.goal_values_vector = tf.constant(
-            [self.args.evaluation_antigoal] * self.num_envs, dtype=tf.float32)
+            [self.args.evaluation_antigoal] * self.num_envs, dtype=FLOAT_SETTING)
         
     def set_avoid_rewards(self):
         """Sets the rewards for the avoid states."""
         self.reward_multiplier = -1.0
         self.antigoal_values_vector = tf.constant(
-            [self.args.evaluation_antigoal * 2] * self.num_envs, dtype=tf.float32)
+            [self.args.evaluation_antigoal * 2] * self.num_envs, dtype=FLOAT_SETTING)
         self.goal_values_vector = tf.constant(
-            [self.args.evaluation_goal * 10] * self.num_envs, dtype=tf.float32)
+            [self.args.evaluation_goal * 10] * self.num_envs, dtype=FLOAT_SETTING)
         self.truncation_values_vector = tf.constant(
-            [-10.0] * self.num_envs, dtype=tf.float32)
+            [-10.0] * self.num_envs, dtype=FLOAT_SETTING)
 
 
     def set_dpm_rewards(self):
         """Sets the rewards for the DPM states."""
         self.reward_multiplier = 1.0
         self.antigoal_values_vector = tf.constant(
-            [self.args.evaluation_antigoal] * self.num_envs, dtype=tf.float32)
+            [self.args.evaluation_antigoal] * self.num_envs, dtype=FLOAT_SETTING)
         self.goal_values_vector = tf.constant(
-            [1.0] * self.num_envs, dtype=tf.float32)
+            [1.0] * self.num_envs, dtype=FLOAT_SETTING)
         self.truncation_values_vector = tf.constant(
-            [-0.0] * self.num_envs, dtype=tf.float32)
+            [-0.0] * self.num_envs, dtype=FLOAT_SETTING)
         
     def set_collect_rewards(self):
         """Sets the rewards for the collect states."""
         self.reward_multiplier = 1.0
         self.antigoal_values_vector = tf.constant(
-            [self.args.evaluation_antigoal] * self.num_envs, dtype=tf.float32)
+            [self.args.evaluation_antigoal] * self.num_envs, dtype=FLOAT_SETTING)
         self.goal_values_vector = tf.constant(
-            [100.0] * self.num_envs, dtype=tf.float32)
+            [100.0] * self.num_envs, dtype=FLOAT_SETTING)
         self.truncation_values_vector = tf.constant(
-            [-1.0] * self.num_envs, dtype=tf.float32)
+            [-1.0] * self.num_envs, dtype=FLOAT_SETTING)
 
     def set_reward_model(self, model_name):
         self.truncation_values_vector = tf.constant(
-            [0.0] * self.num_envs, dtype=tf.float32)
+            [0.0] * self.num_envs, dtype=FLOAT_SETTING)
         self.reward_models = {
             "network": self.set_minimizing_rewards,
             "drone": self.set_reachability_rewards,
@@ -385,14 +385,14 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
 
         # Initialization of the discount factor for the environment.
         self.discount = tf.convert_to_tensor(
-            [self.args.discount_factor] * self.num_envs, dtype=tf.float32)
+            [self.args.discount_factor] * self.num_envs, dtype=FLOAT_SETTING)
 
     def set_state_based_oracle(self, state_based_oracle: TFPolicy, state_based_sim: StormVecEnv):
         self.state_based_oracle = state_based_oracle
         self.state_based_sim = state_based_sim
         # self.reward_multiplier = -1.0
         # self.antigoal_values_vector = tf.constant(
-        #     [-400.0] * self.num_envs, dtype=tf.float32)
+        #     [-400.0] * self.num_envs, dtype=FLOAT_SETTING)
         self.oracle_reward = 50
 
     def unset_state_based_oracle(self):
@@ -405,7 +405,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
 
     def unset_reward_shaper(self):
         self.reward_shaper_function = lambda observation, _: tf.zeros(
-            (observation.shape[0],), dtype=tf.float32)
+            (observation.shape[0],), dtype=FLOAT_SETTING)
 
     def set_action_labeling(self):
         """Computes the keywords for the actions and stores them to self.act_to_keywords and other dictionaries."""
@@ -441,7 +441,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
                     observation_len + OBSERVATION_SIZE + predicate_automata_obs_size + self.added_information_constant_size)
 
                 observation_spec = tensor_spec.TensorSpec(shape=(self.observation_length_multiplier * self.observation_spec_len,),
-                                                          dtype=tf.float32, name="observation")
+                                                          dtype=FLOAT_SETTING, name="observation")
             except:
                 logging.error(
                     "Valuation encoding not possible, currently not compatible. Probably model issue.")
@@ -455,7 +455,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
                 observation_spec = tensor_spec.TensorSpec(
                     shape=(len(parse_data) + OBSERVATION_SIZE +
                            action_mask_size + predicate_automata_obs_size,),
-                    dtype=tf.float32, name="observation")
+                    dtype=FLOAT_SETTING, name="observation")
             except:
                 logging.error(
                     "Valuation encoding not possible, currently not compatible. Probably model issue.")
@@ -480,7 +480,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         self._time_step_spec = time_step_spec(
             observation_spec=self._observation_spec,
             reward_spec=tensor_spec.TensorSpec(
-                shape=(), dtype=tf.float32, name="reward"),
+                shape=(), dtype=FLOAT_SETTING, name="reward"),
         )
         self._action_spec = tensor_spec.BoundedTensorSpec(
                 shape=(),
@@ -504,13 +504,13 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         self.set_reward_model(self.model_name)
         self.initialize_step_types()
         self.current_num_steps = tf.constant(
-            [0] * self.num_envs, dtype=tf.float32)
+            [0] * self.num_envs, dtype=FLOAT_SETTING)
         self.reset()
 
     def get_observation_tensor(self, observation, mask, integers, memory=None):
         if self.encoding_method == "MaskedValuations":
             encoded_observation = tf.concat(
-                [observation, tf.cast(mask, dtype=tf.float32)], axis=1)
+                [observation, tf.cast(mask, dtype=FLOAT_SETTING)], axis=1)
         else:
             encoded_observation = observation
         return {"observation": encoded_observation, "mask": mask, "integer": integers}
@@ -525,14 +525,14 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
             self.stacked_observations = tf.concat(
                 [self.last_observation, self.stacked_observations], axis=1)
         self.last_action = np.zeros((self.num_envs,), dtype=np.float32)
-        self.virtual_reward = tf.zeros((self.num_envs,), dtype=tf.float32)
+        self.virtual_reward = tf.zeros((self.num_envs,), dtype=FLOAT_SETTING)
         self.dones = np.array(len(self.last_observation) * [False])
         self.is_in_bad_state = np.zeros((self.num_envs,), dtype=bool)
         self.orig_reward = tf.constant(
-            np.array(len(self.last_observation) * [0.0]), dtype=tf.float32)
+            np.array(len(self.last_observation) * [0.0]), dtype=FLOAT_SETTING)
         self.integers = self.vectorized_simulator.simulator_integer_observations
         self.current_num_steps = tf.constant(
-            [0] * self.num_envs, dtype=tf.float32)
+            [0] * self.num_envs, dtype=FLOAT_SETTING)
         observation_tensor = self.get_observation()
         self.goal_state_mask = tf.zeros((self.num_envs,), dtype=tf.bool)
         self.anti_goal_state_mask = tf.zeros((self.num_envs,), dtype=tf.bool)
@@ -556,8 +556,8 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         fake_time_step = ts.TimeStep(
             step_type=tf.convert_to_tensor(
                 [ts.StepType.MID] * self.num_envs, dtype=tf.int32),
-            reward=tf.zeros((self.num_envs,), dtype=tf.float32),
-            discount=tf.ones((self.num_envs,), dtype=tf.float32),
+            reward=tf.zeros((self.num_envs,), dtype=FLOAT_SETTING),
+            discount=tf.ones((self.num_envs,), dtype=FLOAT_SETTING),
             observation=observations
         )
         oracle_actions = self.state_based_oracle(fake_time_step).action
@@ -567,8 +567,8 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         # Compute the reward
         oracle_reward = tf.where(
             tf.equal(oracle_actions, action),
-            tf.constant(self.oracle_reward, dtype=tf.float32),
-            tf.constant(-self.oracle_reward, dtype=tf.float32)
+            tf.constant(self.oracle_reward, dtype=FLOAT_SETTING),
+            tf.constant(-self.oracle_reward, dtype=FLOAT_SETTING)
         )
         # self.oracle_reward *= self.args.discount_factor
         return oracle_reward
@@ -579,7 +579,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         labels_mask = tf.convert_to_tensor(self.labels_mask, dtype=tf.bool)
         labels_mask = tf.reshape(labels_mask, (self.num_envs,))
         self.default_rewards = tf.constant(
-            self.orig_reward, dtype=tf.float32) * self.reward_multiplier
+            self.orig_reward, dtype=FLOAT_SETTING) * self.reward_multiplier
         antigoal_values_vector = self.antigoal_values_vector + self.default_rewards
         goal_values_vector = self.goal_values_vector + self.default_rewards
         self.goal_state_mask = labels_mask & self.dones
@@ -597,7 +597,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         truncation_penalty = tf.where(
             self.truncated,
             self.truncation_values_vector,
-            tf.zeros((self.num_envs,), dtype=tf.float32)
+            tf.zeros((self.num_envs,), dtype=FLOAT_SETTING)
         )
         self.reward += truncation_penalty
         # self.reward = tf.where(
@@ -618,7 +618,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
             illegal_action_penalties = tf.where(
                 self._played_illegal_actions,
                 self.illegal_action_penalty,
-                tf.zeros((self.num_envs,), dtype=tf.float32)
+                tf.zeros((self.num_envs,), dtype=FLOAT_SETTING)
             )
             self.reward += illegal_action_penalties
         self.step_types = tf.where(
@@ -705,7 +705,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         self.allowed_actions = allowed_actions
         self.labels_mask = metalabels
         self.orig_reward = tf.constant(
-            rewards.tolist(), dtype=tf.float32)
+            rewards.tolist(), dtype=FLOAT_SETTING)
         self.dones = done
         self.truncated = truncated
         self.integers = self.vectorized_simulator.simulator_integer_observations
@@ -769,7 +769,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
             action, self.allowed_actions, self.dones)
         self._played_illegal_actions = illegals
         self.cumulative_num_steps += self.num_envs
-        self.last_action = tf.cast(action, dtype=tf.float32)
+        self.last_action = tf.cast(action, dtype=FLOAT_SETTING)
         self._do_step_in_simulator(action)
         evaluated_step = self.evaluate_step()
         return evaluated_step
@@ -812,7 +812,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
 
     def add_noise_to_observation(self, observation: tf.Tensor, noise_level: float = 0.1) -> tf.Tensor:
         """Adds noise to the observation tensor."""
-        noise = tf.random.normal(shape=tf.shape(observation), mean=0.0, stddev=noise_level, dtype=tf.float32)
+        noise = tf.random.normal(shape=tf.shape(observation), mean=0.0, stddev=noise_level, dtype=FLOAT_SETTING)
         noisy_observation = observation + noise
         return noisy_observation
 
@@ -822,7 +822,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         integers = self.integers
         if self.encoding_method == "MaskedValuations":
             encoded_observation = tf.concat(
-                [encoded_observation, tf.cast(mask, dtype=tf.float32)], axis=1)
+                [encoded_observation, tf.cast(mask, dtype=FLOAT_SETTING)], axis=1)
         if self.env_see_reward:
             encoded_observation = tf.concat(
                 [encoded_observation, tf.reshape(self.orig_reward, (-1, 1))], axis=1)
@@ -836,7 +836,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
             predicate_automata_obs = self.predicate_automata_states
             encoded_observation = tf.concat(
                 [encoded_observation, predicate_automata_obs], axis=1)
-        encoded_observation = tf.cast(encoded_observation, dtype=tf.float32)
+        encoded_observation = tf.cast(encoded_observation, dtype=FLOAT_SETTING)
         # encoded_observation = self.add_noise_to_observation(encoded_observation, 0.1)
         return {"observation": encoded_observation, "mask": tf.constant(mask, dtype=tf.bool),
                 "integer": integers}
@@ -846,22 +846,22 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         # json_valuation = json.loads(str(self.observation_valuations.get_json(integer_observation)))
         # valuated = np.array(list(json_valuation.values()), dtype=np.float32)
         valuated = self.observation_valuations[integer_observation]
-        valuated = tf.constant(valuated, dtype=tf.float32)
+        valuated = tf.constant(valuated, dtype=FLOAT_SETTING)
         allowed_actions = self.vectorized_simulator.simulator.allowed_actions[state]
-        return {"observation": tf.constant(valuated, dtype=tf.float32),
+        return {"observation": tf.constant(valuated, dtype=FLOAT_SETTING),
                 "mask": tf.constant(allowed_actions, tf.bool),
                 "integer": tf.constant([integer_observation], dtype=tf.int32)}
 
     def create_fake_timestep_from_valuations(self, valuations):
         """Creates a fake TimeStep from the valuations."""
-        observation = tf.constant([valuations], dtype=tf.float32)
+        observation = tf.constant([valuations], dtype=FLOAT_SETTING)
         mask = tf.constant([True] * self.nr_actions, dtype=tf.bool)
         integer = tf.constant([0], dtype=tf.int32)
         time_step = ts.TimeStep(
             observation={"observation": [observation],
                          "mask": [mask], "integer": [integer]},
-            reward=tf.constant([0.0], dtype=tf.float32),
-            discount=tf.constant([1.0], dtype=tf.float32),
+            reward=tf.constant([0.0], dtype=FLOAT_SETTING),
+            discount=tf.constant([1.0], dtype=FLOAT_SETTING),
             step_type=tf.constant([ts.StepType.MID], dtype=tf.int32)
         )
         return time_step
@@ -875,7 +875,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         if self.observation_length_multiplier > 1:
             observation = tf.tile(
                 observation, [1, self.observation_length_multiplier])
-        observation = tf.constant(observation, dtype=tf.float32)
+        observation = tf.constant(observation, dtype=FLOAT_SETTING)
         # state = np.where(self.state_to_observation_map ==
         #                      observation_integer)
         state = self.observations_to_states_map[observation_integer]
@@ -898,8 +898,8 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         time_step = ts.TimeStep(
             observation={"observation": observation,
                          "mask": mask, "integer": integer},
-            reward=tf.zeros(integer.shape[0], dtype=tf.float32),
-            discount=tf.ones(integer.shape[0], dtype=tf.float32),
+            reward=tf.zeros(integer.shape[0], dtype=FLOAT_SETTING),
+            discount=tf.ones(integer.shape[0], dtype=FLOAT_SETTING),
             step_type=tf.fill(integer.shape[0], ts.StepType.MID)
         )
         return time_step
@@ -912,7 +912,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         """Returns the current state of the environment."""
         if use_features:
             states_vertices = self.vectorized_simulator.simulator_states.vertices
-            states_values = tf.constant(self.vectorized_simulator.simulator.state_values[states_vertices].tolist(), tf.float32)
+            states_values = tf.constant(self.vectorized_simulator.simulator.state_values[states_vertices].tolist(), FLOAT_SETTING)
             return states_values
         else:
             return tf.constant(self.vectorized_simulator.simulator_states.vertices.tolist())

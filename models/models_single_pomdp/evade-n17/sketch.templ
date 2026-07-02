@@ -27,8 +27,6 @@ formula seedrone = ax-dx < RADIUS + 1 & dx-ax < RADIUS +1 & ay-dy < RADIUS+1 & d
 observable "seedx" = (seedrone |justscanned) ? ax : -1;
 observable "seedy" = (seedrone |justscanned)  ? ay : -1;
 
-hole double dummy in {1.0};
-
 
 module master
     start : bool init false;
