@@ -644,8 +644,7 @@ class FatherAgent(AbstractAgent):
                     self.args.batch_size)
             self.tf_env_eval.reset()
             if last:
-
-                logger.info("Evaluating agent with greedy masked policy.")
+                logger.info("Evaluating agent with masked policy.")
                 self.set_policy_masking()
                 if self.args.render_if_possible and self.environment.grid_like_renderer:
                     self.render_agent_behavior(self.get_evaluation_policy())

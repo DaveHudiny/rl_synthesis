@@ -37,6 +37,8 @@ from compact_rl.robust_rl.config_file import Config
 from compact_rl.rl.interpreters.extracted_fsc.table_based_policy import TableBasedPolicy
 from compact_rl.rl.tools.evaluators import evaluate_policy_in_model
 
+from tf_agents.policies import TFPolicy
+
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +95,20 @@ class RobustTrainer:
         else:
             return None
 
+    def eval_policy_wrapper(self, policy : TFPolicy, environment : EnvironmentWrapperVec, batch_size=512):
+        """
+        Evaluates a policy in the environment and returns the average return and reachability.
+        """
+        environment.temporarily_set_num_envs(batch_size)
+        tf_environment = TFPyEnvironment(environment)
+        evaluation_result = evaluate_policy_in_model(
+            policy, self.args, environment, tf_environment, max_steps=self.args.max_steps)
+        environment.reset_num_envs()
+        return evaluation_result.returns[-1], evaluation_result.reach_probs[-1]
+
     def call_si_or_aalpy(self, agent: Recurrent_PPO_agent, environment: EnvironmentWrapperVec, tf_environment: TFPyEnvironment, num_data_steps=4001, training_epochs=10001):
+        self.direct_extractor.num_data_steps = num_data_steps
+        self.direct_extractor.training_epochs = training_epochs
         policy = agent.get_policy(False, True)
         fsc, extraction_stats = self.direct_extractor.clone_and_generate_fsc_from_policy(
             policy, environment, tf_environment)
@@ -108,6 +123,8 @@ class RobustTrainer:
             for memory_size in extraction_stats.large_fsc_extracted_reachabilities:
                 self.benchmark_stats.add_large_fsc_extracted_results(
                     memory_size, extraction_stats.large_fsc_extracted_reachabilities[memory_size][-1], extraction_stats.large_fsc_extracted_returns[memory_size][-1])
+
+        
         return fsc
 
     def extract_fsc(self, agent: Recurrent_PPO_agent, environment: EnvironmentWrapperVec, quotient, 
