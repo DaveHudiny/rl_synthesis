@@ -215,6 +215,8 @@ class RobustTrainer:
         nr_iterations = config.nr_initial_iter
         # Upper limit of the outer iterations. In practice, we are stopped by an external timeout.
         for i in range(101):
+            self.clean_cache()
+
             logger.info(f"Iteration {i+1} of extraction RL loop")
 
             if args_emulated.single_pomdp_experiment:
@@ -296,6 +298,15 @@ class RobustTrainer:
         self.save_stats(json_path)
         return paynt_fsc, hole_assignment, one_by_one.best_assignment_value
 
+    def clean_cache(self):
+        """
+        Cleans the cache in TensorFlow keras and JAX.
+        """
+        import tensorflow as tf
+        import jax
+        jax.clear_backends()
+        tf.keras.backend.clear_session()
+
 
 def initialize_extractor(pomdp_sketch, args_emulated: ArgsEmulator, family_quotient_numpy: FamilyQuotientNumpy):
     if family_quotient_numpy is not None:
@@ -319,3 +330,4 @@ def initialize_extractor(pomdp_sketch, args_emulated: ArgsEmulator, family_quoti
                               family_quotient_numpy=family_quotient_numpy, use_gumbel_softmax=use_gumbel_softmax)
 
     return extractor
+
