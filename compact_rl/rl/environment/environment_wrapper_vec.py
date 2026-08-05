@@ -874,11 +874,6 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         imaginary_state = self.observations_to_states_map[obs_indices]
         allowed_actions = tf.constant(
             self.vectorized_simulator.simulator.allowed_actions[imaginary_state].tolist(), dtype=tf.bool)
-        sinks = self.vectorized_simulator.simulator.sinks[imaginary_state]
-        sinks = tf.reshape(sinks, (-1, 1))
-        allowed_actions = tf.where(sinks, 
-            tf.ones(shape=(len(obs_indices), self.nr_actions,), dtype=tf.bool), 
-            allowed_actions)
         return allowed_actions
 
     def create_fake_timestep_from_observation_integer(self, observation_integer: int | list[int]) -> ts.TimeStep:

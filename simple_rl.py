@@ -1,3 +1,7 @@
+from unittest import result
+
+import stormpy
+
 from compact_rl.robust_rl.robust_rl_tools import load_sketch
 
 import os
@@ -120,8 +124,13 @@ def main():
     agent = Recurrent_PPO_agent(
         environment=environment, tf_environment=tf_env, args=args, load=False, agent_folder="trained_agents")
     agent.train_agent(iterations=500)
+    # agent.save_agent() # Ensures that the agent is saved for the later use.
     
     policy = agent.get_policy(False, True)
+
+    
+    policy.set_policy_masker() # Disallow agent to play illegal actions during the evaluation.
+    # policy.set_identity_masker() # Agent can play illegal actions during the execution.
 
     #---------------------------------------------------------
     # This is the evaluation of the learned policy in the model.
@@ -130,10 +139,15 @@ def main():
 
 
     #---------------------------------------------------------
-    # Construction of permissive policy and DTMC extraction.
+    # Construction and model-checking of DTMC with permissive memoryless policy over original POMDP.
     extractor = Permissive_DTMC_Extractor(model, policy, environment)
-    extractor.extract_dtmc(num_steps=601, nr_environments=256, threshold=0.1)
-    exit(0)
+    dtmc = extractor.extract_dtmc(num_steps=1001, nr_environments=256, threshold=0.1)
+    formula = 'R{"dropped_packets"}min=?[F "goal" ]' # Example property formula for network model
+    
+    properties = stormpy.parse_properties(formula)
+    result = stormpy.model_checking(dtmc, properties[0])
+    initial_state = model.initial_states[0]
+    print(f"DTMC from permissive policy has value {result.at(initial_state)} for formula {formula}.")
     #---------------------------------------------------------
     
     # This performs the extraction.

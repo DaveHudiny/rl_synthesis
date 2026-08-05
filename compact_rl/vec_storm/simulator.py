@@ -173,8 +173,6 @@ class Simulator:
         observations = jax.vmap(lambda s: self.get_observation(s))(vertices_after_reset)
         metalabels = self.metalabels[vertices_after_reset]
         allowed_actions = self.allowed_actions[vertices_after_reset]
-        allowed_actions = jnp.where(jnp.tile(jnp.reshape(done, (-1, 1)), (1, allowed_actions.shape[1])),
-                                    jnp.ones_like(allowed_actions), allowed_actions)
         integer_observations = self.state_observation_ids[vertices_after_reset].reshape(-1, 1)
         return StepInfo(
             states=States(vertices=vertices_after_reset, steps=steps_after_reset),
