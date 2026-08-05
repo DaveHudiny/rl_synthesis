@@ -515,15 +515,18 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
             encoded_observation = observation
         return {"observation": encoded_observation, "mask": mask, "integer": integers}
 
+    def init_stacked_observations(self):
+        self.stacked_observations = tf.zeros(
+            (self.num_envs, self.observation_spec_len * (self.observation_length_multiplier - 1), )
+        )
+        self.stacked_observations = tf.concat([self.last_observation, self.stacked_observations], axis=1)
+
     def _reset(self) -> ts.TimeStep:
         """Resets the environment. Important for TF-Agents, since we have to restart environment many times."""
         logger.info("Resetting the environment.")
         self.last_observation, self.allowed_actions, self.labels_mask = self._restart_simulator()
         if self.use_stacked_observations:
-            self.stacked_observations = tf.zeros(
-                (self.num_envs, self.observation_spec_len * (self.observation_length_multiplier - 1), ))
-            self.stacked_observations = tf.concat(
-                [self.last_observation, self.stacked_observations], axis=1)
+            self.init_stacked_observations()
         self.last_action = np.zeros((self.num_envs,), dtype=np.float32)
         self.virtual_reward = tf.zeros((self.num_envs,), dtype=FLOAT_SETTING)
         self.dones = np.array(len(self.last_observation) * [False])
@@ -732,6 +735,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         )
         return new_actions.numpy()
 
+
     @staticmethod
     def change_illegal_actions_to_random_allowed(actions, masks, dones=None):
         """Changes the illegal actions to random allowed actions given mask with allowed actions."""
@@ -866,9 +870,14 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         )
         return time_step
 
+    def get_allowed_actions_for_observations(self, obs_indices):
+        imaginary_state = self.observations_to_states_map[obs_indices]
+        allowed_actions = tf.constant(
+            self.vectorized_simulator.simulator.allowed_actions[imaginary_state].tolist(), dtype=tf.bool)
+        return allowed_actions
+
     def create_fake_timestep_from_observation_integer(self, observation_integer: int | list[int]) -> ts.TimeStep:
         """Creates a fake TimeStep from the observation integer."""
-        # observation = create_valuations_encoding(observation_integer, self.stormpy_model)
         if isinstance(observation_integer, int):
             observation_integer = [observation_integer]
         observation = self.observation_valuations[observation_integer]
@@ -876,24 +885,11 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
             observation = tf.tile(
                 observation, [1, self.observation_length_multiplier])
         observation = tf.constant(observation, dtype=FLOAT_SETTING)
-        # state = np.where(self.state_to_observation_map ==
-        #                      observation_integer)
-        state = self.observations_to_states_map[observation_integer]
-        # if self.vectorized_simulator.simulator.sinks[state]:
-        #     mask = tf.ones(shape=(len(observation_integer), self.nr_actions,), dtype=tf.bool)
-        # mask = tf.constant([[True] * self.nr_actions], dtype=tf.bool)
-        # else:
-        #     mask = tf.constant(self.vectorized_simulator.simulator.allowed_actions[state].tolist(), dtype=tf.bool)
-        mask = tf.constant(
-            self.vectorized_simulator.simulator.allowed_actions[state].tolist(), dtype=tf.bool)
-        sinks = self.vectorized_simulator.simulator.sinks[state]
-        sinks = tf.reshape(sinks, (-1, 1))
-        mask = tf.where(sinks, tf.ones(
-            shape=(len(observation_integer), self.nr_actions,), dtype=tf.bool), mask)
+        mask = self.get_allowed_actions_for_observations(observation_integer)
+        
         integer = tf.constant(observation_integer, dtype=tf.int32)
         integer = tf.reshape(integer, (-1, 1))
         mask = tf.reshape(mask, (-1, self.nr_actions))
-        # observation = tf.reshape(observation, len(observation_integer), -1)
 
         time_step = ts.TimeStep(
             observation={"observation": observation,

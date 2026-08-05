@@ -1,3 +1,7 @@
+from unittest import result
+
+import stormpy
+
 from compact_rl.robust_rl.robust_rl_tools import load_sketch
 
 import os
@@ -13,6 +17,8 @@ from compact_rl.rl.interpreters.extracted_fsc.table_based_policy import TableBas
 from compact_rl.rl.tools.args_emulator import ArgsEmulator
 from compact_rl.rl.tools.evaluators import evaluate_policy_in_model
 from compact_rl.rl.tests.general_test_tools import init_args
+from compact_rl.robust_rl.permissive_dtmc_extractor import Permissive_DTMC_Extractor
+
 
 # PAYNT implementation imports
 from paynt.parser.sketch import Sketch
@@ -118,10 +124,31 @@ def main():
     agent = Recurrent_PPO_agent(
         environment=environment, tf_environment=tf_env, args=args, load=False, agent_folder="trained_agents")
     agent.train_agent(iterations=500)
+    # agent.save_agent() # Ensures that the agent is saved for the later use.
     
     policy = agent.get_policy(False, True)
+
+    
+    policy.set_policy_masker() # Disallow agent to play illegal actions during the evaluation.
+    # policy.set_identity_masker() # Agent can play illegal actions during the execution.
+
+    #---------------------------------------------------------
+    # This is the evaluation of the learned policy in the model.
     evaluate_policy_in_model(policy, args, environment, tf_env)
     # ---------------------------------------------------------
+
+
+    #---------------------------------------------------------
+    # Construction and model-checking of DTMC with permissive memoryless policy over original POMDP.
+    extractor = Permissive_DTMC_Extractor(model, policy, environment)
+    dtmc = extractor.extract_dtmc(num_steps=1001, nr_environments=256, threshold=0.1)
+    formula = 'R{"dropped_packets"}min=?[F "goal" ]' # Example property formula for network model
+    
+    properties = stormpy.parse_properties(formula)
+    result = stormpy.model_checking(dtmc, properties[0])
+    initial_state = model.initial_states[0]
+    print(f"DTMC from permissive policy has value {result.at(initial_state)} for formula {formula}.")
+    #---------------------------------------------------------
     
     # This performs the extraction.
 
