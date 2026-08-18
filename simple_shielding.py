@@ -1,4 +1,4 @@
-from shielding.shielding_options import ShieldingOptions
+from compact_rl.rl.shielding.shielding_options import ShieldingOptions
 from compact_rl.robust_rl.robust_rl_tools import load_sketch
 
 import os

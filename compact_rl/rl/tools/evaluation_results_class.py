@@ -43,11 +43,14 @@ class EvaluationResults:
         self.artificial_reward_stds = []
         self.average_episode_length = []
         self.counted_episodes = []
-        self.discounted_rewards = []
+        self.discounted_virt_rewards = []
         self.new_pomdp_iteration_numbers = []
         self.dormant_neurons_percentages = []
         self.average_bad_outcome_prob = []
         self.args = args
+
+        self.discounted_returns = []
+        self.discounted_reachabilities = []
 
     def add_artificial_reward(self, artificial_rewards_buffer : list[np.ndarray]):
         """Add artificial rewards to the evaluation results."""
@@ -104,8 +107,12 @@ class EvaluationResults:
     def __str__(self):
         return str(self.__dict__)
 
-    def update(self, avg_return, avg_episodic_return, reach_prob, episodes_variance=None, num_episodes=1, trap_reach_prob=0.0, virtual_variance=None, combined_variance=None,
-                 average_episode_length=None, counted_episodes=None, discounted_rewards=None, average_bad_outcome_prob=None):
+    def update(self, avg_return, avg_episodic_return, reach_prob, episodes_variance=None, 
+               num_episodes=1, trap_reach_prob=0.0, 
+               virtual_variance=None, combined_variance=None,
+               average_episode_length=None, counted_episodes=None, 
+               discounted_virtual_rewards=None, average_bad_outcome_prob=None, 
+               discounted_return = None, discounted_reachability = None):
         """Update the evaluation results in the object of EvaluationResults.
 
         Args:
@@ -138,8 +145,12 @@ class EvaluationResults:
             self.average_episode_length.append(average_episode_length)
         if counted_episodes is not None:
             self.counted_episodes.append(counted_episodes)
-        if discounted_rewards is not None:
-            self.discounted_rewards.append(discounted_rewards)
+        if discounted_virtual_rewards is not None:
+            self.discounted_virt_rewards.append(discounted_virtual_rewards)
+        if discounted_return is not None:
+            self.discounted_returns.append(discounted_return)
+        if discounted_reachability is not None:
+            self.discounted_reachabilities.append(discounted_reachability)
 
     def add_loss(self, loss):
         """Add loss to the list of losses."""
@@ -150,8 +161,8 @@ class EvaluationResults:
             self.returns[-1]))
         logger.info('Average Virtual Goal Value = {0}'.format(
             self.returns_episodic[-1]))
-        logger.info('Average Discounted Reward = {0}'.format(
-            self.discounted_rewards[-1]))
+        logger.info('Average Discounted Virtual Reward = {0}'.format(
+            self.discounted_virt_rewards[-1]))
         logger.info('Goal Reach Probability = {0}'.format(
             self.reach_probs[-1]))
         logger.info('Trap Reach Probability = {0}'.format(
@@ -168,6 +179,10 @@ class EvaluationResults:
             self.counted_episodes[-1]))
         logger.info('Percentage of bad outcomes = {0}'.format(
             self.average_bad_outcome_prob[-1]))
+        logger.info('Discounted return of model rewards = {0}'.format(
+            self.discounted_returns[-1]))
+        logger.info('Discounted reachability in model = {0}'.format(
+            self.discounted_reachabilities[-1]))
         
     def compute_weighted_evaluation_info(self):
         """Computes the same values as log_evaluation_info, but averaged and weighted by the number of episodes."""
