@@ -1,4 +1,4 @@
-from vec_storm import StormVecEnv
+from compact_rl.vec_storm import StormVecEnv
 from compact_rl.rl.environment.environment_wrapper_vec import EnvironmentWrapperVec
 from tf_agents.policies.tf_policy import TFPolicy
 import tensorflow as tf
