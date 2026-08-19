@@ -761,3 +761,103 @@ class SelfConstructingShieldOnline(SelfConstructingShield):
                 self.last_distribution_indices[trace_index] = len(self.vmin_actions_distributions[current_state]) + len(self.current_nodes[trace_index].distributions) - 1
 
         return output_distribution
+
+
+class ShieldWithBudget(Shield):
+
+    def __init__(self, model_info: ModelInfo, actions, nu: float, budget):
+        super().__init__(model_info, actions)
+        self.nu = nu
+        self.budget = budget
+        self.vmin_actions = []
+
+        self._compute_vmin_actions()
+
+        # assumption
+        initial_state = model_info.model.initial_states[0]
+
+        self.vmax_at_initial_state = self.model_info.vmax[initial_state]
+
+        self.remaining_risk = min(self.nu, self.vmax_at_initial_state)
+        self.history = []
+
+
+    def _compute_vmin_actions(self):
+        for state in range(self.model_info.model.nr_states):
+            actions_count = self.model_info.model.get_nr_available_actions(state)
+            vmin_actions = []
+            for action in range(actions_count):
+                row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + action
+                row = self.model_info.model.transition_matrix.get_row(row_index)
+                val = 0.0
+                for entry in row:
+                    val += entry.value() * self.model_info.vmin[entry.column]
+                val_rounded = round(val, self.rounding_precision)
+                vmin_state_rounded = round(self.model_info.vmin[state], self.rounding_precision)
+                if val_rounded <= vmin_state_rounded:
+                    vmin_actions.append(action)
+            assert len(vmin_actions) > 0, f"No safe actions for state {state}"
+            self.vmin_actions.append(vmin_actions)
+
+
+    def _qmin(self, state, distr):
+        qmin = 0.0
+        for choice_index, prob in enumerate(distr):
+            row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + choice_index
+            row = self.model_info.model.transition_matrix.get_row(row_index)
+            for entry in row:
+                qmin += prob * entry.value() * self.model_info.vmin[entry.column]
+        return qmin
+
+    def _qmax(self, state, distr):
+        qmax = 0.0
+        for choice_index, prob in enumerate(distr):
+            row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + choice_index
+            row = self.model_info.model.transition_matrix.get_row(row_index)
+            for entry in row:
+                qmax += prob * entry.value() * self.model_info.vmax[entry.column]
+        return qmax
+
+    def _transition_prob(self, last_state, distribution, action, current_state):
+        row_index = self.model_info.model.transition_matrix.get_row_group_start(last_state) + action
+        row = self.model_info.model.transition_matrix.get_row(row_index)
+        prob = 0.0
+        for entry in row:
+            if entry.column == current_state:
+                prob += distribution[action] * entry.value()
+        return prob
+
+
+    def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
+
+        self.shield_calls += 1
+
+        if reset:
+            self.remaining_risk = min(self.nu, self.vmax_at_initial_state)
+            self.history = []
+        else:
+            self.history.append(last_action)
+
+            transition_prob = self._transition_prob(self.last_state, self.last_distribution, last_action, current_state)
+            # this shouldn't happen so I will just put assert here, but for completness of the risk function if this happens it should either
+            # be set to Vmax(current_state) if qmin <= risk or to Vmin(current_state) otherwise
+            assert transition_prob > 0, f"Transition probability is zero for last_state {self.last_state}, last_action {last_action}, current_state {current_state}."
+
+            risk_budget = self.budget(self.history, self.last_distribution, last_action, current_state)
+            qmax = self._qmax(self.last_state, self.last_distribution)
+            slack = max(self.remaining_risk, qmax) - self.last_qmin_d
+            self.remaining_risk = self.model_info.vmin[current_state] + (risk_budget*slack)/transition_prob
+
+
+        self.last_qmin_d = self._qmin(current_state, distribution)
+
+        if self.last_qmin_d > self.remaining_risk:
+            self.blocked_actions += 1
+            output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
+        else:
+            output_distribution = distribution
+
+        self.last_state = current_state
+        self.last_distribution = output_distribution
+        self.history.append(current_state)
+        self.history.append(output_distribution)
