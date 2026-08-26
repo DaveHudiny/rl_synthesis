@@ -4,6 +4,7 @@ import tensorflow as tf
 from compact_rl.rl.shielding.model_info import ModelInfo
 import compact_rl.rl.shielding.shields
 from compact_rl.rl.shielding.constructed_shield_data import ShieldData
+from compact_rl.rl.shielding.risk_budget import BUDGET_FUNCTIONS
 
 import stormpy
 import numpy as np
@@ -11,7 +12,7 @@ import numpy as np
 import pickle
 
 class ShieldProcessor:
-    def __init__(self, actions : list[str], model : stormpy.storage.SparsePomdp, nu : float, shield_type : str, args : ArgsEmulator = None, shield_memory : int = 0, debug: bool = False, shield_folder: str = None, deterministic_agent: bool = False):
+    def __init__(self, actions : list[str], model : stormpy.storage.SparsePomdp, nu : float, shield_type : str, args : ArgsEmulator = None, shield_memory : int = 0, debug: bool = False, shield_folder: str = None, deterministic_agent: bool = False, budget: str = "uniform"):
         self.args = args
         self.actions = actions
         self.shield_folder = shield_folder
@@ -88,6 +89,8 @@ class ShieldProcessor:
             self.shield = compact_rl.rl.shielding.shields.SelfConstructingShieldOnline(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
         elif shield_type == 'self-constructing-unsafe':
             self.shield = compact_rl.rl.shielding.shields.SelfConstructingShieldOffline(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
+        elif shield_type == 'budget':
+            self.shield = compact_rl.rl.shielding.shields.ShieldWithBudget(model_info=model_info, actions=self.actions, nu=nu, budget=BUDGET_FUNCTIONS[budget](model_info))
         else:
             raise ValueError(f"Unknown shield type: {shield_type}")
         

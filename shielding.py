@@ -19,6 +19,7 @@ from compact_rl.rl.tools.args_emulator import ArgsEmulator
 from compact_rl.rl.tools.evaluators import evaluate_policy_in_model
 from compact_rl.rl.tests.general_test_tools import init_args
 from compact_rl.rl.shielding.shield_processor import ShieldProcessor
+from compact_rl.rl.shielding.risk_budget import BUDGET_FUNCTIONS
 import compact_rl.rl.shielding.shields
 from compact_rl.rl.tools.trajectory_buffer import TrajectoryBuffer
 from tf_agents.policies.tf_policy import TFPolicy
@@ -146,7 +147,8 @@ def set_global_seeds(seed):
 @click.command()
 @click.argument('project', type=click.Path(exists=True))
 @click.option("--nu", type=float, default=0.05, help="Safety threshold for the shielding.")
-@click.option("--shield", type=click.Choice([None, 'identity', 'standard', 'pessimistic', 'optimistic', 'delta', 'self-constructing-safe', 'self-constructing-unsafe']), default=None, help="Shielding method to use.")
+@click.option("--shield", type=click.Choice([None, 'identity', 'standard', 'pessimistic', 'optimistic', 'delta', 'self-constructing-safe', 'self-constructing-unsafe', 'budget']), default=None, help="Shielding method to use.")
+@click.option("--budget", type=click.Choice(list(BUDGET_FUNCTIONS.keys())), default="uniform", help="Risk-budget function to use when --shield=budget.")
 @click.option("--load-agent", type=str, default=None, help="Path to load a pre-trained agent from.")
 @click.option("--save-agent", type=str, default="", help="Suffix of folder containing the trained agent.")
 @click.option("--agent-training", is_flag=True, default=False, help="Whether to perform agent training.")
@@ -167,7 +169,7 @@ def set_global_seeds(seed):
 @click.option("--goal-rew", type=float, default=100.0, help="Reward value for reaching the goal state.")
 @click.option("--fail-rew", type=float, default=-100.0, help="Reward value for reaching the fail state.")
 @click.option("--seed", type=int, default=None, help="Random seed for reproducibility.")
-def main(project, nu, shield, load_agent, save_agent, agent_training, deterministic_agent, shield_memory, training_iterations, episode_length, min_episodes_per_environment, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, uniform_random_policy, eval_file, model_checking_eval, expected_shield_calls, goal_rew, fail_rew, seed):
+def main(project, nu, shield, budget, load_agent, save_agent, agent_training, deterministic_agent, shield_memory, training_iterations, episode_length, min_episodes_per_environment, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, uniform_random_policy, eval_file, model_checking_eval, expected_shield_calls, goal_rew, fail_rew, seed):
     project_path = project
     project_name = os.path.basename(os.path.normpath(project_path))
     prism_path = os.path.join(project_path, "sketch.templ")
@@ -203,7 +205,7 @@ def main(project, nu, shield, load_agent, save_agent, agent_training, determinis
         shield_folder = None
     
     if shield is not None:
-        shield_processor = ShieldProcessor(environment.action_keywords, model, nu, shield, args=args, shield_memory=shield_memory, debug=model_debug, shield_folder=shield_folder, deterministic_agent=deterministic_agent)
+        shield_processor = ShieldProcessor(environment.action_keywords, model, nu, shield, args=args, shield_memory=shield_memory, debug=model_debug, shield_folder=shield_folder, deterministic_agent=deterministic_agent, budget=budget)
     else:
         shield_processor = None
 

@@ -13,6 +13,8 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
         assert False, "Model checking not possible for optimistic or pessimistic shields."
     if type(shield) in [compact_rl.rl.shielding.shields.SelfConstructingShieldOnline, compact_rl.rl.shielding.shields.SelfConstructingShieldOffline]:
         assert False, "Model checking not possible for construction algorithms."
+    if type(shield) in [compact_rl.rl.shielding.shields.ShieldWithBudget]:
+        assert False, "Model checking not possible for shields with a risk budget function."
 
     model = shield.model_info.model
 

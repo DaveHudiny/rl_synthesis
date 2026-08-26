@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from compact_rl.rl.shielding.model_info import ModelInfo
+from compact_rl.rl.shielding.risk_budget import RiskBudgetFunction
 import random
 import numpy as np
 from scipy.spatial import ConvexHull
@@ -765,7 +766,7 @@ class SelfConstructingShieldOnline(SelfConstructingShield):
 
 class ShieldWithBudget(Shield):
 
-    def __init__(self, model_info: ModelInfo, actions, nu: float, budget):
+    def __init__(self, model_info: ModelInfo, actions, nu: float, budget: RiskBudgetFunction):
         super().__init__(model_info, actions)
         self.nu = nu
         self.budget = budget
@@ -778,8 +779,11 @@ class ShieldWithBudget(Shield):
 
         self.vmax_at_initial_state = self.model_info.vmax[initial_state]
 
-        self.remaining_risk = min(self.nu, self.vmax_at_initial_state)
-        self.history = []
+        self.remaining_risk = [min(self.nu, self.vmax_at_initial_state)]
+        self.history = [[]]
+        self.last_states = [None]
+        self.last_distributions = [None]
+        self.last_qmin_ds = [None]
 
 
     def _compute_vmin_actions(self):
@@ -827,37 +831,64 @@ class ShieldWithBudget(Shield):
                 prob += distribution[action] * entry.value()
         return prob
 
+    def _local_action_index(self, state, global_action):
+        # `global_action` indexes into self.actions (as passed to Shield.correct), but rows in
+        # the transition matrix are indexed per-state by local choice index - translate via the
+        # shared action label, same as PessimisticShield/OptimisticShield.correct do inline.
+        action_label = self.actions[global_action]
+        row_group_start = self.model_info.model.transition_matrix.get_row_group_start(state)
+        row_group_end = self.model_info.model.transition_matrix.get_row_group_end(state)
+        choice_labels = [self.model_info.model.choice_labeling.get_labels_of_choice(choice).pop() for choice in range(row_group_start, row_group_end)]
+        return choice_labels.index(action_label)
+
 
     def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
 
         self.shield_calls += 1
 
-        if reset:
-            self.remaining_risk = min(self.nu, self.vmax_at_initial_state)
-            self.history = []
-        else:
-            self.history.append(last_action)
+        if trace_index >= len(self.remaining_risk):
+            self.remaining_risk.append(min(self.nu, self.vmax_at_initial_state))
+            self.history.append([])
+            self.last_states.append(None)
+            self.last_distributions.append(None)
+            self.last_qmin_ds.append(None)
 
-            transition_prob = self._transition_prob(self.last_state, self.last_distribution, last_action, current_state)
+        if reset:
+            self.remaining_risk[trace_index] = min(self.nu, self.vmax_at_initial_state)
+            self.history[trace_index] = []
+        else:
+            assert self.last_states[trace_index] is not None, "Last state is None on non-reset."
+            assert self.last_distributions[trace_index] is not None, "Last distribution is None on non-reset."
+
+            local_last_action = self._local_action_index(self.last_states[trace_index], last_action)
+
+            self.history[trace_index].append(local_last_action)
+
+            transition_prob = self._transition_prob(self.last_states[trace_index], self.last_distributions[trace_index], local_last_action, current_state)
             # this shouldn't happen so I will just put assert here, but for completness of the risk function if this happens it should either
             # be set to Vmax(current_state) if qmin <= risk or to Vmin(current_state) otherwise
-            assert transition_prob > 0, f"Transition probability is zero for last_state {self.last_state}, last_action {last_action}, current_state {current_state}."
+            assert transition_prob > 0, f"Transition probability is zero for last_state {self.last_states[trace_index]}, last_action {local_last_action}, current_state {current_state}."
 
-            risk_budget = self.budget(self.history, self.last_distribution, last_action, current_state)
-            qmax = self._qmax(self.last_state, self.last_distribution)
-            slack = max(self.remaining_risk, qmax) - self.last_qmin_d
-            self.remaining_risk = self.model_info.vmin[current_state] + (risk_budget*slack)/transition_prob
+            risk_budget_distribution = self.budget(self.history[trace_index], self.last_distributions[trace_index])
+            risk_budget = risk_budget_distribution.get((local_last_action, current_state), 0.0)
+            qmax = self._qmax(self.last_states[trace_index], self.last_distributions[trace_index])
+            slack = min(self.remaining_risk[trace_index], qmax) - self.last_qmin_ds[trace_index]
+            self.remaining_risk[trace_index] = self.model_info.vmin[current_state] + (risk_budget*slack)/transition_prob
 
 
-        self.last_qmin_d = self._qmin(current_state, distribution)
+        self.last_qmin_ds[trace_index] = self._qmin(current_state, distribution)
 
-        if self.last_qmin_d > self.remaining_risk:
+        if self.last_qmin_ds[trace_index] > self.remaining_risk[trace_index]:
             self.blocked_actions += 1
             output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
+            self.last_qmin_ds[trace_index] = self._qmin(current_state, output_distribution) # this needs to be updated because the distribution was changed, otherwise the remaining risk will be wrong in the next step
         else:
             output_distribution = distribution
 
-        self.last_state = current_state
-        self.last_distribution = output_distribution
-        self.history.append(current_state)
-        self.history.append(output_distribution)
+
+        self.last_states[trace_index] = current_state
+        self.last_distributions[trace_index] = output_distribution
+        self.history[trace_index].append(current_state)
+        self.history[trace_index].append(output_distribution)
+
+        return output_distribution
