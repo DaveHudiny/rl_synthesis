@@ -766,10 +766,11 @@ class SelfConstructingShieldOnline(SelfConstructingShield):
 
 class ShieldWithBudget(Shield):
 
-    def __init__(self, model_info: ModelInfo, actions, nu: float, budget: RiskBudgetFunction):
+    def __init__(self, model_info: ModelInfo, actions, nu: float, budget: RiskBudgetFunction, force_wasteless_budget: bool = True):
         super().__init__(model_info, actions)
         self.nu = nu
         self.budget = budget
+        self.force_wasteless_budget = force_wasteless_budget
         self.vmin_actions = []
 
         self._compute_vmin_actions()
@@ -841,6 +842,32 @@ class ShieldWithBudget(Shield):
         choice_labels = [self.model_info.model.choice_labeling.get_labels_of_choice(choice).pop() for choice in range(row_group_start, row_group_end)]
         return choice_labels.index(action_label)
 
+    def _make_wasteless(self, risk_budget_distribution, last_state, last_distribution, slack):
+        # Re-project risk_budget_distribution (a distribution over (action, next-state) pairs) onto
+        # the closest (L1) distribution that never allocates a pair more share than it can use, i.e.
+        # wasteless(a,s') * slack <= last_distribution(a) * P(last_state,a,s') * (vmax(s') - vmin(s')).
+        # When slack <= 0 that inequality is either vacuous (slack == 0) or would flip into a lower
+        # bound (slack < 0), so there's no constraint to enforce.
+        if slack <= 0 or not risk_budget_distribution:
+            return risk_budget_distribution
+
+        upper_bounds = {}
+        for (a, s2) in risk_budget_distribution:
+            weighted_prob = self._transition_prob(last_state, last_distribution, a, s2)
+            upper_bounds[(a, s2)] = weighted_prob * (self.model_info.vmax[s2] - self.model_info.vmin[s2]) / slack
+
+        clamped = {pair: min(prob, upper_bounds[pair]) for pair, prob in risk_budget_distribution.items()}
+        excess = 1.0 - sum(clamped.values())
+        if excess <= 1e-9:
+            return risk_budget_distribution
+
+        # The L1-minimal projection isn't unique here - any way of redistributing `excess` among
+        # pairs with headroom achieves the same minimal L1 cost. Split proportionally to headroom.
+        headroom = {pair: upper_bounds[pair] - clamped[pair] for pair in risk_budget_distribution}
+        total_headroom = sum(headroom.values())
+        assert total_headroom >= excess - 1e-9, "Risk-budget distribution cannot be made wasteless: insufficient headroom to redistribute excess probability mass."
+
+        return {pair: clamped[pair] + excess * headroom[pair] / total_headroom for pair in risk_budget_distribution}
 
     def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
 
@@ -869,10 +896,15 @@ class ShieldWithBudget(Shield):
             # be set to Vmax(current_state) if qmin <= risk or to Vmin(current_state) otherwise
             assert transition_prob > 0, f"Transition probability is zero for last_state {self.last_states[trace_index]}, last_action {local_last_action}, current_state {current_state}."
 
-            risk_budget_distribution = self.budget(self.history[trace_index], self.last_distributions[trace_index])
-            risk_budget = risk_budget_distribution.get((local_last_action, current_state), 0.0)
             qmax = self._qmax(self.last_states[trace_index], self.last_distributions[trace_index])
             slack = min(self.remaining_risk[trace_index], qmax) - self.last_qmin_ds[trace_index]
+
+            risk_budget_distribution = self.budget(self.history[trace_index], self.last_distributions[trace_index])
+            if self.force_wasteless_budget:
+                risk_budget_distribution = self._make_wasteless(
+                    risk_budget_distribution, self.last_states[trace_index], self.last_distributions[trace_index], slack)
+            risk_budget = risk_budget_distribution.get((local_last_action, current_state), 0.0)
+
             self.remaining_risk[trace_index] = self.model_info.vmin[current_state] + (risk_budget*slack)/transition_prob
 
 
