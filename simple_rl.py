@@ -30,8 +30,15 @@ from paynt.quotient.fsc import FscFactored
 
 def load_sketch(project_path):
     project_path = os.path.abspath(project_path)
-    sketch_path = os.path.join(project_path, "sketch.templ")
-    properties_path = os.path.join(project_path, "sketch.props")
+    if os.path.exists(os.path.join(project_path, "sketch.templ")):
+        sketch_path = os.path.join(project_path, "sketch.templ")
+        properties_path = os.path.join(project_path, "sketch.props")
+    else:
+        if os.path.exists(os.path.join(project_path, "model-random-enabled.drn")):
+            sketch_path = os.path.join(project_path, "model-random-enabled.drn")
+            properties_path = os.path.join(project_path, "discounted.props")
+        else:
+            raise ValueError(f"Could not find sketch.templ or model-random-enabled.drn in {project_path}")
     pomdp_sketch = Sketch.load_sketch(
         sketch_path, properties_path)
     return pomdp_sketch
