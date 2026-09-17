@@ -148,7 +148,11 @@ def set_global_seeds(seed):
 @click.argument('project', type=click.Path(exists=True))
 @click.option("--nu", type=float, default=0.05, help="Safety threshold for the shielding.")
 @click.option("--shield", type=click.Choice([None, 'identity', 'standard', 'pessimistic', 'optimistic', 'delta', 'self-constructing-safe', 'self-constructing-unsafe', 'budget']), default=None, help="Shielding method to use.")
-@click.option("--budget", type=click.Choice(list(BUDGET_FUNCTIONS.keys())), default="uniform", help="Risk-budget function to use when --shield=budget.")
+@click.option("--budget", type=click.Choice(list(BUDGET_FUNCTIONS.keys()) + ["nn", "nn-reinforce"]), default="uniform", help="Risk-budget function to use when --shield=budget. 'nn'/'nn-reinforce' load a trained network from --budget-checkpoint (PPO- and REINFORCE-trained checkpoints respectively).")
+@click.option("--use-clamp", is_flag=True, default=False, help="For --shield=budget: use the old clamp-to-vmin-safe correction instead of the L1-closest-allowed projection, for comparison purposes only.")
+@click.option("--budget-checkpoint", type=str, default=None, help="For --shield=budget --budget=nn: path to a checkpoint saved by train_risk_budget_shield.py.")
+@click.option("--no-force-wasteless-budget", is_flag=True, default=False, help="For --shield=budget: disable the proportional-to-headroom re-projection normally applied to whatever the budget function proposes, for diagnostic comparison only.")
+@click.option("--gamma", type=float, default=0.99, help="For --shield=budget: discount factor used for the discounted intervention-cost metric (should match whatever gamma a --budget=nn checkpoint was trained under).")
 @click.option("--load-agent", type=str, default=None, help="Path to load a pre-trained agent from.")
 @click.option("--save-agent", type=str, default="", help="Suffix of folder containing the trained agent.")
 @click.option("--agent-training", is_flag=True, default=False, help="Whether to perform agent training.")
@@ -162,14 +166,17 @@ def set_global_seeds(seed):
 @click.option("--model-debug", is_flag=True, default=False, help="Whether to debug the input model.")
 @click.option("--save-shield", type=click.Path(), default=None, help="Path to save the shield after evaluation.")
 @click.option("--load-shield", type=str, default=None, help="Path to load a pre-trained shield from.")
+@click.option("--save-budget", type=click.Path(), default=None, help="Path to save the shield's learned budget function state after evaluation, if supported.")
+@click.option("--load-budget", type=str, default=None, help="Path to load a previously-saved budget function state from, freezing further learning.")
 @click.option("--uniform-random-policy", is_flag=True, default=False, help="Whether to use a uniform random policy for evaluation instead of a trained agent.")
 @click.option("--eval-file", type=str, default=None, help="File to save evaluation results.")
+@click.option("--budget-metrics-file", type=str, default=None, help="For --shield=budget: file to append the 5 per-episode metrics (safety, allowed-actions ratio, discounted intervention cost, time-to-first-block, pct-episodes-blocked), with mean/std, to.")
 @click.option("--model-checking-eval", is_flag=True, default=False, help="Whether to perform model checking based evaluation.")
 @click.option("--expected-shield-calls", is_flag=True, default=False, help="Whether to compute expected shield calls and blocked actions during model checking evaluation.")
 @click.option("--goal-rew", type=float, default=100.0, help="Reward value for reaching the goal state.")
 @click.option("--fail-rew", type=float, default=-100.0, help="Reward value for reaching the fail state.")
 @click.option("--seed", type=int, default=None, help="Random seed for reproducibility.")
-def main(project, nu, shield, budget, load_agent, save_agent, agent_training, deterministic_agent, shield_memory, training_iterations, episode_length, min_episodes_per_environment, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, uniform_random_policy, eval_file, model_checking_eval, expected_shield_calls, goal_rew, fail_rew, seed):
+def main(project, nu, shield, budget, use_clamp, budget_checkpoint, no_force_wasteless_budget, gamma, load_agent, save_agent, agent_training, deterministic_agent, shield_memory, training_iterations, episode_length, min_episodes_per_environment, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, save_budget, load_budget, uniform_random_policy, eval_file, budget_metrics_file, model_checking_eval, expected_shield_calls, goal_rew, fail_rew, seed):
     project_path = project
     project_name = os.path.basename(os.path.normpath(project_path))
     prism_path = os.path.join(project_path, "sketch.templ")
@@ -205,7 +212,9 @@ def main(project, nu, shield, budget, load_agent, save_agent, agent_training, de
         shield_folder = None
     
     if shield is not None:
-        shield_processor = ShieldProcessor(environment.action_keywords, model, nu, shield, args=args, shield_memory=shield_memory, debug=model_debug, shield_folder=shield_folder, deterministic_agent=deterministic_agent, budget=budget)
+        shield_processor = ShieldProcessor(environment.action_keywords, model, nu, shield, args=args, shield_memory=shield_memory, debug=model_debug, shield_folder=shield_folder, deterministic_agent=deterministic_agent, budget=budget, use_clamp=use_clamp, environment=environment, budget_checkpoint=budget_checkpoint, force_wasteless_budget=not no_force_wasteless_budget, discount_factor=gamma)
+        if load_budget is not None:
+            shield_processor.load_budget(load_budget)
     else:
         shield_processor = None
 
@@ -327,10 +336,63 @@ def main(project, nu, shield, budget, load_agent, save_agent, agent_training, de
             shield_processor.shield.finalize_all_unfinished_traces()
         if shield_processor.shield_folder is not None:
             shield_processor.save_shield(shield_processor.shield_folder, "final")
+        if save_budget is not None:
+            shield_processor.save_budget(save_budget)
         print()
         print("Shield stats:")
         print(f"Shield calls: {shield_processor.shield.shield_calls}")
         print(f"Blocked actions: {shield_processor.shield.blocked_actions}")
+        if hasattr(shield_processor.shield, "total_intervention_cost"):
+            calls = shield_processor.shield.shield_calls
+            blocked = shield_processor.shield.blocked_actions
+            total_cost = shield_processor.shield.total_intervention_cost
+            episodes = eval_result["counted_episodes"]
+            print(f"Total intervention cost (L1): {total_cost}")
+            print(f"Expected intervention cost per shield call: {total_cost / calls if calls > 0 else 0}")
+            print(f"Average intervention cost per blocked call: {total_cost / blocked if blocked > 0 else 0}")
+            print(f"Expected per-episode intervention cost (undiscounted J, gamma=1): {total_cost / episodes if episodes > 0 else 0}")
+        if hasattr(shield_processor.shield, "total_discounted_intervention_cost"):
+            # Uses the shield's own reset-triggered episode count, not eval_result["counted_episodes"]
+            # (a differently-filtered count from the evaluator's trajectory buffer) - so both the
+            # discounted and undiscounted-via-this-mechanism figures share a consistent denominator.
+            discounted_cost = shield_processor.shield.total_discounted_intervention_cost
+            undiscounted_cost_matched = shield_processor.shield.total_intervention_cost_completed_episodes
+            discounted_episodes = shield_processor.shield.completed_discounted_episodes
+            print(f"Expected per-episode intervention cost (undiscounted J, gamma=1, shield-tracked episodes): {undiscounted_cost_matched / discounted_episodes if discounted_episodes > 0 else 0}")
+            print(f"Expected per-episode discounted intervention cost (J, gamma={shield_processor.shield.discount_factor}): {discounted_cost / discounted_episodes if discounted_episodes > 0 else 0}")
+
+        episode_stats = shield_processor.get_episode_stats_summary()
+        print()
+        print("Per-episode metrics (mean +/- std, over the shield's own finalized-episode count):")
+        print(f"Episodes counted: {episode_stats['episodes_n']}")
+        print(f"Safety (bad-outcome rate): {episode_stats['safety_mean']:.4f} +/- {episode_stats['safety_std']:.4f}")
+        print(f"Expected allowed actions: {episode_stats['allowed_ratio_mean']:.4f} +/- {episode_stats['allowed_ratio_std']:.4f}")
+        print(f"Expected discounted intervention cost (gamma={shield_processor.discount_factor}): {episode_stats['discounted_cost_mean']:.4f} +/- {episode_stats['discounted_cost_std']:.4f}")
+        print(f"Pct. episodes with >=1 block: {episode_stats['pct_episodes_blocked_mean']:.4f} +/- {episode_stats['pct_episodes_blocked_std']:.4f}")
+        print(f"Expected time to first block (n={episode_stats['first_block_step_n']}, episodes with a block only): {episode_stats['first_block_step_mean']:.4f} +/- {episode_stats['first_block_step_std']:.4f}")
+
+        if budget_metrics_file is not None:
+            file_exists = os.path.exists(budget_metrics_file)
+            with open(budget_metrics_file, "a") as f:
+                if not file_exists:
+                    f.write("project_name;agent;budget;mode;nu;episodes_n;"
+                            "safety_mean;safety_std;"
+                            "allowed_ratio_mean;allowed_ratio_std;"
+                            "discounted_cost_mean;discounted_cost_std;"
+                            "pct_episodes_blocked_mean;pct_episodes_blocked_std;"
+                            "first_block_step_n;first_block_step_mean;first_block_step_std\n")
+                if uniform_random_policy:
+                    agent_str = "uniform_random"
+                else:
+                    agent_str = load_agent
+                mode_str = "clamp" if use_clamp else "l1"
+                f.write(f"{project_name};{agent_str};{budget};{mode_str};{nu};"
+                        f"{episode_stats['episodes_n']};"
+                        f"{episode_stats['safety_mean']};{episode_stats['safety_std']};"
+                        f"{episode_stats['allowed_ratio_mean']};{episode_stats['allowed_ratio_std']};"
+                        f"{episode_stats['discounted_cost_mean']};{episode_stats['discounted_cost_std']};"
+                        f"{episode_stats['pct_episodes_blocked_mean']};{episode_stats['pct_episodes_blocked_std']};"
+                        f"{episode_stats['first_block_step_n']};{episode_stats['first_block_step_mean']};{episode_stats['first_block_step_std']}\n")
         # print(f"Bad episodes encountered during evaluation: {shield_processor.bad_epsisodes} ({shield_processor.bad_epsisodes / evaluation_result.counted_episodes[-1]})")
         if type(shield_processor.shield) in [compact_rl.rl.shielding.shields.SelfConstructingShield, compact_rl.rl.shielding.shields.SelfConstructingShieldOnline, compact_rl.rl.shielding.shields.SelfConstructingShieldOffline]:
             if shield_processor.shield.memory > 0:

@@ -766,12 +766,44 @@ class SelfConstructingShieldOnline(SelfConstructingShield):
 
 class ShieldWithBudget(Shield):
 
-    def __init__(self, model_info: ModelInfo, actions, nu: float, budget: RiskBudgetFunction, force_wasteless_budget: bool = True):
+    def __init__(self, model_info: ModelInfo, actions, nu: float, budget: RiskBudgetFunction, force_wasteless_budget: bool = True, use_l1_projection: bool = True, discount_factor: float = 0.99):
         super().__init__(model_info, actions)
         self.nu = nu
         self.budget = budget
         self.force_wasteless_budget = force_wasteless_budget
+        # Toggle purely for comparing the two blocked-branch correction mechanisms against each
+        # other (see _closest_allowed_distribution vs the shared clamp_distribution) - not
+        # exposed via ShieldProcessor/shielding.py, the L1 projection is strictly better so
+        # there's no reason to prefer clamping outside of that comparison.
+        self.use_l1_projection = use_l1_projection
+        # Sum of the L1 distance between the proposed and allowed distribution over every
+        # shield_calls (0 for calls that weren't blocked) - lets total_intervention_cost /
+        # shield_calls give the expected (undiscounted) intervention cost D from the J_gamma
+        # objective, and total_intervention_cost / blocked_actions give the average magnitude
+        # of a correction given that one happened.
+        self.total_intervention_cost = 0.0
+        # Discounted version of the same J_gamma objective (gamma^t * D_t, t = decision index
+        # since the start of that trace's current episode, matching RiskBudgetTrainingEnv's own
+        # gamma convention). Accumulated per-trace_index while an episode is in progress and
+        # folded into total_discounted_intervention_cost/completed_discounted_episodes only once
+        # that trace resets into a new episode - so a still-in-progress trace at the end of an
+        # evaluation run is excluded, same as how episode counts elsewhere only count completed
+        # episodes. total_intervention_cost_completed_episodes tracks the SAME (gamma=1) sum
+        # through this identical reset-triggered mechanism, sharing the same
+        # completed_discounted_episodes denominator - needed because the evaluator's own
+        # eval_result["counted_episodes"] comes from a different (trajectory-buffer-based,
+        # truncating) counting mechanism, so total_intervention_cost / eval_result["counted_episodes"]
+        # is not directly comparable to a per-episode figure computed this way.
+        self.discount_factor = discount_factor
+        self.total_discounted_intervention_cost = 0.0
+        self.total_intervention_cost_completed_episodes = 0.0
+        self.completed_discounted_episodes = 0
+        self._episode_step = [0]
+        self._episode_discounted_cost = [0.0]
+        self._episode_undiscounted_cost = [0.0]
+        self._episode_started = [False]
         self.vmin_actions = []
+        self.action_qmin_values = []
 
         self._compute_vmin_actions()
 
@@ -786,23 +818,36 @@ class ShieldWithBudget(Shield):
         self.last_distributions = [None]
         self.last_qmin_ds = [None]
 
+    def reset_stats(self):
+        super().reset_stats()
+        self.total_intervention_cost = 0.0
+        self.total_discounted_intervention_cost = 0.0
+        self.total_intervention_cost_completed_episodes = 0.0
+        self.completed_discounted_episodes = 0
+        self._episode_step = [0 for _ in self._episode_step]
+        self._episode_discounted_cost = [0.0 for _ in self._episode_discounted_cost]
+        self._episode_undiscounted_cost = [0.0 for _ in self._episode_undiscounted_cost]
+        self._episode_started = [False for _ in self._episode_started]
 
     def _compute_vmin_actions(self):
         for state in range(self.model_info.model.nr_states):
             actions_count = self.model_info.model.get_nr_available_actions(state)
             vmin_actions = []
+            qmin_values = []
             for action in range(actions_count):
                 row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + action
                 row = self.model_info.model.transition_matrix.get_row(row_index)
                 val = 0.0
                 for entry in row:
                     val += entry.value() * self.model_info.vmin[entry.column]
+                qmin_values.append(val)
                 val_rounded = round(val, self.rounding_precision)
                 vmin_state_rounded = round(self.model_info.vmin[state], self.rounding_precision)
                 if val_rounded <= vmin_state_rounded:
                     vmin_actions.append(action)
             assert len(vmin_actions) > 0, f"No safe actions for state {state}"
             self.vmin_actions.append(vmin_actions)
+            self.action_qmin_values.append(qmin_values)
 
 
     def _qmin(self, state, distr):
@@ -842,6 +887,33 @@ class ShieldWithBudget(Shield):
         choice_labels = [self.model_info.model.choice_labeling.get_labels_of_choice(choice).pop() for choice in range(row_group_start, row_group_end)]
         return choice_labels.index(action_label)
 
+    def _closest_allowed_distribution(self, state, distribution, remaining_risk):
+        # qmin(state, d) = sum_a d[a] * c[a] is linear in d, where c[a] = action_qmin_values[state][a]
+        # is the per-action expected vmin of the successor (computed once in _compute_vmin_actions).
+        # So the L1-closest d' with qmin(state, d') <= remaining_risk is found by draining mass from
+        # the highest-c actions into the single lowest-c action (a_min, the vmin-optimal action) -
+        # moving mass anywhere else would reduce qmin less per unit of L1 distance spent, since the
+        # reduction per unit moved from action a is exactly (c[a] - c[a_min]), maximized at a_min.
+        c = self.action_qmin_values[state]
+        current_qmin = sum(p * c[a] for a, p in enumerate(distribution))
+        if current_qmin <= remaining_risk:
+            return distribution
+
+        d = list(distribution)
+        a_min = min(range(len(d)), key=lambda a: c[a])
+        excess = current_qmin - remaining_risk
+        for a in sorted((a for a in range(len(d)) if a != a_min and d[a] > 0), key=lambda a: -c[a]):
+            gain_per_unit = c[a] - c[a_min]
+            if gain_per_unit <= 0:
+                continue
+            drain = min(d[a], excess / gain_per_unit)
+            d[a] -= drain
+            d[a_min] += drain
+            excess -= drain * gain_per_unit
+            if excess <= 0:
+                break
+        return d
+
     def _make_wasteless(self, risk_budget_distribution, last_state, last_distribution, slack):
         # Re-project risk_budget_distribution (a distribution over (action, next-state) pairs) onto
         # the closest (L1) distribution that never allocates a pair more share than it can use, i.e.
@@ -879,8 +951,20 @@ class ShieldWithBudget(Shield):
             self.last_states.append(None)
             self.last_distributions.append(None)
             self.last_qmin_ds.append(None)
+            self._episode_step.append(0)
+            self._episode_discounted_cost.append(0.0)
+            self._episode_undiscounted_cost.append(0.0)
+            self._episode_started.append(False)
 
         if reset:
+            if self._episode_started[trace_index]:
+                self.total_discounted_intervention_cost += self._episode_discounted_cost[trace_index]
+                self.total_intervention_cost_completed_episodes += self._episode_undiscounted_cost[trace_index]
+                self.completed_discounted_episodes += 1
+            self._episode_step[trace_index] = 0
+            self._episode_discounted_cost[trace_index] = 0.0
+            self._episode_undiscounted_cost[trace_index] = 0.0
+            self._episode_started[trace_index] = True
             self.remaining_risk[trace_index] = min(self.nu, self.vmax_at_initial_state)
             self.history[trace_index] = []
         else:
@@ -912,11 +996,20 @@ class ShieldWithBudget(Shield):
 
         if self.last_qmin_ds[trace_index] > self.remaining_risk[trace_index]:
             self.blocked_actions += 1
-            output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
+            if self.use_l1_projection:
+                output_distribution = self._closest_allowed_distribution(current_state, distribution, self.remaining_risk[trace_index])
+            else:
+                output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
+            cost = sum(abs(p - q) for p, q in zip(distribution, output_distribution))
+            self.total_intervention_cost += cost
             self.last_qmin_ds[trace_index] = self._qmin(current_state, output_distribution) # this needs to be updated because the distribution was changed, otherwise the remaining risk will be wrong in the next step
         else:
             output_distribution = distribution
+            cost = 0.0
 
+        self._episode_discounted_cost[trace_index] += (self.discount_factor ** self._episode_step[trace_index]) * cost
+        self._episode_undiscounted_cost[trace_index] += cost
+        self._episode_step[trace_index] += 1
 
         self.last_states[trace_index] = current_state
         self.last_distributions[trace_index] = output_distribution
