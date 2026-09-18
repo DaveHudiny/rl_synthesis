@@ -44,33 +44,41 @@ def build_actor(train_env, tf_train_env, learning_rate=8.6e-4, actor_net=None):
     return actor_net, optimizer
 
 
-def collect_window(actor_net, tf_train_env, policy_state, window_steps):
+def collect_window(actor_net, tf_train_env, policy_state, window_steps, episode_age=None):
     """Steps the batched environment window_steps times using actor_net's own stochastic
     distribution, recording everything needed to recompute log_probs and returns afterward.
     Returns stacked [num_envs, window_steps, ...] tensors/arrays plus the final policy_state
     (carried into the next window, matching how a driver's policy_state normally persists
     across .run() calls - the LSTM encoder resets internally wherever step_type==FIRST
-    regardless of what's passed in, so a stale state for an ended episode is harmless)."""
+    regardless of what's passed in, so a stale state for an ended episode is harmless), and the
+    final per-lane episode_age (steps since that lane's current episode began - also carried
+    across window boundaries the same way, since J_gamma's gamma^t weighting is relative to
+    each episode's own start, not to whatever window happens to be collecting it right now)."""
     observations_list = []
     actions_list = []
     step_types_list = []
     rewards_list = []
     discounts_list = []
     next_step_types_list = []
+    episode_age_list = []
 
     time_step = tf_train_env.current_time_step()
     initial_policy_state = policy_state
+    num_envs = int(time_step.step_type.shape[0])
+    current_age = np.zeros(num_envs, dtype=np.float32) if episode_age is None else np.array(episode_age, dtype=np.float32)
     for _ in range(window_steps):
         dist, policy_state = actor_net(time_step.observation, time_step.step_type, policy_state, training=False)
         action = dist.sample()
         observations_list.append(time_step.observation)
         actions_list.append(action)
         step_types_list.append(time_step.step_type)
+        episode_age_list.append(current_age.copy())
 
         next_time_step = tf_train_env.step(action)
         rewards_list.append(next_time_step.reward)
         discounts_list.append(next_time_step.discount)
         next_step_types_list.append(next_time_step.step_type)
+        current_age = np.where(next_time_step.step_type.numpy() == ts.StepType.FIRST, 0.0, current_age + 1.0)
         time_step = next_time_step
 
     observations = {k: tf.stack([o[k] for o in observations_list], axis=1) for k in observations_list[0]}
@@ -79,11 +87,13 @@ def collect_window(actor_net, tf_train_env, policy_state, window_steps):
     rewards = tf.stack(rewards_list, axis=1).numpy()
     discounts = tf.stack(discounts_list, axis=1).numpy()
     next_step_types = tf.stack(next_step_types_list, axis=1).numpy()
+    episode_ages = np.stack(episode_age_list, axis=1)
 
-    return observations, actions, step_types, rewards, discounts, next_step_types, initial_policy_state, policy_state
+    return (observations, actions, step_types, rewards, discounts, next_step_types, episode_ages,
+            initial_policy_state, policy_state, current_age)
 
 
-def compute_returns_and_mask(rewards, discounts, next_step_types):
+def compute_returns_and_mask(rewards, discounts):
     """rewards/discounts/next_step_types: [num_envs, window_steps] numpy arrays.
     Returns (returns, valid_mask), both [num_envs, window_steps]."""
     num_envs, window_steps = rewards.shape
@@ -93,11 +103,16 @@ def compute_returns_and_mask(rewards, discounts, next_step_types):
         running = rewards[:, t] + discounts[:, t] * running
         returns[:, t] = running
 
-    # A step is "valid" (its return is exact, not truncated) iff its episode is confirmed to
-    # have ended by some later step within this window - i.e. there's a step_type==FIRST at
-    # or after it. The trailing run with no such later reset is the one still-in-progress
+    # A step is "valid" (its return is exact, not truncated) iff its OWN episode is confirmed to
+    # have ended by some later step within this window. That boundary is exactly wherever
+    # `discounts` is 0 (RiskBudgetTrainingEnv now zeroes it precisely on the terminal step
+    # itself, not one step later at the following episode's FIRST - see that module's `_step`),
+    # which is also exactly what the backward scan above already used to stop bootstrapping
+    # across episodes, so re-deriving the mask from `next_step_types == FIRST` independently
+    # would re-introduce the same one-off mismatch between what was actually cut and what's
+    # reported as cut. The trailing run with no later boundary is the one still-in-progress
     # episode per lane whose true remaining cost we haven't observed yet.
-    is_episode_end = next_step_types == ts.StepType.FIRST
+    is_episode_end = discounts == 0.0
     valid_mask = np.flip(np.maximum.accumulate(np.flip(is_episode_end, axis=1), axis=1), axis=1)
     return returns, valid_mask
 
@@ -129,7 +144,14 @@ def compute_analytic_baseline(observations):
 
 
 def train_step(actor_net, optimizer, observations, step_types, actions, returns, valid_mask, initial_policy_state,
-               use_analytic_baseline=False):
+               episode_ages, gamma, use_analytic_baseline=False):
+    """`episode_ages`/`gamma` implement J_gamma's OWN gamma^t weighting (t = steps since that
+    lane's current episode began), separate from and in ADDITION to the discounting already
+    baked into `returns` (which only discounts a step's reward-to-go relative to itself, t=0
+    there). Omitting this outer term computes the gradient of a different, undiscounted-average
+    objective instead of J_gamma - a real, textbook-documented discrepancy (e.g. Sutton & Barto
+    (2018) sec. 13.3-13.4), independent of whatever else affects how well that gradient can be
+    estimated from data."""
     valid = valid_mask.astype(bool)
     n_valid = max(int(valid.sum()), 1)
     r_mean = float(np.sum(returns * valid_mask) / n_valid)
@@ -150,11 +172,12 @@ def train_step(actor_net, optimizer, observations, step_types, actions, returns,
 
     advantage = tf.constant(advantage_full, dtype=tf.float32)
     mask = tf.constant(valid_mask, dtype=tf.float32)
+    outer_discount = tf.constant(np.power(gamma, episode_ages), dtype=tf.float32)
 
     with tf.GradientTape() as tape:
         dist, _ = actor_net(observations, step_types, initial_policy_state, training=True)
         log_probs = dist.log_prob(actions)
-        loss = -tf.reduce_sum(advantage * log_probs * mask) / tf.reduce_sum(mask)
+        loss = -tf.reduce_sum(outer_discount * advantage * log_probs * mask) / tf.reduce_sum(mask)
     grads = tape.gradient(loss, actor_net.trainable_variables)
     optimizer.apply_gradients(zip(grads, actor_net.trainable_variables))
     return float(loss.numpy()), r_mean, c_star
@@ -176,17 +199,26 @@ def load_actor(actor_net, path):
         print(f"No checkpoint found at {path}, starting from scratch.")
 
 
-def collect_and_train(actor_net, optimizer, tf_train_env, num_iterations, window_steps, num_envs, log_every=1,
-                       use_analytic_baseline=False):
+def collect_and_train(actor_net, optimizer, tf_train_env, num_iterations, window_steps, num_envs, gamma,
+                       log_every=1, use_analytic_baseline=False):
     tf_train_env.reset()
     policy_state = actor_net.get_initial_state(batch_size=num_envs)
+    episode_age = np.zeros(num_envs, dtype=np.float32)
     losses = []
     for i in range(num_iterations):
-        observations, actions, step_types, rewards, discounts, next_step_types, initial_policy_state, policy_state = (
-            collect_window(actor_net, tf_train_env, policy_state, window_steps))
-        returns, valid_mask = compute_returns_and_mask(rewards, discounts, next_step_types)
+        (observations, actions, step_types, rewards, discounts, next_step_types, episode_ages,
+         initial_policy_state, policy_state, episode_age) = (
+            collect_window(actor_net, tf_train_env, policy_state, window_steps, episode_age=episode_age))
+        returns, valid_mask = compute_returns_and_mask(rewards, discounts)
+        if not valid_mask.any():
+            # No lane completed an episode within this window (window shorter than an episode,
+            # or just unlucky timing) - every return here is truncated/unknown, so there is
+            # nothing to train on. Skip rather than let train_step's loss divide by a zero mask
+            # sum (NaN loss -> NaN grads -> permanently poisoned weights).
+            print(f"iter {i}: skipped (no lane completed an episode within this window)")
+            continue
         loss, baseline, c_star = train_step(actor_net, optimizer, observations, step_types, actions, returns,
-                                             valid_mask, initial_policy_state,
+                                             valid_mask, initial_policy_state, episode_ages, gamma,
                                              use_analytic_baseline=use_analytic_baseline)
         losses.append(loss)
         if i % log_every == 0:
@@ -240,7 +272,7 @@ def main():
 
     actor_net, optimizer = build_actor(train_env, tf_train_env, learning_rate=args_cli.learning_rate)
     collect_and_train(actor_net, optimizer, tf_train_env, args_cli.num_iterations, args_cli.window_steps,
-                       args_cli.num_environments, use_analytic_baseline=args_cli.use_analytic_baseline)
+                       args_cli.num_environments, args_cli.gamma, use_analytic_baseline=args_cli.use_analytic_baseline)
 
     if args_cli.save_agent is not None:
         save_actor(actor_net, args_cli.save_agent)

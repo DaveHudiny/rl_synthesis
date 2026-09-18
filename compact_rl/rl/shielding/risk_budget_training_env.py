@@ -279,6 +279,17 @@ class RiskBudgetTrainingEnv(py_environment.PyEnvironment):
         for i in range(self.num_envs):
             new_state = int(new_states[i])
             just_reset = step_types[i] == ts.StepType.FIRST
+            # Distinct from `just_reset`: this is the step whose reward is this episode's own
+            # LAST one, and whose discount must be 0 so the backward-scan return computation
+            # (train_risk_budget_reinforce.py's compute_returns_and_mask, and any GAE consuming
+            # this same discount) stops exactly here - not one step later, at the following
+            # (unrelated) episode's FIRST step. The underlying EnvironmentWrapperVec emits an
+            # explicit LAST for the true terminal transition before a separate FIRST on the next
+            # call (confirmed in its step_types = tf.where(still_running_mask, ..., LAST)
+            # logic), so checking `just_reset` alone here was zeroing the discount one index too
+            # late, letting the old episode's final return silently bootstrap into the next,
+            # unrelated episode's return-to-go.
+            is_terminal = step_types[i] == ts.StepType.LAST
 
             if just_reset:
                 # The underlying env auto-reset this lane - the "transition" from the old
@@ -312,7 +323,7 @@ class RiskBudgetTrainingEnv(py_environment.PyEnvironment):
             # later (see module docstring) - D measures how much the just-realized transition's
             # remaining_risk forced the shield to deviate from the fixed policy's own proposal.
             rewards[i] = -sum(abs(p - q) for p, q in zip(local_proposed, output_distribution))
-            discounts[i] = 0.0 if just_reset else self.gamma
+            discounts[i] = 0.0 if is_terminal else self.gamma
 
             self._last_states[i] = new_state
             self._last_distributions[i] = output_distribution
