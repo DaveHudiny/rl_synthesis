@@ -174,7 +174,7 @@ def parse_args():
     parser.add_argument(
         "--extraction-method",
         type=str,
-        choices=["alergia", "si-g", "vq-vae"],
+        choices=["alergia", "si-g", "vq-vae", "fsq"],
         default="alergia",
         help="Method to use for extraction. Default is 'alergia'.")
     parser.add_argument(
@@ -213,6 +213,47 @@ def parse_args():
         action="store_true",
         default=False,
         help="Use GRU extraction for the robust RL agent to compare with."
+    )
+    parser.add_argument(
+        "--nr-iterations",
+        type=int,
+        default=401,
+        help="Number of RL training iterations in the single-POMDP setting. Default is 401."
+    )
+    parser.add_argument(
+        "--discount-factor",
+        type=float,
+        default=None,
+        help="Overrides the RL discount factor. init_args() defaults to 0.99, whereas "
+             "the paper (Appendix B.8) uses 0.995 and reports that 0.99 significantly "
+             "changes the optimal solution. Default is None (keep init_args' value)."
+    )
+    parser.add_argument(
+        "--agent-folder",
+        type=str,
+        default=None,
+        help="Folder used to save/load the RNN policy checkpoint. Combined with "
+             "--save-agent / --load-agent this lets several extraction methods be "
+             "compared on exactly the same trained policy, training it only once."
+    )
+    parser.add_argument(
+        "--save-agent",
+        action="store_true",
+        help="Save the RNN policy to --agent-folder after training."
+    )
+    parser.add_argument(
+        "--load-agent",
+        action="store_true",
+        help="Load the RNN policy from --agent-folder instead of training it."
+    )
+    parser.add_argument(
+        "--latent-dim",
+        type=int,
+        default=None,
+        help="Overrides the automatically chosen latent dimension. For one-hot methods "
+             "(si-g, vq-vae) this is the number of memory nodes |N|; for fsq it is the "
+             "number of coordinate channels d, giving |N| = 3**d (e.g. d=1 -> 3 nodes, "
+             "d=3 -> 27 nodes). Default is None (choose automatically)."
     )
     args = parser.parse_args()
     return args

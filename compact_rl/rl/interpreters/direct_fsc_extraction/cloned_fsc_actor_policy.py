@@ -47,6 +47,7 @@ class ClonedFSCActorPolicy(TFPolicy):
                  orig_env_use_stacked_observations: bool = True,
                  use_gumbel_softmax: bool = False,
                  use_vq_vae: bool = False,
+                 use_fsq: bool = False,
                  seed=42,
                  use_matrices: bool = False):
         self.original_policy = original_policy
@@ -65,7 +66,8 @@ class ClonedFSCActorPolicy(TFPolicy):
             use_one_hot=use_one_hot,
             gumbel_softmax_one_hot=use_gumbel_softmax,
             use_matrices=use_matrices,
-            use_vq_vae=use_vq_vae)
+            use_vq_vae=use_vq_vae,
+            use_fsq=use_fsq)
         self.model_name = model_name
         self.optimization_specification = optimization_specification
         self.find_best_policy = find_best_policy
@@ -74,6 +76,7 @@ class ClonedFSCActorPolicy(TFPolicy):
         self.orig_env_use_stacked_observations = orig_env_use_stacked_observations
         self.use_gumbel_softmax = use_gumbel_softmax
         self.use_vq_vae = use_vq_vae
+        self.use_fsq = use_fsq
         self.seed = tfp.util.SeedStream(seed, salt="cloned_fsc_actor_policy")
         self.optimizer = None
         self.learn_probs_regression = False

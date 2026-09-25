@@ -25,6 +25,8 @@ from compact_rl.rl.tools.args_emulator import ArgsEmulator
 
 import numpy as np
 
+import math
+
 import logging
 
 
@@ -48,7 +50,7 @@ class RobustTrainer:
                  pomdp_sketch=None,
                  obs_evaluator=None, quotient_state_valuations=None,
                  family_quotient_numpy: FamilyQuotientNumpy = None,
-                 use_gumbel_softmax=False, use_vq_vae=False):
+                 use_gumbel_softmax=False, use_vq_vae=False, use_fsq=False):
         self.args = args
         self.use_one_hot_memory = use_one_hot_memory
         self.model_name = args.model_name
@@ -66,6 +68,7 @@ class RobustTrainer:
         self.extraction_type = args.extraction_type
         self.use_gumbel_softmax = use_gumbel_softmax
         self.use_vq_vae = use_vq_vae
+        self.use_fsq = use_fsq
         self.direct_extractor = self.init_extractor(
             latent_dim, self.autlearn_extraction)
         self.period_between_worst_case_evaluation = 5
@@ -92,7 +95,8 @@ class RobustTrainer:
                                                           family_quotient_numpy=self.family_quotient_numpy,
                                                           autlearn_extraction=autlearn_extraction,
                                                           use_gumbel_softmax=self.use_gumbel_softmax,
-                                                          use_vq_vae=self.use_vq_vae)
+                                                          use_vq_vae=self.use_vq_vae,
+                                                          use_fsq=self.use_fsq)
             return direct_extractor
         else:
             return None
@@ -182,14 +186,15 @@ class RobustTrainer:
         self.benchmark_stats.add_rl_performance_reachability(
             np.abs(agent.evaluation_result.reach_probs[-1]))
 
-    def generate_agent(self, pomdp, args: ArgsEmulator) -> Recurrent_PPO_agent:
+    def generate_agent(self, pomdp, args: ArgsEmulator, agent_folder=None) -> Recurrent_PPO_agent:
         self.environment = EnvironmentWrapperVec(pomdp, args, num_envs=args.num_environments, enforce_compilation=True,
                                                  obs_evaluator=self.obs_evaluator,
                                                  quotient_state_valuations=self.quotient_state_valuations,
                                                  observation_to_actions=self.pomdp_sketch.observation_to_actions)
         self.tf_env = TFPyEnvironment(self.environment)
         self.agent = Recurrent_PPO_agent(
-            environment=self.environment, tf_environment=self.tf_env, args=args)
+            environment=self.environment, tf_environment=self.tf_env, args=args,
+            agent_folder=agent_folder)
         return self.agent
 
     def add_new_pomdp(self, pomdp, agent: Recurrent_PPO_agent):
@@ -290,13 +295,30 @@ class RobustTrainer:
             del synthesizer
             del dtmc_sketch
 
-    def train_and_extract_single_pomdp(self, pomdp_sketch: PomdpFamilyQuotient, nr_iterations=1500, num_samples_learn=4001, args: ArgsEmulator = None, project_path: str = None):
+    def train_and_extract_single_pomdp(self, pomdp_sketch: PomdpFamilyQuotient, nr_iterations=1500, num_samples_learn=4001, args: ArgsEmulator = None, project_path: str = None,
+                                       load_agent=False, save_agent=False):
         """
         RL training and extraction on a single POMDP. Loopless.
+
+        If load_agent is set, the RNN policy is restored from the agent folder instead of
+        being trained, so that several extraction methods can be compared on exactly the
+        same policy without paying for the (identical) training run each time.
         """
         rnn_analyzer = RNNAnalyzer(self.args)
 
-        self.train_on_new_pomdp(None, self.agent, nr_iterations=nr_iterations)
+        if load_agent:
+            self.agent.load_agent()
+            # train_on_new_pomdp would normally populate evaluation_result; do it here so
+            # the benchmark stats still record the policy's value.
+            self.agent.evaluate_agent(vectorized=True)
+            self.benchmark_stats.add_rl_performance(
+                np.abs(self.agent.evaluation_result.returns[-1]))
+            self.benchmark_stats.add_rl_performance_reachability(
+                np.abs(self.agent.evaluation_result.reach_probs[-1]))
+        else:
+            self.train_on_new_pomdp(None, self.agent, nr_iterations=nr_iterations)
+            if save_agent:
+                self.agent.save_agent()
         rnn_analyzer.analyze(self.agent, self.tf_env)
         fsc = self.extract_fsc(self.agent, self.agent.environment, pomdp_sketch,
                                num_data_steps=num_samples_learn, training_epochs=6001, get_dict=True)
@@ -335,9 +357,12 @@ def initialize_extractor(pomdp_sketch, args_emulated: ArgsEmulator, family_quoti
         quotient_sv = None
         quotient_obs = None
 
+    # FSQ uses the coordinate (non-one-hot) memory encoding, like the plain quantized
+    # bottleneck, not the one-hot encoding used by si-g/vq-vae.
     use_one_hot_memory = True if args_emulated.extraction_type in ("si-g", "vq-vae") else False
     use_gumbel_softmax = True if args_emulated.extraction_type == "si-g" else False
     use_vq_vae = True if args_emulated.extraction_type == "vq-vae" else False
+    use_fsq = True if args_emulated.extraction_type == "fsq" else False
 
 
     if "avoid-large" in args_emulated.prism_model or "drone-2-6-1" in args_emulated.prism_model or "moving-obstacles" in args_emulated.prism_model:
@@ -345,10 +370,23 @@ def initialize_extractor(pomdp_sketch, args_emulated: ArgsEmulator, family_quoti
     else:
         latent_dim = 3
 
+    if use_fsq:
+        # For one-hot methods latent_dim is the number of memory nodes |N| directly; for
+        # FSQ's coordinate encoding it is the number of channels d, giving |N| = 3**d.
+        # Convert so that FSQ targets the same |N| as si-g/vq-vae would. Note that FSQ's
+        # updates are deterministic, so a size-matched |N| is arguably unfair to it: a
+        # stochastic |N|-node FSC is strictly more expressive than a deterministic one.
+        # Override with --latent-dim (e.g. d=3 -> 27 nodes) to compare at equal
+        # expressiveness rather than equal node count.
+        latent_dim = max(1, round(math.log(latent_dim, 3)))
+
+    if getattr(args_emulated, "latent_dim_override", None) is not None:
+        latent_dim = args_emulated.latent_dim_override
+
     extractor = RobustTrainer(args_emulated, use_one_hot_memory=use_one_hot_memory, latent_dim=latent_dim, quotient_state_valuations=quotient_sv,
                               obs_evaluator=quotient_obs, pomdp_sketch=pomdp_sketch,
                               family_quotient_numpy=family_quotient_numpy, use_gumbel_softmax=use_gumbel_softmax,
-                              use_vq_vae=use_vq_vae)
+                              use_vq_vae=use_vq_vae, use_fsq=use_fsq)
 
     return extractor
 

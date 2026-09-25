@@ -46,6 +46,9 @@ def set_args_emulated_defaults(args_emulated : ArgsEmulator, args_cmd : argparse
     args_emulated.single_pomdp_experiment = args_cmd.single_pomdp_setting
     args_emulated.seed = args_cmd.seed
     args_emulated.with_gru = args_cmd.with_gru
+    args_emulated.latent_dim_override = args_cmd.latent_dim
+    if args_cmd.discount_factor is not None:
+        args_emulated.discount_factor = args_cmd.discount_factor
 
 def main():
     args_cmd = parse_args()
@@ -107,8 +110,9 @@ def main():
         pomdp, _, _ = assignment_to_pomdp(pomdp_sketch, hole_assignment)
         extractor = initialize_extractor(
             pomdp_sketch, args_emulated, family_quotient_numpy)
-        agent = extractor.generate_agent(pomdp, args_emulated)
-        extractor.train_and_extract_single_pomdp(pomdp_sketch, nr_iterations=401, num_samples_learn=num_samples_learn, args=args_emulated, project_path=project_path)
+        agent = extractor.generate_agent(pomdp, args_emulated, agent_folder=args_cmd.agent_folder)
+        extractor.train_and_extract_single_pomdp(pomdp_sketch, nr_iterations=args_cmd.nr_iterations, num_samples_learn=num_samples_learn, args=args_emulated, project_path=project_path,
+                                                 load_agent=args_cmd.load_agent, save_agent=args_cmd.save_agent)
 
 
 

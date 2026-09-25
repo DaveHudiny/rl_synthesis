@@ -20,7 +20,8 @@ class FSCLikeActorNetwork(models.Model):
                  seed: int = 42,
                  use_matrices : bool = False,
                  use_vq_vae: bool = False,
-                 vq_commitment_cost: float = 0.25
+                 vq_commitment_cost: float = 0.25,
+                 use_fsq: bool = False
                 ):
         super(FSCLikeActorNetwork, self).__init__()
         self.observation_shape = observation_shape
@@ -51,9 +52,12 @@ class FSCLikeActorNetwork(models.Model):
         self.use_matrices = use_matrices
         self.use_vq_vae = use_vq_vae
         self.vq_commitment_cost = vq_commitment_cost
+        self.use_fsq = use_fsq
         if gumbel_softmax_one_hot and use_matrices:
             assert use_one_hot, "Gumbel softmax requires one-hot encoding."
-        if use_vq_vae:
+        if use_fsq:
+            self._set_fsq(use_one_hot)
+        elif use_vq_vae:
             self._set_vq_vae(use_one_hot)
         elif gumbel_softmax_one_hot:
             self._set_gumbel_softmax_one_hot(use_one_hot, stochastic_updates, use_matrices)
@@ -72,6 +76,34 @@ class FSCLikeActorNetwork(models.Model):
             self.one_hot_constant = 1
         
         self.noise_level = 0.35
+
+    def _set_fsq(self, use_one_hot: bool):
+        """Finite Scalar Quantization (Mentzer et al., 2023, "Finite Scalar Quantization:
+        VQ-VAE Made Simple"): a codebook-free alternative to VQ. Each of the memory_len
+        channels is independently bounded to (roughly) [-1, 1] via tanh and rounded to
+        the nearest of L=3 integer levels {-1, 0, 1} with a straight-through estimator
+        (matching this pipeline's existing base-3 coordinate memory encoding, see
+        encoding_functions.py's compute_rounded_memory/decompute_rounded_memory and
+        BlackBoxExtractor.extract_fsc's hardcoded base=3). Unlike VQ there is no learned
+        codebook and no commitment/codebook losses: because the bounding function pushes
+        the encoder output towards, rather than away from, the quantization bins, FSQ
+        does not suffer from the codebook-collapse failure mode observed with our VQ-VAE
+        bottleneck at larger memory sizes.
+        """
+        assert not use_one_hot, "This FSQ implementation uses the coordinate (non-one-hot) memory encoding."
+        levels = 3  # L, matching this pipeline's existing base-3 assumption elsewhere.
+        eps = 1e-3
+        half_l = (levels - 1) * (1 - eps) / 2.0  # L is odd, so no offset/shift needed.
+
+        def fsq_bound(x):
+            return tf.tanh(x) * half_l
+
+        def fsq_quantize(x):
+            bounded = fsq_bound(x)
+            return bounded + tf.stop_gradient(tf.round(bounded) - bounded)
+
+        self.memory_function = layers.Lambda(fsq_quantize)
+        self.one_hot_constant = 0
 
     def _set_vq_vae(self, use_one_hot: bool):
         """Replaces the Gumbel-Softmax relaxation with a VQ-VAE-style vector-quantized
@@ -255,7 +287,11 @@ class FSCLikeActorNetwork(models.Model):
         # x = layers.concatenate(x1, axis=-1)
         memory = self.memory_pre_dense(memory)
         memory = self.memory_dense(memory)
-        if self.use_vq_vae:
+        if self.use_fsq:
+            # FSQ (Mentzer et al., 2023): bound+round+STE, no codebook, no auxiliary loss.
+            memory = self.memory_function(memory)
+            vq_loss = tf.constant(0.0, dtype=tf.float32)
+        elif self.use_vq_vae:
             # VQ-VAE bottleneck: always a hard nearest-code assignment (no soft/temperature
             # regime), with a straight-through estimator and the standard codebook +
             # commitment losses (van den Oord et al., 2017) returned alongside the action.
