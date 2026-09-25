@@ -281,7 +281,9 @@ class ShieldProcessor:
             return
         blocked = self._episode_blocked[i]
         self.metric_safety.add(1.0 if self._episode_bad[i] else 0.0)
-        self.metric_allowed_ratio.add(1.0 - blocked / steps)
+        # allowed_ratio itself is now accumulated per-decision, directly in compute_new_logits -
+        # see the note there for why (step-weighted "expected allowed actions", not an unweighted
+        # per-episode average).
         self.metric_discounted_cost.add(self._episode_cost[i])
         any_blocked = blocked > 0
         self.metric_any_blocked.add(1.0 if any_blocked else 0.0)
@@ -289,13 +291,15 @@ class ShieldProcessor:
             self.metric_first_block_step.add(self._episode_first_block_step[i])
 
     def get_episode_stats_summary(self):
-        """Returns mean/std/n for the 5 per-episode metrics, over every episode that was
-        actually finalized (i.e. excludes the one dangling, still-in-progress episode per lane
-        at the very end of the run, same convention as ShieldWithBudget's own episode-cost
-        tracking)."""
+        """Returns mean/std/n for the 5 metrics. Every metric but allowed_ratio is one sample per
+        finalized episode (i.e. excludes the one dangling, still-in-progress episode per lane at
+        the very end of the run, same convention as ShieldWithBudget's own episode-cost
+        tracking); allowed_ratio is one sample per individual shield decision instead, so its own
+        n (allowed_ratio_n) is a step count, not an episode count - see compute_new_logits."""
         return {
             "episodes_n": self.metric_safety.n,
             "safety_mean": self.metric_safety.mean, "safety_std": self.metric_safety.std,
+            "allowed_ratio_n": self.metric_allowed_ratio.n,
             "allowed_ratio_mean": self.metric_allowed_ratio.mean, "allowed_ratio_std": self.metric_allowed_ratio.std,
             "discounted_cost_mean": self.metric_discounted_cost.mean, "discounted_cost_std": self.metric_discounted_cost.std,
             "pct_episodes_blocked_mean": self.metric_any_blocked.mean, "pct_episodes_blocked_std": self.metric_any_blocked.std,
@@ -349,15 +353,29 @@ class ShieldProcessor:
 
                 step_index = self._episode_steps[i]
                 blocked_before = self.shield.blocked_actions
-                cost_before = getattr(self.shield, "total_intervention_cost", 0.0)
 
                 distribution = self.shield.correct(prev_actions_i, current_state, mapped_played_distribution, resets[i], i)
 
-                if self.shield.blocked_actions > blocked_before:
+                was_blocked = self.shield.blocked_actions > blocked_before
+                # One sample per actual shield decision (not per episode), so the aggregate mean
+                # is the step-weighted "expected allowed actions" (matches model-checking's
+                # expected_blocked_actions/expected_shield_calls) rather than an unweighted
+                # average of each episode's own ratio - the two differ sharply whenever episodes
+                # vary a lot in length (a rare episode that gets stuck blocked for 40 steps must
+                # count 40x more than a common one that's never blocked in 3 steps, not count the
+                # same "one episode" each).
+                self.metric_allowed_ratio.add(0.0 if was_blocked else 1.0)
+                if was_blocked:
                     self._episode_blocked[i] += 1
                     if self._episode_first_block_step[i] is None:
                         self._episode_first_block_step[i] = step_index
-                cost_delta = getattr(self.shield, "total_intervention_cost", 0.0) - cost_before
+                # L1 distance between what the policy proposed and what the shield actually
+                # returned - computed directly here (rather than reading shield.total_intervention_cost,
+                # which only ShieldWithBudget tracks) so this is meaningful for every shield type.
+                # Identical formula/value to ShieldWithBudget's own internal cost tracking (shields.py),
+                # since mapped_played_distribution/distribution here are exactly its correct()'s own
+                # distribution/output_distribution.
+                cost_delta = sum(abs(p - q) for p, q in zip(mapped_played_distribution, distribution))
                 self._episode_cost[i] += (self.discount_factor ** step_index) * cost_delta
                 self._episode_steps[i] += 1
 

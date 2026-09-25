@@ -276,7 +276,7 @@ def main(project, nu, shield, budget, use_clamp, budget_checkpoint, no_force_was
             mapped_actions.append(mapped_distribution)
             state_choice_labels.append(choice_labels)
 
-        model_check_result = model_check_given_policy_and_shield(mapped_actions, shield_processor.shield, episode_length=episode_length, goal_value=goal_rew, antigoal_value=fail_rew, expected_shield_calls=expected_shield_calls)      
+        model_check_result = model_check_given_policy_and_shield(mapped_actions, shield_processor.shield, episode_length=episode_length, goal_value=goal_rew, antigoal_value=fail_rew, expected_shield_calls=expected_shield_calls)
 
         eval_elapsed_time = time.time() - start_time
         print(f"Model checking evaluation took {eval_elapsed_time:.2f} seconds.")  
