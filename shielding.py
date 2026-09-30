@@ -32,19 +32,13 @@ from compact_rl.rl.shielding.shielded_model_checking import model_check_given_po
 from tqdm import tqdm
 
 # PAYNT implementation imports
-from paynt.parser.sketch import Sketch
 from paynt.rl_extension.self_interpretable_interface.black_box_extraction import BlackBoxExtractor
 
 import payntbind
 import stormpy
 
-def load_sketch(project_path):
-    project_path = os.path.abspath(project_path)
-    sketch_path = os.path.join(project_path, "sketch.templ")
-    properties_path = os.path.join(project_path, "sketch.props")
-    pomdp_sketch = Sketch.load_sketch(
-        sketch_path, properties_path)
-    return pomdp_sketch
+# load_sketch comes from the import above (compact_rl.robust_rl.robust_rl_tools) - it already
+# handles both PRISM sketches and Storm UMB binary-format model exports; no local override needed.
 
 
 def create_json_file_name(project_path, seed=""):
@@ -176,7 +170,8 @@ def set_global_seeds(seed):
 @click.option("--goal-rew", type=float, default=100.0, help="Reward value for reaching the goal state.")
 @click.option("--fail-rew", type=float, default=-100.0, help="Reward value for reaching the fail state.")
 @click.option("--seed", type=int, default=None, help="Random seed for reproducibility.")
-def main(project, nu, shield, budget, use_clamp, budget_checkpoint, no_force_wasteless_budget, gamma, load_agent, save_agent, agent_training, deterministic_agent, shield_memory, training_iterations, episode_length, min_episodes_per_environment, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, save_budget, load_budget, uniform_random_policy, eval_file, budget_metrics_file, model_checking_eval, expected_shield_calls, goal_rew, fail_rew, seed):
+@click.option("--tabular-epsilon", type=float, default=None, help="Use an exact finite-horizon-optimal tabular policy (see compute_finite_horizon_policy) instead of a trained agent, for benchmarks where RL exploration alone fails to find any reward signal. This epsilon is the fraction of probability mass spread uniformly over each state's non-optimal actions (so the policy remains genuinely stochastic - see TabularHorizonPolicy); 0 would make --deterministic-agent's stochastic mode meaningless. The DP horizon matches --episode-length; the reward model is assumed to be named 'rews'.")
+def main(project, nu, shield, budget, use_clamp, budget_checkpoint, no_force_wasteless_budget, gamma, load_agent, save_agent, agent_training, deterministic_agent, shield_memory, training_iterations, episode_length, min_episodes_per_environment, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, save_budget, load_budget, uniform_random_policy, eval_file, budget_metrics_file, model_checking_eval, expected_shield_calls, goal_rew, fail_rew, seed, tabular_epsilon):
     project_path = project
     project_name = os.path.basename(os.path.normpath(project_path))
     prism_path = os.path.join(project_path, "sketch.templ")
@@ -250,6 +245,21 @@ def main(project, nu, shield, budget, use_clamp, budget_checkpoint, no_force_was
         print("Using uniform random policy for evaluation.")
         from compact_rl.rl.shielding.custom_policy import create_uniform_random_policy
         policy = create_uniform_random_policy(environment)
+        compile_policy = False
+    elif tabular_epsilon is not None:
+        print(f"Using exact finite-horizon tabular policy (horizon={episode_length}, noise_epsilon={tabular_epsilon}) instead of a trained agent.")
+        from compact_rl.rl.shielding.model_info import ModelInfo
+        from compact_rl.rl.shielding.tabular_horizon_policy import compute_finite_horizon_policy, TabularHorizonPolicy
+        observation_to_state = [None] * model.nr_observations
+        for state in range(model.nr_states):
+            observation_to_state[model.get_observation(state)] = state
+        model_info = ModelInfo(model=model, observation_to_state=observation_to_state, bad_state="bad", vmin=None, vmax=None)
+        policy_table, value = compute_finite_horizon_policy(model, episode_length)
+        print(f"Exact reward-optimal value from initial state: {value}")
+        policy = TabularHorizonPolicy(
+            action_spec=tf_env.action_spec(), time_step_spec=tf_env.time_step_spec(),
+            model_info=model_info, actions=environment.action_keywords,
+            policy_table=policy_table, horizon=episode_length, noise_epsilon=tabular_epsilon)
         compile_policy = False
     else:
         policy = agent.get_policy(False, True)

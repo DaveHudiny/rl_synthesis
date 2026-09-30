@@ -84,9 +84,18 @@ class ShieldProcessor:
                 print("Max until probabilities to goal from initial state:", until_result.get_values()[mdp.initial_states[0]])
             # print(vmin)
             # print(self.bad_states)
-            reward_formula = stormpy.parse_properties("Rmax=? [ C<=50 ]")
+            reward_formula = stormpy.parse_properties("Rmax=? [ C<=100 ]")
             reward_result = stormpy.model_checking(mdp, reward_formula[0])
-            print("Max expected rewards to goal from initial state:", reward_result.get_values()[mdp.initial_states[0]])
+            print(f"Vmin {vmin[mdp.initial_states[0]]}, Vmax {vmax[mdp.initial_states[0]]}")
+            print("Max expected rewards from initial state:", reward_result.get_values()[mdp.initial_states[0]])
+
+            # win_formula = stormpy.parse_properties("Pmax=? [ F \"win\" ]")
+            # win_result = stormpy.model_checking(mdp, win_formula[0])
+            # print("Max reachability probabilities to win from initial state:", win_result.get_values()[mdp.initial_states[0]])
+
+            # min_lose_formula = stormpy.parse_properties("Pmin=? [ F \"lose\" | \"bad\" ]")
+            # min_lose_result = stormpy.model_checking(mdp, min_lose_formula[0])
+            # print("Min reachability probabilities to lose from initial state:", min_lose_result.get_values()[mdp.initial_states[0]])
             exit()
 
         observation_to_state = [None] * model.nr_observations
