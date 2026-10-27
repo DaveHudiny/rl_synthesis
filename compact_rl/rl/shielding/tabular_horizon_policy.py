@@ -143,7 +143,7 @@ def compute_bad_probability(model, policy_table, horizon: int, bad_label: str = 
 class TabularHorizonPolicy(TFPolicy):
     """policy_state is a per-lane int32 "remaining steps" counter, reset to `horizon` whenever
     time_step.is_first() (mirrors how a recurrent policy's own state gets reset at episode
-    boundaries elsewhere in this pipeline - see e.g. RiskBudgetTrainingEnv's just_reset handling).
+    boundaries).
     """
 
     def __init__(self, action_spec, time_step_spec, model_info: ModelInfo, actions: list,

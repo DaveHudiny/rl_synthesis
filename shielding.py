@@ -19,7 +19,7 @@ from compact_rl.rl.tools.args_emulator import ArgsEmulator
 from compact_rl.rl.tools.evaluators import evaluate_policy_in_model
 from compact_rl.rl.tests.general_test_tools import init_args
 from compact_rl.rl.shielding.shield_processor import ShieldProcessor
-from compact_rl.rl.shielding.risk_budget import BUDGET_FUNCTIONS
+from compact_rl.rl.shielding.risk_distribution import RISK_DISTRIBUTIONS
 import compact_rl.rl.shielding.shields
 from compact_rl.rl.tools.trajectory_buffer import TrajectoryBuffer
 from tf_agents.policies.tf_policy import TFPolicy
@@ -141,12 +141,14 @@ def set_global_seeds(seed):
 @click.command()
 @click.argument('project', type=click.Path(exists=True))
 @click.option("--nu", type=float, default=0.05, help="Safety threshold for the shielding.")
-@click.option("--shield", type=click.Choice([None, 'identity', 'standard', 'pessimistic', 'optimistic', 'delta', 'self-constructing-safe', 'self-constructing-unsafe', 'budget']), default=None, help="Shielding method to use.")
-@click.option("--budget", type=click.Choice(list(BUDGET_FUNCTIONS.keys()) + ["nn", "nn-reinforce"]), default="uniform", help="Risk-budget function to use when --shield=budget. 'nn'/'nn-reinforce' load a trained network from --budget-checkpoint (PPO- and REINFORCE-trained checkpoints respectively).")
-@click.option("--use-clamp", is_flag=True, default=False, help="For --shield=budget: use the old clamp-to-vmin-safe correction instead of the L1-closest-allowed projection, for comparison purposes only.")
-@click.option("--budget-checkpoint", type=str, default=None, help="For --shield=budget --budget=nn: path to a checkpoint saved by train_risk_budget_shield.py.")
-@click.option("--no-force-wasteless-budget", is_flag=True, default=False, help="For --shield=budget: disable the proportional-to-headroom re-projection normally applied to whatever the budget function proposes, for diagnostic comparison only.")
-@click.option("--gamma", type=float, default=0.99, help="For --shield=budget: discount factor used for the discounted intervention-cost metric (should match whatever gamma a --budget=nn checkpoint was trained under).")
+@click.option("--shield", type=click.Choice([None, 'identity', 'standard', 'pessimistic', 'optimistic', 'delta', 'self-constructing-safe', 'self-constructing-unsafe', 'risk-distribution']), default=None, help="Shielding method to use.")
+@click.option("--risk-distribution", type=click.Choice(list(RISK_DISTRIBUTIONS.keys()) + ["capacity-informed"]), default="capacity", help="Risk distribution function to use when --shield=risk-distribution: how the remaining risk is distributed over the (action, next state) outcomes of a decision. 'capacity' (the default) is the standard one, 'capacity-informed' needs --policy-values.")
+@click.option("--policy-values", type=click.Path(exists=True), default=None, help="For --risk-distribution=capacity-informed: .npy file with one number per model state, the probability that the unshielded policy being shielded reaches a bad state from that state.")
+@click.option("--informed-trust", type=float, default=1.0, help="For --risk-distribution=capacity-informed: weight in [0, 1] of the given policy values against the worst-case vmax - vmin capacity (1 = only the policy values, 0 = plain capacity risk distribution).")
+@click.option("--use-clamp", is_flag=True, default=False, help="For --shield=risk-distribution: use the old clamp-to-vmin-safe correction instead of the L1-closest-allowed projection, for comparison purposes only.")
+@click.option("--blocking-lambda", type=click.FloatRange(0.0, 1.0), default=None, help="For --shield=risk-distribution: how a blocked distribution d is corrected, as the allowed distribution d' minimizing lambda * L1(d, d') + (1 - lambda) * L1(clamp(d), d'). 1 (the default) is the L1-closest allowed distribution, 0 is clamping to the vmin-safe actions (same as --use-clamp, which returns the clamp even where it exceeds the remaining risk, e.g. when every action counts as vmin-safe and clamping changes nothing); for lambda > 0 the result is always within the remaining risk. By the triangle inequality lambda <= 0.5 gives the clamp (when it is within the remaining risk) and all of (0.5, 1) gives one L1-type correction, so the blend switches at 0.5 instead of changing gradually.")
+@click.option("--no-force-wasteless-risk-distribution", is_flag=True, default=False, help="For --shield=risk-distribution: disable the proportional-to-headroom re-projection normally applied to whatever the risk distribution proposes, for diagnostic comparison only (the capacity risk distribution is wasteless by construction, so it makes no difference there).")
+@click.option("--gamma", type=float, default=0.99, help="For --shield=risk-distribution: discount factor used for the discounted intervention-cost metric.")
 @click.option("--load-agent", type=str, default=None, help="Path to load a pre-trained agent from.")
 @click.option("--save-agent", type=str, default="", help="Suffix of folder containing the trained agent.")
 @click.option("--agent-training", is_flag=True, default=False, help="Whether to perform agent training.")
@@ -160,18 +162,18 @@ def set_global_seeds(seed):
 @click.option("--model-debug", is_flag=True, default=False, help="Whether to debug the input model.")
 @click.option("--save-shield", type=click.Path(), default=None, help="Path to save the shield after evaluation.")
 @click.option("--load-shield", type=str, default=None, help="Path to load a pre-trained shield from.")
-@click.option("--save-budget", type=click.Path(), default=None, help="Path to save the shield's learned budget function state after evaluation, if supported.")
-@click.option("--load-budget", type=str, default=None, help="Path to load a previously-saved budget function state from, freezing further learning.")
 @click.option("--uniform-random-policy", is_flag=True, default=False, help="Whether to use a uniform random policy for evaluation instead of a trained agent.")
 @click.option("--eval-file", type=str, default=None, help="File to save evaluation results.")
-@click.option("--budget-metrics-file", type=str, default=None, help="For --shield=budget: file to append the 5 per-episode metrics (safety, allowed-actions ratio, discounted intervention cost, time-to-first-block, pct-episodes-blocked), with mean/std, to.")
+@click.option("--risk-distribution-metrics-file", type=str, default=None, help="For --shield=risk-distribution: file to append the 5 per-episode metrics (safety, allowed-actions ratio, discounted intervention cost, time-to-first-block, pct-episodes-blocked), with mean/std, to.")
 @click.option("--model-checking-eval", is_flag=True, default=False, help="Whether to perform model checking based evaluation.")
 @click.option("--expected-shield-calls", is_flag=True, default=False, help="Whether to compute expected shield calls and blocked actions during model checking evaluation.")
 @click.option("--goal-rew", type=float, default=100.0, help="Reward value for reaching the goal state.")
 @click.option("--fail-rew", type=float, default=-100.0, help="Reward value for reaching the fail state.")
 @click.option("--seed", type=int, default=None, help="Random seed for reproducibility.")
 @click.option("--tabular-epsilon", type=float, default=None, help="Use an exact finite-horizon-optimal tabular policy (see compute_finite_horizon_policy) instead of a trained agent, for benchmarks where RL exploration alone fails to find any reward signal. This epsilon is the fraction of probability mass spread uniformly over each state's non-optimal actions (so the policy remains genuinely stochastic - see TabularHorizonPolicy); 0 would make --deterministic-agent's stochastic mode meaningless. The DP horizon matches --episode-length; the reward model is assumed to be named 'rews'.")
-def main(project, nu, shield, budget, use_clamp, budget_checkpoint, no_force_wasteless_budget, gamma, load_agent, save_agent, agent_training, deterministic_agent, shield_memory, training_iterations, episode_length, min_episodes_per_environment, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, save_budget, load_budget, uniform_random_policy, eval_file, budget_metrics_file, model_checking_eval, expected_shield_calls, goal_rew, fail_rew, seed, tabular_epsilon):
+def main(project, nu, shield, risk_distribution, use_clamp, blocking_lambda, no_force_wasteless_risk_distribution, gamma, load_agent, save_agent, agent_training, deterministic_agent, shield_memory, training_iterations, episode_length, min_episodes_per_environment, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, uniform_random_policy, eval_file, risk_distribution_metrics_file, model_checking_eval, expected_shield_calls, goal_rew, fail_rew, seed, tabular_epsilon, policy_values, informed_trust):
+    if use_clamp and blocking_lambda not in (None, 0.0):
+        raise click.UsageError("--use-clamp is --blocking-lambda 0, it cannot be combined with another --blocking-lambda.")
     project_path = project
     project_name = os.path.basename(os.path.normpath(project_path))
     prism_path = os.path.join(project_path, "sketch.templ")
@@ -207,9 +209,8 @@ def main(project, nu, shield, budget, use_clamp, budget_checkpoint, no_force_was
         shield_folder = None
     
     if shield is not None:
-        shield_processor = ShieldProcessor(environment.action_keywords, model, nu, shield, args=args, shield_memory=shield_memory, debug=model_debug, shield_folder=shield_folder, deterministic_agent=deterministic_agent, budget=budget, use_clamp=use_clamp, environment=environment, budget_checkpoint=budget_checkpoint, force_wasteless_budget=not no_force_wasteless_budget, discount_factor=gamma)
-        if load_budget is not None:
-            shield_processor.load_budget(load_budget)
+        shield_processor = ShieldProcessor(environment.action_keywords, model, nu, shield, args=args, shield_memory=shield_memory, debug=model_debug, shield_folder=shield_folder, deterministic_agent=deterministic_agent, risk_distribution=risk_distribution, use_clamp=use_clamp, force_wasteless_risk_distribution=not no_force_wasteless_risk_distribution, discount_factor=gamma,
+                                          policy_values=None if policy_values is None else np.load(policy_values).tolist(), informed_trust=informed_trust, blocking_lambda=blocking_lambda)
     else:
         shield_processor = None
 
@@ -346,8 +347,6 @@ def main(project, nu, shield, budget, use_clamp, budget_checkpoint, no_force_was
             shield_processor.shield.finalize_all_unfinished_traces()
         if shield_processor.shield_folder is not None:
             shield_processor.save_shield(shield_processor.shield_folder, "final")
-        if save_budget is not None:
-            shield_processor.save_budget(save_budget)
         print()
         print("Shield stats:")
         print(f"Shield calls: {shield_processor.shield.shield_calls}")
@@ -381,11 +380,11 @@ def main(project, nu, shield, budget, use_clamp, budget_checkpoint, no_force_was
         print(f"Pct. episodes with >=1 block: {episode_stats['pct_episodes_blocked_mean']:.4f} +/- {episode_stats['pct_episodes_blocked_std']:.4f}")
         print(f"Expected time to first block (n={episode_stats['first_block_step_n']}, episodes with a block only): {episode_stats['first_block_step_mean']:.4f} +/- {episode_stats['first_block_step_std']:.4f}")
 
-        if budget_metrics_file is not None:
-            file_exists = os.path.exists(budget_metrics_file)
-            with open(budget_metrics_file, "a") as f:
+        if risk_distribution_metrics_file is not None:
+            file_exists = os.path.exists(risk_distribution_metrics_file)
+            with open(risk_distribution_metrics_file, "a") as f:
                 if not file_exists:
-                    f.write("project_name;agent;budget;mode;nu;episodes_n;"
+                    f.write("project_name;agent;risk_distribution;mode;nu;episodes_n;"
                             "safety_mean;safety_std;"
                             "allowed_ratio_mean;allowed_ratio_std;"
                             "discounted_cost_mean;discounted_cost_std;"
@@ -395,8 +394,9 @@ def main(project, nu, shield, budget, use_clamp, budget_checkpoint, no_force_was
                     agent_str = "uniform_random"
                 else:
                     agent_str = load_agent
-                mode_str = "clamp" if use_clamp else "l1"
-                f.write(f"{project_name};{agent_str};{budget};{mode_str};{nu};"
+                effective_lambda = shield_processor.shield.blocking_lambda
+                mode_str = "l1" if effective_lambda == 1.0 else "clamp" if effective_lambda == 0.0 else f"lambda={effective_lambda:g}"
+                f.write(f"{project_name};{agent_str};{risk_distribution};{mode_str};{nu};"
                         f"{episode_stats['episodes_n']};"
                         f"{episode_stats['safety_mean']};{episode_stats['safety_std']};"
                         f"{episode_stats['allowed_ratio_mean']};{episode_stats['allowed_ratio_std']};"

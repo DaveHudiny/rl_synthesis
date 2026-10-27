@@ -4,7 +4,7 @@ import tensorflow as tf
 from compact_rl.rl.shielding.model_info import ModelInfo
 import compact_rl.rl.shielding.shields
 from compact_rl.rl.shielding.constructed_shield_data import ShieldData
-from compact_rl.rl.shielding.risk_budget import BUDGET_FUNCTIONS, NNRiskBudget
+from compact_rl.rl.shielding.risk_distribution import RISK_DISTRIBUTIONS, CapacityInformedRiskDistribution
 
 import stormpy
 import numpy as np
@@ -37,7 +37,7 @@ class _RunningStat:
 
 
 class ShieldProcessor:
-    def __init__(self, actions : list[str], model : stormpy.storage.SparsePomdp, nu : float, shield_type : str, args : ArgsEmulator = None, shield_memory : int = 0, debug: bool = False, shield_folder: str = None, deterministic_agent: bool = False, budget: str = "uniform", use_clamp: bool = False, environment=None, budget_checkpoint: str = None, force_wasteless_budget: bool = True, discount_factor: float = 0.99):
+    def __init__(self, actions : list[str], model : stormpy.storage.SparsePomdp, nu : float, shield_type : str, args : ArgsEmulator = None, shield_memory : int = 0, debug: bool = False, shield_folder: str = None, deterministic_agent: bool = False, risk_distribution: str = "capacity", use_clamp: bool = False, force_wasteless_risk_distribution: bool = True, discount_factor: float = 0.99, policy_values=None, informed_trust: float = 1.0, blocking_lambda: float = None):
         self.args = args
         self.actions = actions
         self.shield_folder = shield_folder
@@ -123,18 +123,13 @@ class ShieldProcessor:
             self.shield = compact_rl.rl.shielding.shields.SelfConstructingShieldOnline(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
         elif shield_type == 'self-constructing-unsafe':
             self.shield = compact_rl.rl.shielding.shields.SelfConstructingShieldOffline(model_info=model_info, actions=self.actions, nu=nu, memory=shield_memory)
-        elif shield_type == 'budget':
-            if budget == 'nn':
-                assert environment is not None, "budget='nn' requires ShieldProcessor's environment argument (for state features)."
-                assert budget_checkpoint is not None, "budget='nn' requires --budget-checkpoint."
-                budget_fn = self._load_nn_budget(model_info, environment, nu, budget_checkpoint)
-            elif budget == 'nn-reinforce':
-                assert environment is not None, "budget='nn-reinforce' requires ShieldProcessor's environment argument (for state features)."
-                assert budget_checkpoint is not None, "budget='nn-reinforce' requires --budget-checkpoint."
-                budget_fn = self._load_nn_reinforce_budget(model_info, environment, nu, budget_checkpoint)
+        elif shield_type == 'risk-distribution':
+            if risk_distribution == 'capacity-informed':
+                assert policy_values is not None, "risk_distribution='capacity-informed' requires policy_values (the safety value of the shielded policy in every state)."
+                risk_distribution_fn = CapacityInformedRiskDistribution(model_info, policy_values, informed_trust)
             else:
-                budget_fn = BUDGET_FUNCTIONS[budget](model_info)
-            self.shield = compact_rl.rl.shielding.shields.ShieldWithBudget(model_info=model_info, actions=self.actions, nu=nu, budget=budget_fn, use_l1_projection=not use_clamp, force_wasteless_budget=force_wasteless_budget, discount_factor=discount_factor)
+                risk_distribution_fn = RISK_DISTRIBUTIONS[risk_distribution](model_info)
+            self.shield = compact_rl.rl.shielding.shields.RiskDistributionShield(model_info=model_info, actions=self.actions, nu=nu, risk_distribution=risk_distribution_fn, use_l1_projection=not use_clamp, force_wasteless_risk_distribution=force_wasteless_risk_distribution, discount_factor=discount_factor, blocking_lambda=blocking_lambda)
         else:
             raise ValueError(f"Unknown shield type: {shield_type}")
         
@@ -162,43 +157,6 @@ class ShieldProcessor:
 
         if self.shield_folder is not None:
             assert type(self.shield) in [compact_rl.rl.shielding.shields.SelfConstructingShieldOnline, compact_rl.rl.shielding.shields.SelfConstructingShieldOffline], "Saving shield can only be used with self-constructing shields."
-
-    def _load_nn_budget(self, model_info, environment, nu, budget_checkpoint):
-        """Builds a RiskBudgetActorNetwork matching train_risk_budget_shield.py's own
-        conventions, restores its weights from a checkpoint saved by that script, and wraps it
-        in NNRiskBudget for use as this shield's budget function. The full ppo_agent.PPOAgent
-        (not just the actor net) has to be reconstructed to match the object graph the
-        checkpoint was actually saved with (tf.train.Checkpoint(agent=...) in that script);
-        only the restored actor net is kept afterward. `policy=None` is safe here: the
-        RiskBudgetTrainingEnv instance is only used for its (policy-independent) specs, never
-        stepped."""
-        from compact_rl.rl.environment.tf_py_environment import TFPyEnvironment
-        from compact_rl.rl.shielding.risk_budget_training_env import RiskBudgetTrainingEnv
-        from compact_rl.rl.shielding.train_risk_budget_shield import build_agent, load_agent
-
-        train_env = RiskBudgetTrainingEnv(environment=environment, policy=None, model_info=model_info,
-                                           actions=self.actions, nu=nu)
-        tf_train_env = TFPyEnvironment(train_env)
-        agent = build_agent(train_env, tf_train_env)
-        load_agent(agent, budget_checkpoint)
-        return NNRiskBudget(model_info, agent._actor_net, self.actions, environment.observation_valuations)
-
-    def _load_nn_reinforce_budget(self, model_info, environment, nu, budget_checkpoint):
-        """Same idea as _load_nn_budget, but for a checkpoint saved by
-        train_risk_budget_reinforce.py, which checkpoints only the bare actor net
-        (tf.train.Checkpoint(actor_net=actor_net), no PPOAgent/value_net involved) - so no
-        agent reconstruction is needed here, just a freshly-built, correctly-specced actor
-        net to restore weights into."""
-        from compact_rl.rl.environment.tf_py_environment import TFPyEnvironment
-        from compact_rl.rl.shielding.risk_budget_training_env import RiskBudgetTrainingEnv
-        from compact_rl.rl.shielding.train_risk_budget_reinforce import build_actor, load_actor
-
-        train_env = RiskBudgetTrainingEnv(environment=environment, policy=None, model_info=model_info,
-                                           actions=self.actions, nu=nu)
-        tf_train_env = TFPyEnvironment(train_env)
-        actor_net, _ = build_actor(train_env, tf_train_env)
-        load_actor(actor_net, budget_checkpoint)
-        return NNRiskBudget(model_info, actor_net, self.actions, environment.observation_valuations)
 
     def save_shield(self, path: str, iteration = None):
         """Saves the shield to a file."""
@@ -238,19 +196,6 @@ class ShieldProcessor:
             self.shield.load_matrix_vector_from_current_distributions()
         
         print(f"Shield loaded from {path}")
-
-    def save_budget(self, path: str):
-        """Saves the shield's budget function's learned state to a file, if it supports it."""
-        if not hasattr(self.shield, "budget") or not hasattr(self.shield.budget, "save_counts"):
-            return
-        self.shield.budget.save_counts(path)
-        print(f"Budget saved to {path}")
-
-    def load_budget(self, path: str):
-        """Loads the shield's budget function's learned state from a file, if it supports it."""
-        assert hasattr(self.shield, "budget") and hasattr(self.shield.budget, "load_counts"), "Loading a budget can only be used with shields whose budget function supports it."
-        self.shield.budget.load_counts(path)
-        print(f"Budget loaded from {path}")
 
     def fix_distribution(self, distribution):
         total_prob = sum(distribution)
@@ -302,7 +247,7 @@ class ShieldProcessor:
     def get_episode_stats_summary(self):
         """Returns mean/std/n for the 5 metrics. Every metric but allowed_ratio is one sample per
         finalized episode (i.e. excludes the one dangling, still-in-progress episode per lane at
-        the very end of the run, same convention as ShieldWithBudget's own episode-cost
+        the very end of the run, same convention as RiskDistributionShield's own episode-cost
         tracking); allowed_ratio is one sample per individual shield decision instead, so its own
         n (allowed_ratio_n) is a step count, not an episode count - see compute_new_logits."""
         return {
@@ -380,8 +325,8 @@ class ShieldProcessor:
                         self._episode_first_block_step[i] = step_index
                 # L1 distance between what the policy proposed and what the shield actually
                 # returned - computed directly here (rather than reading shield.total_intervention_cost,
-                # which only ShieldWithBudget tracks) so this is meaningful for every shield type.
-                # Identical formula/value to ShieldWithBudget's own internal cost tracking (shields.py),
+                # which only RiskDistributionShield tracks) so this is meaningful for every shield type.
+                # Identical formula/value to RiskDistributionShield's own internal cost tracking (shields.py),
                 # since mapped_played_distribution/distribution here are exactly its correct()'s own
                 # distribution/output_distribution.
                 cost_delta = sum(abs(p - q) for p, q in zip(mapped_played_distribution, distribution))

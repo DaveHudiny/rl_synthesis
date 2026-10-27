@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from compact_rl.rl.shielding.model_info import ModelInfo
-from compact_rl.rl.shielding.risk_budget import RiskBudgetFunction
+from compact_rl.rl.shielding.risk_distribution import RiskDistributionFunction
 import random
 import numpy as np
 from scipy.spatial import ConvexHull
@@ -19,6 +19,72 @@ def clamp_distribution(distribution, allowed_actions):
         uniform_prob = 1.0 / len(allowed_actions)
         return [uniform_prob if action in allowed_actions else 0.0 for action in range(len(distribution))]
     return [prob / total_prob if action in allowed_actions else 0.0 for action, prob in enumerate(distribution)]
+
+
+def _inside_box(candidate, distribution, clamped, tolerance=1e-12):
+    """Whether `candidate` lies between `distribution` and `clamped` in every coordinate."""
+    return all(min(d, e) - tolerance <= x <= max(d, e) + tolerance for x, d, e in zip(candidate, distribution, clamped))
+
+
+def _blend_distribution(distribution, other, qmin_values, remaining_risk, weight):
+    """Exact minimiser x, over the distributions with sum_a qmin_values[a] * x[a] <= remaining_risk, of
+
+        weight * L1(distribution, x) + (1 - weight) * L1(other, x),        1/2 <= weight < 1,
+
+    (a remaining_risk below the smallest qmin value is replaced by that value, the best any distribution can do).
+
+    With alpha = 2 * weight - 1 the objective equals (1 - weight) * L1(distribution, other) + alpha * L1(distribution, x)
+    + (1 - alpha) * dist_L1(x, B), B being the box between `distribution` and `other` in every coordinate. The cost of one
+    coordinate is therefore piecewise linear and convex, with break points at 0, distribution[a] and other[a]. Starting from
+    x = distribution, mass is moved from one action to another, each time along the pair (from, to) with the lowest increase
+    of the objective per unit of qmin removed (qmin_values[from] - qmin_values[to]), up to the next break point of either
+    coordinate, until qmin is within remaining_risk. Ties are broken towards the larger reduction and then the lower
+    indices, the same convention as the L1 projection. This is exact (verified against an LP solver), and LP-free because
+    the best direction in the cone of mass transfers is always a single transfer."""
+    n = len(distribution)
+    alpha = 2.0 * weight - 1.0
+    low = [min(d, e) for d, e in zip(distribution, other)]
+    high = [max(d, e) for d, e in zip(distribution, other)]
+    kinks = [sorted({0.0, distribution[a], other[a]}) for a in range(n)]
+
+    def cost_per_unit_up(a, v):  # right derivative of alpha * |v - d_a| + (1 - alpha) * dist(v, [low_a, high_a])
+        return (alpha * (1.0 if v >= distribution[a] else -1.0)
+                + (1.0 - alpha) * (1.0 if v >= high[a] else -1.0 if v < low[a] else 0.0))
+
+    def cost_per_unit_down(a, v):  # minus its left derivative
+        return -(alpha * (1.0 if v > distribution[a] else -1.0)
+                 + (1.0 - alpha) * (1.0 if v > high[a] else -1.0 if v <= low[a] else 0.0))
+
+    x = list(distribution)
+    target = max(remaining_risk, min(qmin_values))
+    tolerance = 1e-12 * sum(q * p for q, p in zip(qmin_values, distribution))  # relative: qmin values can be tiny (1e-9 and below)
+    for _ in range(50 * n):
+        excess = sum(q * p for q, p in zip(qmin_values, x)) - target
+        if excess <= tolerance:
+            break
+        best = None
+        for i in range(n):
+            if x[i] <= 0.0:
+                continue
+            down = cost_per_unit_down(i, x[i])
+            for j in range(n):
+                gain = qmin_values[i] - qmin_values[j]
+                if gain <= 0.0 or x[j] >= 1.0:
+                    continue
+                candidate = ((down + cost_per_unit_up(j, x[j])) / gain, -gain, i, j)
+                if best is None or candidate < best:
+                    best = candidate
+        if best is None:
+            break
+        _, negative_gain, i, j = best
+        lower = max(k for k in kinks[i] if k < x[i])
+        upper = min([k for k in kinks[j] if k > x[j]] + [1.0])
+        room_down, room_up = x[i] - lower, upper - x[j]
+        step = min(room_down, room_up, excess / -negative_gain)
+        x[i] = lower if step == room_down else x[i] - step
+        x[j] = upper if step == room_up else x[j] + step
+    return x
+
 
 class Shield:
     def __init__(self, model_info: ModelInfo, actions):
@@ -764,18 +830,37 @@ class SelfConstructingShieldOnline(SelfConstructingShield):
         return output_distribution
 
 
-class ShieldWithBudget(Shield):
+class RiskDistributionShield(Shield):
 
-    def __init__(self, model_info: ModelInfo, actions, nu: float, budget: RiskBudgetFunction, force_wasteless_budget: bool = True, use_l1_projection: bool = True, discount_factor: float = 0.99):
+    def __init__(self, model_info: ModelInfo, actions, nu: float, risk_distribution: RiskDistributionFunction, force_wasteless_risk_distribution: bool = True, use_l1_projection: bool = True, discount_factor: float = 0.99, blocking_lambda: float = None):
         super().__init__(model_info, actions)
         self.nu = nu
-        self.budget = budget
-        self.force_wasteless_budget = force_wasteless_budget
-        # Toggle purely for comparing the two blocked-branch correction mechanisms against each
-        # other (see _closest_allowed_distribution vs the shared clamp_distribution) - not
-        # exposed via ShieldProcessor/shielding.py, the L1 projection is strictly better so
-        # there's no reason to prefer clamping outside of that comparison.
-        self.use_l1_projection = use_l1_projection
+        self.risk_distribution = risk_distribution
+        self.force_wasteless_risk_distribution = force_wasteless_risk_distribution
+        # Upper value of a successor state, used for qmax and for the usable headroom in _make_wasteless: vmax, unless the
+        # risk distribution brings its own capacity per state (CapacityInformedRiskDistribution), then vmin + capacity.
+        capacity = getattr(risk_distribution, "capacity", None)
+        if capacity is None:
+            self._upper_values = model_info.vmax
+            self._block_tolerance = 0.0
+        else:
+            self._upper_values = [model_info.vmin[s] + capacity(s) for s in range(model_info.model.nr_states)]
+            # With exact policy values the remaining risk equals the policy's own minimal risk in many states, so
+            # floating point noise would decide whether such a call counts as blocked (and, with the clamp correction,
+            # flips it into a full clamp); a violation below 1e-12 is not one.
+            self._block_tolerance = 1e-12
+        # How a blocked distribution is corrected, see _blocked_distribution: blocking_lambda = 1 is the
+        # L1-closest allowed distribution (use_l1_projection=True, the default), blocking_lambda = 0 is clamping to the
+        # vmin-safe actions (use_l1_projection=False), and in between the correction minimises
+        # lambda * L1(proposed, corrected) + (1 - lambda) * L1(clamped, corrected) over the allowed distributions.
+        if blocking_lambda is None:
+            blocking_lambda = 1.0 if use_l1_projection else 0.0
+        elif not use_l1_projection and blocking_lambda != 0.0:
+            raise ValueError(f"use_l1_projection=False means clamping, which is blocking_lambda=0, not {blocking_lambda}.")
+        if not 0.0 <= blocking_lambda <= 1.0:
+            raise ValueError(f"blocking_lambda has to be in [0, 1], got {blocking_lambda}.")
+        self.blocking_lambda = float(blocking_lambda)
+        self.use_l1_projection = self.blocking_lambda == 1.0
         # Sum of the L1 distance between the proposed and allowed distribution over every
         # shield_calls (0 for calls that weren't blocked) - lets total_intervention_cost /
         # shield_calls give the expected (undiscounted) intervention cost D from the J_gamma
@@ -783,8 +868,7 @@ class ShieldWithBudget(Shield):
         # of a correction given that one happened.
         self.total_intervention_cost = 0.0
         # Discounted version of the same J_gamma objective (gamma^t * D_t, t = decision index
-        # since the start of that trace's current episode, matching RiskBudgetTrainingEnv's own
-        # gamma convention). Accumulated per-trace_index while an episode is in progress and
+        # since the start of that trace's current episode). Accumulated per-trace_index while an episode is in progress and
         # folded into total_discounted_intervention_cost/completed_discounted_episodes only once
         # that trace resets into a new episode - so a still-in-progress trace at the end of an
         # evaluation run is excluded, same as how episode counts elsewhere only count completed
@@ -865,7 +949,7 @@ class ShieldWithBudget(Shield):
             row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + choice_index
             row = self.model_info.model.transition_matrix.get_row(row_index)
             for entry in row:
-                qmax += prob * entry.value() * self.model_info.vmax[entry.column]
+                qmax += prob * entry.value() * self._upper_values[entry.column]
         return qmax
 
     def _transition_prob(self, last_state, distribution, action, current_state):
@@ -914,32 +998,64 @@ class ShieldWithBudget(Shield):
                 break
         return d
 
-    def _make_wasteless(self, risk_budget_distribution, last_state, last_distribution, slack):
-        # Re-project risk_budget_distribution (a distribution over (action, next-state) pairs) onto
+    def _blocked_distribution(self, state, distribution, remaining_risk):
+        """The distribution that replaces a blocked one: the minimiser, over the allowed distributions x, i.e. those with
+        qmin(state, x) <= remaining_risk, of  lambda * L1(distribution, x) + (1 - lambda) * L1(clamped, x)  where
+        clamped = clamp_distribution(distribution, vmin-safe actions of the state) and lambda = self.blocking_lambda.
+         - lambda = 1: the L1-closest allowed distribution (_closest_allowed_distribution), the clamp does not enter.
+         - lambda = 0: clamped, exactly the old clamp mode, which returns the clamp even where it exceeds the remaining
+           risk. That happens when rounding (rounding_precision) makes every action count as vmin-safe, so that clamping
+           changes nothing although the remaining risk is exceeded. For 0 < lambda < 1 the result is always allowed (a
+           remaining risk below the smallest qmin of the state cannot be met by any distribution, that qmin is the target).
+         - 0 < lambda <= 1/2: clamped if it is allowed (by the triangle inequality the objective is at least
+           lambda * L1(distribution, clamped) + (1 - 2 * lambda) * L1(clamped, x), with equality at x = clamped, so every
+           lambda below 1/2 gives exactly the clamp, and at 1/2 every allowed distribution between distribution and clamped is
+           optimal), otherwise _blend_distribution started from clamped.
+         - 1/2 < lambda < 1: when the L1 projection lies between distribution and clamped in every coordinate it is optimal (it
+           minimises the first term and is free of the second); otherwise _blend_distribution started from distribution."""
+        lam = self.blocking_lambda
+        if lam >= 1.0:
+            return self._closest_allowed_distribution(state, distribution, remaining_risk)
+        clamped = clamp_distribution(distribution, self.vmin_actions[state])
+        if lam <= 0.0:
+            return clamped
+        qmin_values = self.action_qmin_values[state]
+        clamped_qmin = sum(p * q for p, q in zip(clamped, qmin_values))
+        if lam <= 0.5:
+            if clamped_qmin <= remaining_risk + max(self._block_tolerance, 1e-12 * remaining_risk):
+                return clamped
+            return _blend_distribution(clamped, distribution, qmin_values, remaining_risk, 1.0 - lam)
+        projected = self._closest_allowed_distribution(state, distribution, remaining_risk)
+        if _inside_box(projected, distribution, clamped):
+            return projected
+        return _blend_distribution(distribution, clamped, qmin_values, remaining_risk, lam)
+
+    def _make_wasteless(self, risk_shares, last_state, last_distribution, slack):
+        # Re-project risk_shares (the risk distribution, a distribution over (action, next-state) pairs) onto
         # the closest (L1) distribution that never allocates a pair more share than it can use, i.e.
         # wasteless(a,s') * slack <= last_distribution(a) * P(last_state,a,s') * (vmax(s') - vmin(s')).
         # When slack <= 0 that inequality is either vacuous (slack == 0) or would flip into a lower
         # bound (slack < 0), so there's no constraint to enforce.
-        if slack <= 0 or not risk_budget_distribution:
-            return risk_budget_distribution
+        if slack <= 0 or not risk_shares:
+            return risk_shares
 
         upper_bounds = {}
-        for (a, s2) in risk_budget_distribution:
+        for (a, s2) in risk_shares:
             weighted_prob = self._transition_prob(last_state, last_distribution, a, s2)
-            upper_bounds[(a, s2)] = weighted_prob * (self.model_info.vmax[s2] - self.model_info.vmin[s2]) / slack
+            upper_bounds[(a, s2)] = weighted_prob * (self._upper_values[s2] - self.model_info.vmin[s2]) / slack
 
-        clamped = {pair: min(prob, upper_bounds[pair]) for pair, prob in risk_budget_distribution.items()}
+        clamped = {pair: min(prob, upper_bounds[pair]) for pair, prob in risk_shares.items()}
         excess = 1.0 - sum(clamped.values())
         if excess <= 1e-9:
-            return risk_budget_distribution
+            return risk_shares
 
         # The L1-minimal projection isn't unique here - any way of redistributing `excess` among
         # pairs with headroom achieves the same minimal L1 cost. Split proportionally to headroom.
-        headroom = {pair: upper_bounds[pair] - clamped[pair] for pair in risk_budget_distribution}
+        headroom = {pair: upper_bounds[pair] - clamped[pair] for pair in risk_shares}
         total_headroom = sum(headroom.values())
-        assert total_headroom >= excess - 1e-9, "Risk-budget distribution cannot be made wasteless: insufficient headroom to redistribute excess probability mass."
+        assert total_headroom >= excess - 1e-9, "Risk distribution cannot be made wasteless: insufficient headroom to redistribute excess probability mass."
 
-        return {pair: clamped[pair] + excess * headroom[pair] / total_headroom for pair in risk_budget_distribution}
+        return {pair: clamped[pair] + excess * headroom[pair] / total_headroom for pair in risk_shares}
 
     def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
 
@@ -983,23 +1099,20 @@ class ShieldWithBudget(Shield):
             qmax = self._qmax(self.last_states[trace_index], self.last_distributions[trace_index])
             slack = min(self.remaining_risk[trace_index], qmax) - self.last_qmin_ds[trace_index]
 
-            risk_budget_distribution = self.budget(self.history[trace_index], self.last_distributions[trace_index])
-            if self.force_wasteless_budget:
-                risk_budget_distribution = self._make_wasteless(
-                    risk_budget_distribution, self.last_states[trace_index], self.last_distributions[trace_index], slack)
-            risk_budget = risk_budget_distribution.get((local_last_action, current_state), 0.0)
+            risk_shares = self.risk_distribution(self.history[trace_index], self.last_distributions[trace_index])
+            if self.force_wasteless_risk_distribution:
+                risk_shares = self._make_wasteless(
+                    risk_shares, self.last_states[trace_index], self.last_distributions[trace_index], slack)
+            risk_share = risk_shares.get((local_last_action, current_state), 0.0)
 
-            self.remaining_risk[trace_index] = self.model_info.vmin[current_state] + (risk_budget*slack)/transition_prob
+            self.remaining_risk[trace_index] = self.model_info.vmin[current_state] + (risk_share*slack)/transition_prob
 
 
         self.last_qmin_ds[trace_index] = self._qmin(current_state, distribution)
 
-        if self.last_qmin_ds[trace_index] > self.remaining_risk[trace_index]:
+        if self.last_qmin_ds[trace_index] > self.remaining_risk[trace_index] + self._block_tolerance:
             self.blocked_actions += 1
-            if self.use_l1_projection:
-                output_distribution = self._closest_allowed_distribution(current_state, distribution, self.remaining_risk[trace_index])
-            else:
-                output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
+            output_distribution = self._blocked_distribution(current_state, distribution, self.remaining_risk[trace_index])
             cost = sum(abs(p - q) for p, q in zip(distribution, output_distribution))
             self.total_intervention_cost += cost
             self.last_qmin_ds[trace_index] = self._qmin(current_state, output_distribution) # this needs to be updated because the distribution was changed, otherwise the remaining risk will be wrong in the next step
