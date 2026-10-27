@@ -48,7 +48,7 @@ def compute_finite_horizon_policy(model, horizon: int, reward_name: str = "rews"
         acts = []
         for a in range(n_a):
             row = tm.get_row(start + a)
-            succs = [(e.column, e.value()) for e in row]
+            succs = [(e.column, e.value) for e in row]
             if rm.has_state_action_rewards:
                 rew = rm.get_state_action_reward(start + a)
             elif arrival_rewards is not None and not all(s2 == s for s2, _ in succs):
@@ -110,7 +110,7 @@ def compute_bad_probability(model, policy_table, horizon: int, bad_label: str = 
         acts = []
         for a in range(n_a):
             row = tm.get_row(start + a)
-            acts.append([(e.column, e.value()) for e in row])
+            acts.append([(e.column, e.value) for e in row])
         actions_per_state.append(acts)
 
     Q = np.array([1.0 if s in bad_states else 0.0 for s in range(n_states)])

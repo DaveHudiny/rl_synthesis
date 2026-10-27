@@ -7,7 +7,7 @@ import stormpy
 class ModelInfo:
     """Information about a model."""
 
-    model: stormpy.storage.SparsePomdp
+    model: stormpy.models.SparsePomdp
     observation_to_state: list[int]
     bad_state: str
     vmin: list[float]

@@ -13,9 +13,9 @@ authors = [
     { name = "R. Andriushchenko", email = "iandri@fit.vut.cz" },
     { name = "F. Macák", email = "imacak@fit.vut.cz" },
 ]
-requires-python = ">=3.10,<3.12"
+requires-python = ">=3.11,<3.12"  # stormpy >= 2.0 / paynt >= 0.5.0 need 3.11+, TensorFlow 2.15 at most 3.11
 dependencies = [
-    "paynt",
+    "paynt>=0.5.0",
     "jax==0.4.18",
     "jaxlib==0.4.18",
     "tensorflow==2.15",
@@ -25,7 +25,7 @@ dependencies = [
     "aalpy",
     "scikit-learn",
     "chex",
-    "stormpy"
+    "stormpy>=2.0.0"
 ]
 classifiers = [
     'Intended Audience :: Science/Research',

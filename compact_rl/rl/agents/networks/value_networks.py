@@ -4,7 +4,7 @@ import tensorflow as tf
 import tf_agents
 from tf_agents.environments import tf_py_environment
 
-from stormpy.storage import SparsePomdp
+from stormpy.models import SparsePomdp
 
 import numpy as np
 

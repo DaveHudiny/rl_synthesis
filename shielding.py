@@ -1,6 +1,6 @@
 import pickle
 from compact_rl.rl.shielding.shielding_options import ShieldingOptions
-from compact_rl.robust_rl.robust_rl_tools import load_sketch
+from compact_rl.rl.shielding.model_loading import load_sketch
 
 import os
 import click
@@ -21,6 +21,7 @@ from compact_rl.rl.tests.general_test_tools import init_args
 from compact_rl.rl.shielding.shield_processor import ShieldProcessor
 from compact_rl.rl.shielding.risk_distribution import RISK_DISTRIBUTIONS
 import compact_rl.rl.shielding.shields
+from compact_rl.rl.shielding.storm_tools import model_check
 from compact_rl.rl.tools.trajectory_buffer import TrajectoryBuffer
 from tf_agents.policies.tf_policy import TFPolicy
 from compact_rl.rl.tools.evaluation_results_class import EvaluationResults
@@ -31,14 +32,10 @@ from compact_rl.rl.shielding.shielded_model_checking import model_check_given_po
 
 from tqdm import tqdm
 
-# PAYNT implementation imports
-from paynt.rl_extension.self_interpretable_interface.black_box_extraction import BlackBoxExtractor
-
 import payntbind
 import stormpy
 
-# load_sketch comes from the import above (compact_rl.robust_rl.robust_rl_tools) - it already
-# handles both PRISM sketches and Storm UMB binary-format model exports; no local override needed.
+# load_sketch (compact_rl.rl.shielding.model_loading) handles PRISM sketches and Storm UMB model exports.
 
 
 def create_json_file_name(project_path, seed=""):
@@ -55,7 +52,7 @@ def create_json_file_name(project_path, seed=""):
     return json_path
 
 
-def init_extractor(model, args: ArgsEmulator, latent_dim=9, autlearn_extraction=True, steps_to_take=4000, training_epochs=1001) -> BlackBoxExtractor:
+def init_extractor(model, args: ArgsEmulator, latent_dim=9, autlearn_extraction=True, steps_to_take=4000, training_epochs=1001) -> "BlackBoxExtractor":
     """Function that initializes the FSC extractor/synthesizer.
     Args:
         args (ArgsEmulator): Arguments object containing various settings for the RL and extraction process.
@@ -67,6 +64,8 @@ def init_extractor(model, args: ArgsEmulator, latent_dim=9, autlearn_extraction=
     Returns:
         BlackBoxExtractor: Initialized object that performs the SIG or Alergia extraction.
     """
+    # the extractor lives in the old paynt fork (paynt/rl_extension), not yet ported to paynt >= 0.5.0
+    from paynt.rl_extension.self_interpretable_interface.black_box_extraction import BlackBoxExtractor
     # family_quotient_numpy = FamilyQuotientNumpy(model)
     direct_extractor = BlackBoxExtractor(memory_len=latent_dim, is_one_hot=True,
                                           use_residual_connection=True, training_epochs=training_epochs,
@@ -407,8 +406,8 @@ def main(project, nu, shield, risk_distribution, use_clamp, blocking_lambda, no_
         if type(shield_processor.shield) in [compact_rl.rl.shielding.shields.SelfConstructingShield, compact_rl.rl.shielding.shields.SelfConstructingShieldOnline, compact_rl.rl.shielding.shields.SelfConstructingShieldOffline]:
             if shield_processor.shield.memory > 0:
                 final_allow_mdp = payntbind.synthesis.createMdpFromVectorMatrix(shield_processor.shield.memory_unfolded_model, shield_processor.shield.current_matrix_vector)
-                result = stormpy.model_checking(final_allow_mdp, shield_processor.shield.safety_property[0])
-                print(f"Initial state value of allow MDP: {result.get_values()[final_allow_mdp.initial_states[0]]}")
+                result = model_check(final_allow_mdp, shield_processor.shield.safety_property[0])
+                print(f"Initial state value of allow MDP: {result.get_value(final_allow_mdp.initial_states[0])}")
             else:
                 print(f"Tree size: {shield_processor.shield.initial_node.number_of_tree_nodes()}")
                 print(f"Initial node values: {shield_processor.shield.initial_node.value}")
@@ -420,7 +419,7 @@ def main(project, nu, shield, risk_distribution, use_clamp, blocking_lambda, no_
         print(eval_result["counted_episodes"], eval_result["average_episode_length"], shield_processor.shield.shield_calls, eval_elapsed_time, eval_result["virtual_returns"], eval_result["reach_probs"],  eval_result["average_bad_outcome_prob"], shield_processor.shield.blocked_actions, shield_processor.shield.added_nonoptimal_actions, end=";", sep=";")
         if type(shield_processor.shield) in [compact_rl.rl.shielding.shields.SelfConstructingShield, compact_rl.rl.shielding.shields.SelfConstructingShieldOnline, compact_rl.rl.shielding.shields.SelfConstructingShieldOffline]:
             if shield_processor.shield.memory > 0:
-                print(result.get_values()[final_allow_mdp.initial_states[0]], end="", sep=";")
+                print(result.get_value(final_allow_mdp.initial_states[0]), end="", sep=";")
             else:
                 print(shield_processor.shield.initial_node.value, shield_processor.shield.initial_node.number_of_tree_nodes(), end="", sep=";")
         print()
@@ -440,7 +439,7 @@ def main(project, nu, shield, risk_distribution, use_clamp, blocking_lambda, no_
                 f.write(f'{eval_result["counted_episodes"]};{eval_result["average_episode_length"]};{shield_processor.shield.shield_calls};{eval_elapsed_time};{eval_result["virtual_returns"]};{eval_result["reach_probs"]};{eval_result["average_bad_outcome_prob"]};{shield_processor.shield.blocked_actions};{shield_processor.shield.added_nonoptimal_actions};')
                 if type(shield_processor.shield) in [compact_rl.rl.shielding.shields.SelfConstructingShield, compact_rl.rl.shielding.shields.SelfConstructingShieldOnline, compact_rl.rl.shielding.shields.SelfConstructingShieldOffline]:
                     if shield_processor.shield.memory > 0:
-                        f.write(f"{result.get_values()[final_allow_mdp.initial_states[0]]};\n")
+                        f.write(f"{result.get_value(final_allow_mdp.initial_states[0])};\n")
                     else:
                         f.write(f"{shield_processor.shield.initial_node.value};{shield_processor.shield.initial_node.number_of_tree_nodes()}\n")
                 else:

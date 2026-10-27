@@ -47,13 +47,11 @@ class POMDP_builder:
             raw_formula: The raw formula.
         """
         prism_program = sp.parse_prism_program(input.prism)
-        prop = sp.parse_properties_for_prism_program(
-            input.properties[0], prism_program)[0]
-        prism_program, props = stormpy.preprocess_symbolic_input(
-            prism_program, [prop], input.constants)
+        prop = sp.parse_properties(input.properties[0], prism_program)[0]
+        # stormpy >= 2.0: instantiate_constants replaces preprocess_symbolic_input and keeps the program a PrismProgram
+        prism_program, props = sp.instantiate_constants(prism_program, input.constants, [prop])
         prop = props[0]
-        prism_program = prism_program.as_prism_program()
-        raw_formula = prop.raw_formula
+        raw_formula = prop.get_raw_formula()
         logger.info("Construct POMDP representation...")
         model = POMDP_builder.build_pomdp(prism_program, raw_formula)
         model = sp.pomdp.make_canonic(model)
@@ -77,7 +75,7 @@ class POMDP_builder:
         options.set_build_all_reward_models()
         options.set_build_observation_valuations()
         logger.debug("Start building the POMDP")
-        return sp.build_sparse_model_with_options(program, options)
+        return sp.build_model(program, options=options)
 
 
 if __name__ == "__main__":

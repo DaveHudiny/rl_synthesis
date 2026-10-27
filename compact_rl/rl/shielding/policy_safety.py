@@ -21,7 +21,7 @@ def policy_safety_values(model, state_distributions, bad_label: str = "bad") -> 
             for entry in transition_matrix.get_row(start + action):
                 rows.append(state)
                 cols.append(entry.column)
-                vals.append(prob * entry.value())
+                vals.append(prob * entry.value)
     P = sp.csr_matrix((vals, (rows, cols)), shape=(n, n))
 
     bad = np.zeros(n, dtype=bool)

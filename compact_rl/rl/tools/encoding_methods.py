@@ -25,7 +25,7 @@ def create_one_hot_encoding(observation, possible_observations):
 
 
 def create_valuations_encoding(observation, stormpy_model):
-    valuations_json = stormpy_model.observation_valuations.get_json(
+    valuations_json = stormpy_model.observation_valuations.to_json(
         observation)
     parsed_valuations = json.loads(str(valuations_json))
     vector = []
@@ -41,7 +41,7 @@ def create_valuations_encoding(observation, stormpy_model):
 
 
 def create_valuations_encoding_plus(observation, stormpy_model, state_number):
-    valuations_json = stormpy_model.observation_valuations.get_json(
+    valuations_json = stormpy_model.observation_valuations.to_json(
         observation)
     parsed_valuations = json.loads(str(valuations_json))
     vector = []

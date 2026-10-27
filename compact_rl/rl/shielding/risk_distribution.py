@@ -50,8 +50,8 @@ def reachable_pair_probs(model_info: ModelInfo, state: State, action_distributio
             continue
         row = transition_matrix.get_row(row_group_start + action)
         for entry in row:
-            if entry.value() > 0.0:
-                probs[(action, entry.column)] = entry.value()
+            if entry.value > 0.0:
+                probs[(action, entry.column)] = entry.value
     return probs
 
 

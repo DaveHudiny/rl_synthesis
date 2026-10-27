@@ -85,7 +85,7 @@ class Environment_Wrapper(py_environment.PyEnvironment):
         self.random_start_simulator = randomized_bool
         if not randomized_bool:
             nr_states = self.stormpy_model.nr_states
-            bitvector = stormpy.BitVector(nr_states, self.original_init_state)
+            bitvector = stormpy.datastructures.BitVector(nr_states, self.original_init_state)
             self.stormpy_model.set_initial_states(bitvector)
 
     def set_new_qvalues_table(self, qvalues_table):
@@ -129,7 +129,7 @@ class Environment_Wrapper(py_environment.PyEnvironment):
                 shape=tf.TensorShape((1,)), dtype=tf.float32, name="observation"),
         elif self.encoding_method == "Valuations":
             try:
-                json_example = self.stormpy_model.observation_valuations.get_json(
+                json_example = self.stormpy_model.observation_valuations.to_json(
                     0)
                 parse_data = json.loads(str(json_example))
                 observation_spec = tensor_spec.TensorSpec(shape=(
@@ -142,7 +142,7 @@ class Environment_Wrapper(py_environment.PyEnvironment):
                 self.args = "One-Hot"
         elif self.encoding_method == "Valuations++":
             try:
-                json_example = self.stormpy_model.observation_valuations.get_json(
+                json_example = self.stormpy_model.observation_valuations.to_json(
                     0)
                 parse_data = json.loads(str(json_example))
                 observation_spec = tensor_spec.TensorSpec(shape=(
@@ -155,7 +155,7 @@ class Environment_Wrapper(py_environment.PyEnvironment):
                 self.args = "One-Hot"
         elif self.encoding_method == "Extended_Valuations":
             try:
-                json_example = self.stormpy_model.observation_valuations.get_json(
+                json_example = self.stormpy_model.observation_valuations.to_json(
                     0)
                 parse_data = json.loads(str(json_example))
                 reward_size = 1
@@ -258,7 +258,7 @@ class Environment_Wrapper(py_environment.PyEnvironment):
 
     def _set_init_state(self, index: int = 0):
         nr_states = self.stormpy_model.nr_states
-        indices_bitvector = stormpy.BitVector(nr_states, [index])
+        indices_bitvector = stormpy.datastructures.BitVector(nr_states, [index])
         self.stormpy_model.set_initial_states(indices_bitvector)
 
     def _uniformly_change_init_state(self):

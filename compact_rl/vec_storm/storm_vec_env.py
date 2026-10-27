@@ -81,7 +81,7 @@ class StormVecEnvBuilder:
             state_valuations = quotient_state_valuations
 
         
-        state_labels = list(json.loads(str(state_valuations.get_json(0))).keys())
+        state_labels = list(json.loads(str(state_valuations.to_json(0))).keys())
         nr_state_labes = len(state_labels)
         state_values_by_ids = np.zeros((pomdp.nr_states, nr_state_labes), dtype=np.float32)
         for state in range(nr_states):
@@ -92,7 +92,7 @@ class StormVecEnvBuilder:
                     if label != cls.NO_LABEL:
                         action_idx = action_labels2indices[label]
                         row_map[state * nr_actions + action_idx] = pomdp.transition_matrix.get_rows_for_group(state)[action_offset]
-            state_valuation_json = json.loads(str(state_valuations.get_json(state)))
+            state_valuation_json = json.loads(str(state_valuations.to_json(state)))
             state_values_by_ids[state] = np.array(list(state_valuation_json.values()), dtype=np.float32)
 
         # Transitions
@@ -179,13 +179,13 @@ class StormVecEnvBuilder:
         if hasattr(pomdp, "observations"):
             try:
                 valuations = pomdp.observation_valuations
-                nr_observables = len(json.loads(str(valuations.get_json(0))))
+                nr_observables = len(json.loads(str(valuations.to_json(0))))
 
                 observations_by_ids = np.zeros((pomdp.nr_observations, nr_observables), dtype=np.float32)
-                observation_labels = list(json.loads(str(valuations.get_json(0))).keys())
+                observation_labels = list(json.loads(str(valuations.to_json(0))).keys())
 
                 for obs_id in range(pomdp.nr_observations):
-                    valuation_json = json.loads(str(valuations.get_json(obs_id)))
+                    valuation_json = json.loads(str(valuations.to_json(obs_id)))
                     observations_by_ids[obs_id] = np.array(list(valuation_json.values()), dtype=np.float32)
                 state_observation_ids = states_to_observations
                 observations = observations_by_ids[state_observation_ids]

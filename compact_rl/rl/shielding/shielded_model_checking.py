@@ -3,6 +3,7 @@ import payntbind
 
 import compact_rl.rl.shielding.shields
 from compact_rl.rl.shielding.model_info import ModelInfo
+from compact_rl.rl.shielding.storm_tools import classic_environment, model_check
 
 
 
@@ -116,25 +117,24 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
 
 
 
-    safety_result = stormpy.model_checking(dtmc, safety_formula[0])
-    full_safety_result = stormpy.model_checking(dtmc, full_safety_formula[0])
+    safety_result = model_check(dtmc, safety_formula[0])
+    full_safety_result = model_check(dtmc, full_safety_formula[0])
     if "goal" in model.labeling.get_labels():
-        goal_result = stormpy.model_checking(dtmc, goal_formula[0])
+        goal_result = model_check(dtmc, goal_formula[0])
     else:
         goal_result = None
     if "fail" in model.labeling.get_labels():
-        fail_result = stormpy.model_checking(dtmc, fail_formula[0])
+        fail_result = model_check(dtmc, fail_formula[0])
     else:
         fail_result = None
-    reward_result = stormpy.model_checking(dtmc, reward_formula[0])
+    reward_result = model_check(dtmc, reward_formula[0])
 
     # Compute expected shield calls and blocked actions
     if expected_shield_calls:
         unfolded_dtmc, state_to_orig_state_step_pairs = payntbind.synthesis.unfoldDtmcWithStepBound(dtmc, episode_length)
         import math
-        environment = stormpy.Environment()
-        result = stormpy.compute_expected_number_of_visits(environment, unfolded_dtmc)
-        expected_visits_values = list(result.get_values())
+        result = stormpy.analysis.compute_expected_number_of_visits(unfolded_dtmc, environment=classic_environment())
+        expected_visits_values = list(result.get_value_vector())
         expected_visits_values = [v if v != float('inf') and not math.isnan(v) else 0.0 for v in expected_visits_values]
         # print(was_state_shielded)
         # print(expected_visits_values)
@@ -165,12 +165,12 @@ def model_check_given_policy_and_shield(state_to_actions, shield, episode_length
         earliest_shielded_step = None
 
     result_dict = {
-        "safety_probability": safety_result.get_values()[dtmc.initial_states[0]],
-        "full_safety_probability": full_safety_result.get_values()[dtmc.initial_states[0]],
-        "goal_reachability": goal_result.get_values()[dtmc.initial_states[0]] if goal_result is not None else 'N/A',
-        "fail_reachability": fail_result.get_values()[dtmc.initial_states[0]] if fail_result is not None else 'N/A',
-        "expected_reward": reward_result.get_values()[dtmc.initial_states[0]],
-        "actual_reward": (goal_value*goal_result.get_values()[dtmc.initial_states[0]] if goal_result is not None else 0) + (antigoal_value*fail_result.get_values()[dtmc.initial_states[0]] if fail_result is not None else 0) + reward_result.get_values()[dtmc.initial_states[0]],
+        "safety_probability": safety_result.get_value(dtmc.initial_states[0]),
+        "full_safety_probability": full_safety_result.get_value(dtmc.initial_states[0]),
+        "goal_reachability": goal_result.get_value(dtmc.initial_states[0]) if goal_result is not None else 'N/A',
+        "fail_reachability": fail_result.get_value(dtmc.initial_states[0]) if fail_result is not None else 'N/A',
+        "expected_reward": reward_result.get_value(dtmc.initial_states[0]),
+        "actual_reward": (goal_value*goal_result.get_value(dtmc.initial_states[0]) if goal_result is not None else 0) + (antigoal_value*fail_result.get_value(dtmc.initial_states[0]) if fail_result is not None else 0) + reward_result.get_value(dtmc.initial_states[0]),
         "expected_shield_calls": num_expected_shield_calls,
         "expected_blocked_actions": num_expected_blocked_actions,
         "earliest_shielded_step": earliest_shielded_step

@@ -49,7 +49,7 @@ class SparseArray:
             row = sparse_matrix.get_row(row_idx)
             for i, entry in enumerate(row):
                 indices[row_starts[sa_idx] + i] = entry.column
-                data[row_starts[sa_idx] + i] = entry.value()
+                data[row_starts[sa_idx] + i] = entry.value
             
         return SparseArray(
             nr_actions = nr_actions,

@@ -27,7 +27,6 @@ from tf_agents.policies.py_tf_eager_policy import PyTFEagerPolicy
 from compact_rl.rl.agents.alternative_training.active_pretraining import EntropyRewardGenerator
 
 from compact_rl.rl.tools.args_emulator import ArgsEmulator, ReplayBufferOptions
-from paynt.quotient.fsc import FscFactored
 
 from keras.optimizers import Adam
 from compact_rl.rl.shielding.shield_processor import ShieldProcessor
@@ -140,7 +139,7 @@ class Recurrent_PPO_agent(FatherAgent):
 
     def train_agent_shielded(self, iterations: int, vectorized: bool = True,
                              replay_buffer_option: ReplayBufferOptions = ReplayBufferOptions.ON_POLICY,
-                             fsc: FscFactored = None,
+                             fsc: "FscFactored" = None,  # paynt.quotient.fsc.FscFactored of the old paynt fork
                              jumpstart_fsc: bool = False,
                              debug: bool = False,
                              shaping=False,

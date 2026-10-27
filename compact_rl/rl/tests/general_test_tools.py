@@ -8,7 +8,7 @@ from compact_rl.rl.environment.tf_py_environment import TFPyEnvironment
 import os
 
 import stormpy
-from paynt.parser.sketch import Sketch
+from compact_rl.rl.shielding.model_loading import load_sketch  # stormpy >= 2.0, paynt >= 0.5.0
 
 
 def init_environment(args : ArgsEmulator) -> tuple[EnvironmentWrapperVec, TFPyEnvironment]:
@@ -37,27 +37,6 @@ class _UmbSketch:
 
     def __init__(self, pomdp):
         self.pomdp = pomdp
-
-
-def _is_umb_archive(sketch_path):
-    # UMB exports are gzip-compressed tar archives (index.json + binary explicit-model files);
-    # PRISM sketches are plain text. Gzip's magic bytes are the cheapest reliable way to tell
-    # them apart without depending on the (currently identical, "sketch.templ") file extension.
-    with open(sketch_path, "rb") as f:
-        return f.read(2) == b"\x1f\x8b"
-
-
-def load_sketch(project_path):
-    project_path = os.path.abspath(project_path)
-    sketch_path = os.path.join(project_path, "sketch.templ")
-    properties_path = os.path.join(project_path, "sketch.props")
-    if _is_umb_archive(sketch_path):
-        umb = stormpy.storage.import_umb(sketch_path)
-        model = stormpy.storage.sparse_model_from_umb(umb)
-        return _UmbSketch(model)
-    pomdp_sketch = Sketch.load_sketch(
-        sketch_path, properties_path)
-    return pomdp_sketch
 
 
 def get_scalarized_reward(rewards, rewards_types):

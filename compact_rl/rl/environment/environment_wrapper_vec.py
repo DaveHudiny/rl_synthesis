@@ -449,7 +449,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         elif self.encoding_method == "MaskedValuations":
             try:
                 action_mask_size = len(self.action_keywords)
-                json_example = self.stormpy_model.observation_valuations.get_json(
+                json_example = self.stormpy_model.observation_valuations.to_json(
                     0)
                 parse_data = json.loads(str(json_example))
                 observation_spec = tensor_spec.TensorSpec(
@@ -843,7 +843,7 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
 
     def encode_observation(self, integer_observation, memory, state) -> dict[str: tf.Tensor]:
         """Encodes the observation based on the integer observation and memory."""
-        # json_valuation = json.loads(str(self.observation_valuations.get_json(integer_observation)))
+        # json_valuation = json.loads(str(self.observation_valuations.to_json(integer_observation)))
         # valuated = np.array(list(json_valuation.values()), dtype=np.float32)
         valuated = self.observation_valuations[integer_observation]
         valuated = tf.constant(valuated, dtype=tf.float32)

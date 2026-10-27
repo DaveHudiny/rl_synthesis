@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from compact_rl.rl.shielding.model_info import ModelInfo
 from compact_rl.rl.shielding.risk_distribution import RiskDistributionFunction
+from compact_rl.rl.shielding.storm_tools import model_check
 import random
 import numpy as np
 from scipy.spatial import ConvexHull
@@ -129,7 +130,7 @@ class StandardShield(Shield):
         row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + action
         row = self.model_info.model.transition_matrix.get_row(row_index)
         for entry in row:
-            next_val += entry.value() * self.model_info.vmin[entry.column]
+            next_val += entry.value * self.model_info.vmin[entry.column]
         next_val_rounded = round(next_val, self.rounding_precision)
         vmin_state_rounded = round(self.model_info.vmin[state], self.rounding_precision)
         return next_val_rounded <= vmin_state_rounded
@@ -164,7 +165,7 @@ class PessimisticShield(Shield):
             row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + choice_index
             row = self.model_info.model.transition_matrix.get_row(row_index)
             for entry in row:
-                qmax += prob * entry.value() * self.model_info.vmax[entry.column]
+                qmax += prob * entry.value * self.model_info.vmax[entry.column]
         return qmax
 
     def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
@@ -197,7 +198,7 @@ class PessimisticShield(Shield):
             last_transition_prob = 0.0
             for entry in row:
                 if entry.column == current_state:
-                    last_transition_prob = entry.value()
+                    last_transition_prob = entry.value
                     break
 
             self.path_probs[trace_index] = self.path_probs[trace_index] * last_transition_prob * self.last_distrs[trace_index][last_choice_index]
@@ -243,7 +244,7 @@ class OptimisticShield(Shield):
             row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + choice_index
             row = self.model_info.model.transition_matrix.get_row(row_index)
             for entry in row:
-                qmin += prob * entry.value() * self.model_info.vmin[entry.column]
+                qmin += prob * entry.value * self.model_info.vmin[entry.column]
         return qmin
 
     def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
@@ -276,7 +277,7 @@ class OptimisticShield(Shield):
             last_transition_prob = 0.0
             for entry in row:
                 if entry.column == current_state:
-                    last_transition_prob = entry.value()
+                    last_transition_prob = entry.value
                     break
 
             self.path_probs[trace_index] = self.path_probs[trace_index] * last_transition_prob * self.last_distrs[trace_index][last_choice_index]
@@ -322,7 +323,7 @@ class DeltaShield(Shield):
             row_index = self.model_info.model.transition_matrix.get_row_group_start(current_state) + choice_index
             row = self.model_info.model.transition_matrix.get_row(row_index)
             for entry in row:
-                expected_value += prob * entry.value() * self.model_info.vmin[entry.column]
+                expected_value += prob * entry.value * self.model_info.vmin[entry.column]
 
         if expected_value - self.model_info.vmin[current_state] < self.delta:
             output_distribution = distribution
@@ -452,7 +453,7 @@ class SelfConstructingShield(Shield):
                 row = self.model_info.model.transition_matrix.get_row(row_index)
                 val = 0.0
                 for entry in row:
-                    val += entry.value() * self.model_info.vmin[entry.column]
+                    val += entry.value * self.model_info.vmin[entry.column]
                 val_rounded = round(val, self.rounding_precision)
                 vmin_state_rounded = round(self.model_info.vmin[state], self.rounding_precision)
                 if val_rounded <= vmin_state_rounded:
@@ -520,9 +521,9 @@ class SelfConstructingShield(Shield):
                     row = self.model_info.model.transition_matrix.get_row(row_index)
                     for entry in row:
                         if (entry.column, distr_index) not in node.successors.keys():
-                            q_value += action_prob * entry.value() * self.model_info.vmin[entry.column]
+                            q_value += action_prob * entry.value * self.model_info.vmin[entry.column]
                         else:
-                            q_value += action_prob * entry.value() * node.successors[(entry.column, distr_index)].value
+                            q_value += action_prob * entry.value * node.successors[(entry.column, distr_index)].value
                 if q_value > best_value:
                     best_value = q_value
             node.value = best_value
@@ -686,9 +687,9 @@ class SelfConstructingShieldOffline(SelfConstructingShield):
                 weighted_row = payntbind.synthesis.createCombinationOfRows(self.full_transition_matrix_vector[memory_state_index], distribution)
                 self.current_matrix_vector[memory_state_index].append(weighted_row)
                 self.current_allow_mdp = payntbind.synthesis.createMdpFromVectorMatrix(self.memory_unfolded_model, self.current_matrix_vector)
-                result = stormpy.model_checking(self.current_allow_mdp, self.safety_property[0])
+                result = model_check(self.current_allow_mdp, self.safety_property[0])
                 self.model_checking_calls += 1
-                if result.at(self.current_allow_mdp.initial_states[0]) > self.nu:
+                if result.get_value(self.current_allow_mdp.initial_states[0]) > self.nu:
                     self.blocked_actions += 1
                     self.current_matrix_vector[memory_state_index].pop()
                     output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
@@ -740,9 +741,9 @@ class SelfConstructingShieldOnline(SelfConstructingShield):
                 weighted_row = payntbind.synthesis.createCombinationOfRows(self.full_transition_matrix_vector[memory_state_index], distribution)
                 self.current_matrix_vector[memory_state_index].append(weighted_row)
                 self.current_allow_mdp = payntbind.synthesis.createMdpFromVectorMatrix(self.memory_unfolded_model, self.current_matrix_vector)
-                result = stormpy.model_checking(self.current_allow_mdp, self.safety_property[0])
+                result = model_check(self.current_allow_mdp, self.safety_property[0])
                 self.model_checking_calls += 1
-                if result.at(self.current_allow_mdp.initial_states[0]) > self.nu:
+                if result.get_value(self.current_allow_mdp.initial_states[0]) > self.nu:
                     self.current_matrix_vector[memory_state_index].pop()
                 else:
                     self.current_action_distributions[memory_state_index].append(distribution)
@@ -923,7 +924,7 @@ class RiskDistributionShield(Shield):
                 row = self.model_info.model.transition_matrix.get_row(row_index)
                 val = 0.0
                 for entry in row:
-                    val += entry.value() * self.model_info.vmin[entry.column]
+                    val += entry.value * self.model_info.vmin[entry.column]
                 qmin_values.append(val)
                 val_rounded = round(val, self.rounding_precision)
                 vmin_state_rounded = round(self.model_info.vmin[state], self.rounding_precision)
@@ -940,7 +941,7 @@ class RiskDistributionShield(Shield):
             row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + choice_index
             row = self.model_info.model.transition_matrix.get_row(row_index)
             for entry in row:
-                qmin += prob * entry.value() * self.model_info.vmin[entry.column]
+                qmin += prob * entry.value * self.model_info.vmin[entry.column]
         return qmin
 
     def _qmax(self, state, distr):
@@ -949,7 +950,7 @@ class RiskDistributionShield(Shield):
             row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + choice_index
             row = self.model_info.model.transition_matrix.get_row(row_index)
             for entry in row:
-                qmax += prob * entry.value() * self._upper_values[entry.column]
+                qmax += prob * entry.value * self._upper_values[entry.column]
         return qmax
 
     def _transition_prob(self, last_state, distribution, action, current_state):
@@ -958,7 +959,7 @@ class RiskDistributionShield(Shield):
         prob = 0.0
         for entry in row:
             if entry.column == current_state:
-                prob += distribution[action] * entry.value()
+                prob += distribution[action] * entry.value
         return prob
 
     def _local_action_index(self, state, global_action):

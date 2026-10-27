@@ -2,6 +2,7 @@ from compact_rl.rl.tools.args_emulator import ArgsEmulator
 import tensorflow as tf
 
 from compact_rl.rl.shielding.model_info import ModelInfo
+from compact_rl.rl.shielding.storm_tools import model_check
 import compact_rl.rl.shielding.shields
 from compact_rl.rl.shielding.constructed_shield_data import ShieldData
 from compact_rl.rl.shielding.risk_distribution import RISK_DISTRIBUTIONS, CapacityInformedRiskDistribution
@@ -37,7 +38,7 @@ class _RunningStat:
 
 
 class ShieldProcessor:
-    def __init__(self, actions : list[str], model : stormpy.storage.SparsePomdp, nu : float, shield_type : str, args : ArgsEmulator = None, shield_memory : int = 0, debug: bool = False, shield_folder: str = None, deterministic_agent: bool = False, risk_distribution: str = "capacity", use_clamp: bool = False, force_wasteless_risk_distribution: bool = True, discount_factor: float = 0.99, policy_values=None, informed_trust: float = 1.0, blocking_lambda: float = None):
+    def __init__(self, actions : list[str], model : stormpy.models.SparsePomdp, nu : float, shield_type : str, args : ArgsEmulator = None, shield_memory : int = 0, debug: bool = False, shield_folder: str = None, deterministic_agent: bool = False, risk_distribution: str = "capacity", use_clamp: bool = False, force_wasteless_risk_distribution: bool = True, discount_factor: float = 0.99, policy_values=None, informed_trust: float = 1.0, blocking_lambda: float = None):
         self.args = args
         self.actions = actions
         self.shield_folder = shield_folder
@@ -46,7 +47,7 @@ class ShieldProcessor:
         assert model.nr_states == model.nr_observations, "We currently only support shielding for MDPs."
         assert model.initial_states is not None and len(model.initial_states) == 1, "We currently only support single initial state models."
 
-        components = stormpy.SparseModelComponents(transition_matrix=model.transition_matrix,
+        components = stormpy.models.SparseModelComponents(transition_matrix=model.transition_matrix,
                                                   reward_models=model.reward_models,
                                                   state_labeling=model.labeling)
 
@@ -56,15 +57,11 @@ class ShieldProcessor:
         if model.has_choice_origins():
             components.choice_origins = model.choice_origins
         
-        mdp = stormpy.storage.SparseMdp(components)
+        mdp = stormpy.models.SparseMdp(components)
 
         # get Vmin and Vmax values for all states
-        min_formula = stormpy.parse_properties("Pmin=? [ F \"bad\" ]")
-        max_formula = stormpy.parse_properties("Pmax=? [ F \"bad\" ]")
-        min_result = stormpy.model_checking(mdp, min_formula[0])
-        max_result = stormpy.model_checking(mdp, max_formula[0])
-        vmin = min_result.get_values()
-        vmax = max_result.get_values()
+        vmin = model_check(mdp, "Pmin=? [ F \"bad\" ]").get_value_vector()
+        vmax = model_check(mdp, "Pmax=? [ F \"bad\" ]").get_value_vector()
         # Print vmin and vmax for the initial state
         print("Vmin and Vmax for initial state:", vmin[mdp.initial_states[0]], vmax[mdp.initial_states[0]])
 
@@ -74,28 +71,23 @@ class ShieldProcessor:
         if debug:
             print(model)
             if "goal" in model.labeling.get_labels():
-                reach_formula = stormpy.parse_properties("Pmax=? [ F \"goal\" ]")
-                until_formula = stormpy.parse_properties("Pmax=? [ !\"bad\" U \"goal\" ]")
-                goal_formula = stormpy.parse_properties("Pmax=? [ F \"goal\" ]")
-                reach_result = stormpy.model_checking(mdp, reach_formula[0])
-                until_result = stormpy.model_checking(mdp, until_formula[0])
-                goal_result = stormpy.model_checking(mdp, goal_formula[0])
-                print("Max reachability probabilities to goal from initial state:", reach_result.get_values()[mdp.initial_states[0]])
-                print("Max until probabilities to goal from initial state:", until_result.get_values()[mdp.initial_states[0]])
+                reach_result = model_check(mdp, "Pmax=? [ F \"goal\" ]")
+                until_result = model_check(mdp, "Pmax=? [ !\"bad\" U \"goal\" ]")
+                print("Max reachability probabilities to goal from initial state:", reach_result.get_value(mdp.initial_states[0]))
+                print("Max until probabilities to goal from initial state:", until_result.get_value(mdp.initial_states[0]))
             # print(vmin)
             # print(self.bad_states)
-            reward_formula = stormpy.parse_properties("Rmax=? [ C<=100 ]")
-            reward_result = stormpy.model_checking(mdp, reward_formula[0])
+            reward_result = model_check(mdp, "Rmax=? [ C<=100 ]")
             print(f"Vmin {vmin[mdp.initial_states[0]]}, Vmax {vmax[mdp.initial_states[0]]}")
-            print("Max expected rewards from initial state:", reward_result.get_values()[mdp.initial_states[0]])
+            print("Max expected rewards from initial state:", reward_result.get_value(mdp.initial_states[0]))
 
             # win_formula = stormpy.parse_properties("Pmax=? [ F \"win\" ]")
             # win_result = stormpy.model_checking(mdp, win_formula[0])
-            # print("Max reachability probabilities to win from initial state:", win_result.get_values()[mdp.initial_states[0]])
+            # print("Max reachability probabilities to win from initial state:", win_result.get_value(mdp.initial_states[0]))
 
             # min_lose_formula = stormpy.parse_properties("Pmin=? [ F \"lose\" | \"bad\" ]")
             # min_lose_result = stormpy.model_checking(mdp, min_lose_formula[0])
-            # print("Min reachability probabilities to lose from initial state:", min_lose_result.get_values()[mdp.initial_states[0]])
+            # print("Min reachability probabilities to lose from initial state:", min_lose_result.get_value(mdp.initial_states[0]))
             exit()
 
         observation_to_state = [None] * model.nr_observations
