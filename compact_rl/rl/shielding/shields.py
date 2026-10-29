@@ -22,69 +22,8 @@ def clamp_distribution(distribution, allowed_actions):
     return [prob / total_prob if action in allowed_actions else 0.0 for action, prob in enumerate(distribution)]
 
 
-def _inside_box(candidate, distribution, clamped, tolerance=1e-12):
-    """Whether `candidate` lies between `distribution` and `clamped` in every coordinate."""
-    return all(min(d, e) - tolerance <= x <= max(d, e) + tolerance for x, d, e in zip(candidate, distribution, clamped))
-
-
-def _blend_distribution(distribution, other, qmin_values, remaining_risk, weight):
-    """Exact minimiser x, over the distributions with sum_a qmin_values[a] * x[a] <= remaining_risk, of
-
-        weight * L1(distribution, x) + (1 - weight) * L1(other, x),        1/2 <= weight < 1,
-
-    (a remaining_risk below the smallest qmin value is replaced by that value, the best any distribution can do).
-
-    With alpha = 2 * weight - 1 the objective equals (1 - weight) * L1(distribution, other) + alpha * L1(distribution, x)
-    + (1 - alpha) * dist_L1(x, B), B being the box between `distribution` and `other` in every coordinate. The cost of one
-    coordinate is therefore piecewise linear and convex, with break points at 0, distribution[a] and other[a]. Starting from
-    x = distribution, mass is moved from one action to another, each time along the pair (from, to) with the lowest increase
-    of the objective per unit of qmin removed (qmin_values[from] - qmin_values[to]), up to the next break point of either
-    coordinate, until qmin is within remaining_risk. Ties are broken towards the larger reduction and then the lower
-    indices, the same convention as the L1 projection. This is exact (verified against an LP solver), and LP-free because
-    the best direction in the cone of mass transfers is always a single transfer."""
-    n = len(distribution)
-    alpha = 2.0 * weight - 1.0
-    low = [min(d, e) for d, e in zip(distribution, other)]
-    high = [max(d, e) for d, e in zip(distribution, other)]
-    kinks = [sorted({0.0, distribution[a], other[a]}) for a in range(n)]
-
-    def cost_per_unit_up(a, v):  # right derivative of alpha * |v - d_a| + (1 - alpha) * dist(v, [low_a, high_a])
-        return (alpha * (1.0 if v >= distribution[a] else -1.0)
-                + (1.0 - alpha) * (1.0 if v >= high[a] else -1.0 if v < low[a] else 0.0))
-
-    def cost_per_unit_down(a, v):  # minus its left derivative
-        return -(alpha * (1.0 if v > distribution[a] else -1.0)
-                 + (1.0 - alpha) * (1.0 if v > high[a] else -1.0 if v <= low[a] else 0.0))
-
-    x = list(distribution)
-    target = max(remaining_risk, min(qmin_values))
-    tolerance = 1e-12 * sum(q * p for q, p in zip(qmin_values, distribution))  # relative: qmin values can be tiny (1e-9 and below)
-    for _ in range(50 * n):
-        excess = sum(q * p for q, p in zip(qmin_values, x)) - target
-        if excess <= tolerance:
-            break
-        best = None
-        for i in range(n):
-            if x[i] <= 0.0:
-                continue
-            down = cost_per_unit_down(i, x[i])
-            for j in range(n):
-                gain = qmin_values[i] - qmin_values[j]
-                if gain <= 0.0 or x[j] >= 1.0:
-                    continue
-                candidate = ((down + cost_per_unit_up(j, x[j])) / gain, -gain, i, j)
-                if best is None or candidate < best:
-                    best = candidate
-        if best is None:
-            break
-        _, negative_gain, i, j = best
-        lower = max(k for k in kinks[i] if k < x[i])
-        upper = min([k for k in kinks[j] if k > x[j]] + [1.0])
-        room_down, room_up = x[i] - lower, upper - x[j]
-        step = min(room_down, room_up, excess / -negative_gain)
-        x[i] = lower if step == room_down else x[i] - step
-        x[j] = upper if step == room_up else x[j] + step
-    return x
+# How RiskDistributionShield replaces a blocked distribution d, see RiskDistributionShield._blocked_distribution.
+BLOCKING_MODES = ("safe-projection", "optimized")
 
 
 class Shield:
@@ -833,7 +772,7 @@ class SelfConstructingShieldOnline(SelfConstructingShield):
 
 class RiskDistributionShield(Shield):
 
-    def __init__(self, model_info: ModelInfo, actions, nu: float, risk_distribution: RiskDistributionFunction, force_wasteless_risk_distribution: bool = True, use_l1_projection: bool = True, discount_factor: float = 0.99, blocking_lambda: float = None):
+    def __init__(self, model_info: ModelInfo, actions, nu: float, risk_distribution: RiskDistributionFunction, force_wasteless_risk_distribution: bool = True, discount_factor: float = 0.99, blocking: str = "optimized"):
         super().__init__(model_info, actions)
         self.nu = nu
         self.risk_distribution = risk_distribution
@@ -850,18 +789,10 @@ class RiskDistributionShield(Shield):
             # floating point noise would decide whether such a call counts as blocked (and, with the clamp correction,
             # flips it into a full clamp); a violation below 1e-12 is not one.
             self._block_tolerance = 1e-12
-        # How a blocked distribution is corrected, see _blocked_distribution: blocking_lambda = 1 is the
-        # L1-closest allowed distribution (use_l1_projection=True, the default), blocking_lambda = 0 is clamping to the
-        # vmin-safe actions (use_l1_projection=False), and in between the correction minimises
-        # lambda * L1(proposed, corrected) + (1 - lambda) * L1(clamped, corrected) over the allowed distributions.
-        if blocking_lambda is None:
-            blocking_lambda = 1.0 if use_l1_projection else 0.0
-        elif not use_l1_projection and blocking_lambda != 0.0:
-            raise ValueError(f"use_l1_projection=False means clamping, which is blocking_lambda=0, not {blocking_lambda}.")
-        if not 0.0 <= blocking_lambda <= 1.0:
-            raise ValueError(f"blocking_lambda has to be in [0, 1], got {blocking_lambda}.")
-        self.blocking_lambda = float(blocking_lambda)
-        self.use_l1_projection = self.blocking_lambda == 1.0
+        # How a blocked distribution is replaced, see _blocked_distribution.
+        if blocking not in BLOCKING_MODES:
+            raise ValueError(f"blocking has to be one of {BLOCKING_MODES}, got {blocking!r}.")
+        self.blocking = blocking
         # Sum of the L1 distance between the proposed and allowed distribution over every
         # shield_calls (0 for calls that weren't blocked) - lets total_intervention_cost /
         # shield_calls give the expected (undiscounted) intervention cost D from the J_gamma
@@ -888,9 +819,12 @@ class RiskDistributionShield(Shield):
         self._episode_undiscounted_cost = [0.0]
         self._episode_started = [False]
         self.vmin_actions = []
+        # Qmin / Qmax of every action, the expected vmin / upper value of its successor; Qmin and Qmax of a
+        # distribution are their weighted sums (_qmin, _qmax).
         self.action_qmin_values = []
+        self.action_qmax_values = []
 
-        self._compute_vmin_actions()
+        self._compute_action_values()
 
         # assumption
         initial_state = model_info.model.initial_states[0]
@@ -914,44 +848,34 @@ class RiskDistributionShield(Shield):
         self._episode_undiscounted_cost = [0.0 for _ in self._episode_undiscounted_cost]
         self._episode_started = [False for _ in self._episode_started]
 
-    def _compute_vmin_actions(self):
+    def _compute_action_values(self):
+        """Qmin and Qmax of every action of every state, and the vmin-safe actions (Qmin equal to vmin(state) when
+        rounded to rounding_precision digits), in one pass over the transition matrix."""
+        tm = self.model_info.model.transition_matrix
+        vmin, upper = self.model_info.vmin, self._upper_values
         for state in range(self.model_info.model.nr_states):
-            actions_count = self.model_info.model.get_nr_available_actions(state)
-            vmin_actions = []
-            qmin_values = []
-            for action in range(actions_count):
-                row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + action
-                row = self.model_info.model.transition_matrix.get_row(row_index)
-                val = 0.0
-                for entry in row:
-                    val += entry.value * self.model_info.vmin[entry.column]
-                qmin_values.append(val)
-                val_rounded = round(val, self.rounding_precision)
-                vmin_state_rounded = round(self.model_info.vmin[state], self.rounding_precision)
-                if val_rounded <= vmin_state_rounded:
+            row_group_start = tm.get_row_group_start(state)
+            vmin_state_rounded = round(vmin[state], self.rounding_precision)
+            vmin_actions, qmin_values, qmax_values = [], [], []
+            for action in range(self.model_info.model.get_nr_available_actions(state)):
+                qmin = qmax = 0.0
+                for entry in tm.get_row(row_group_start + action):
+                    qmin += entry.value * vmin[entry.column]
+                    qmax += entry.value * upper[entry.column]
+                qmin_values.append(qmin)
+                qmax_values.append(qmax)
+                if round(qmin, self.rounding_precision) <= vmin_state_rounded:
                     vmin_actions.append(action)
             assert len(vmin_actions) > 0, f"No safe actions for state {state}"
             self.vmin_actions.append(vmin_actions)
             self.action_qmin_values.append(qmin_values)
-
+            self.action_qmax_values.append(qmax_values)
 
     def _qmin(self, state, distr):
-        qmin = 0.0
-        for choice_index, prob in enumerate(distr):
-            row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + choice_index
-            row = self.model_info.model.transition_matrix.get_row(row_index)
-            for entry in row:
-                qmin += prob * entry.value * self.model_info.vmin[entry.column]
-        return qmin
+        return sum(p * q for p, q in zip(distr, self.action_qmin_values[state]))
 
     def _qmax(self, state, distr):
-        qmax = 0.0
-        for choice_index, prob in enumerate(distr):
-            row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + choice_index
-            row = self.model_info.model.transition_matrix.get_row(row_index)
-            for entry in row:
-                qmax += prob * entry.value * self._upper_values[entry.column]
-        return qmax
+        return sum(p * q for p, q in zip(distr, self.action_qmax_values[state]))
 
     def _transition_prob(self, last_state, distribution, action, current_state):
         row_index = self.model_info.model.transition_matrix.get_row_group_start(last_state) + action
@@ -972,64 +896,30 @@ class RiskDistributionShield(Shield):
         choice_labels = [self.model_info.model.choice_labeling.get_labels_of_choice(choice).pop() for choice in range(row_group_start, row_group_end)]
         return choice_labels.index(action_label)
 
-    def _closest_allowed_distribution(self, state, distribution, remaining_risk):
-        # qmin(state, d) = sum_a d[a] * c[a] is linear in d, where c[a] = action_qmin_values[state][a]
-        # is the per-action expected vmin of the successor (computed once in _compute_vmin_actions).
-        # So the L1-closest d' with qmin(state, d') <= remaining_risk is found by draining mass from
-        # the highest-c actions into the single lowest-c action (a_min, the vmin-optimal action) -
-        # moving mass anywhere else would reduce qmin less per unit of L1 distance spent, since the
-        # reduction per unit moved from action a is exactly (c[a] - c[a_min]), maximized at a_min.
-        c = self.action_qmin_values[state]
-        current_qmin = sum(p * c[a] for a, p in enumerate(distribution))
-        if current_qmin <= remaining_risk:
-            return distribution
-
-        d = list(distribution)
-        a_min = min(range(len(d)), key=lambda a: c[a])
-        excess = current_qmin - remaining_risk
-        for a in sorted((a for a in range(len(d)) if a != a_min and d[a] > 0), key=lambda a: -c[a]):
-            gain_per_unit = c[a] - c[a_min]
-            if gain_per_unit <= 0:
-                continue
-            drain = min(d[a], excess / gain_per_unit)
-            d[a] -= drain
-            d[a_min] += drain
-            excess -= drain * gain_per_unit
-            if excess <= 0:
-                break
-        return d
-
     def _blocked_distribution(self, state, distribution, remaining_risk):
-        """The distribution that replaces a blocked one: the minimiser, over the allowed distributions x, i.e. those with
-        qmin(state, x) <= remaining_risk, of  lambda * L1(distribution, x) + (1 - lambda) * L1(clamped, x)  where
-        clamped = clamp_distribution(distribution, vmin-safe actions of the state) and lambda = self.blocking_lambda.
-         - lambda = 1: the L1-closest allowed distribution (_closest_allowed_distribution), the clamp does not enter.
-         - lambda = 0: clamped, exactly the old clamp mode, which returns the clamp even where it exceeds the remaining
-           risk. That happens when rounding (rounding_precision) makes every action count as vmin-safe, so that clamping
-           changes nothing although the remaining risk is exceeded. For 0 < lambda < 1 the result is always allowed (a
-           remaining risk below the smallest qmin of the state cannot be met by any distribution, that qmin is the target).
-         - 0 < lambda <= 1/2: clamped if it is allowed (by the triangle inequality the objective is at least
-           lambda * L1(distribution, clamped) + (1 - 2 * lambda) * L1(clamped, x), with equality at x = clamped, so every
-           lambda below 1/2 gives exactly the clamp, and at 1/2 every allowed distribution between distribution and clamped is
-           optimal), otherwise _blend_distribution started from clamped.
-         - 1/2 < lambda < 1: when the L1 projection lies between distribution and clamped in every coordinate it is optimal (it
-           minimises the first term and is free of the second); otherwise _blend_distribution started from distribution."""
-        lam = self.blocking_lambda
-        if lam >= 1.0:
-            return self._closest_allowed_distribution(state, distribution, remaining_risk)
-        clamped = clamp_distribution(distribution, self.vmin_actions[state])
-        if lam <= 0.0:
-            return clamped
-        qmin_values = self.action_qmin_values[state]
-        clamped_qmin = sum(p * q for p, q in zip(clamped, qmin_values))
-        if lam <= 0.5:
-            if clamped_qmin <= remaining_risk + max(self._block_tolerance, 1e-12 * remaining_risk):
-                return clamped
-            return _blend_distribution(clamped, distribution, qmin_values, remaining_risk, 1.0 - lam)
-        projected = self._closest_allowed_distribution(state, distribution, remaining_risk)
-        if _inside_box(projected, distribution, clamped):
-            return projected
-        return _blend_distribution(distribution, clamped, qmin_values, remaining_risk, lam)
+        """The distribution that replaces a blocked distribution d (one with Qmin(d) > remaining risk rr).
+
+        d_safe = clamp_distribution(d, vmin-safe actions of the state) is the projection to the safe actions.
+         - "safe-projection": d_safe.
+         - "optimized": d_lambda* with d_lambda = (1 - lambda) * d_safe + lambda * d and
+               lambda* = min { lambda in [0, 1] | Qmin(d_lambda) <= rr <= Qmax(d_lambda) }.
+           Qmax(d_lambda) < rr would waste remaining risk that no successor can use, and the smallest lambda keeps the
+           block from spending all of the remaining risk at once. Qmin and Qmax are linear in lambda, so
+               lambda* = 0                                            if Qmax(d_safe) >= rr,
+               lambda* = (rr - Qmax(d_safe)) / (Qmax(d) - Qmax(d_safe))   otherwise (then Qmax(d_lambda*) = rr),
+           and Qmin(d_lambda*) <= Qmax(d_lambda*) = rr holds automatically. The condition has no solution only when d_safe
+           itself exceeds rr (rounding can make every action count as vmin-safe, so that d_safe = d); d_safe is used then,
+           as in "safe-projection".
+        Qmax uses the same upper value of a successor as the rest of the shield (vmax, or vmin + capacity)."""
+        safe = clamp_distribution(distribution, self.vmin_actions[state])
+        if self.blocking == "safe-projection":
+            return safe
+        qmax_safe = self._qmax(state, safe)
+        if qmax_safe >= remaining_risk or self._qmin(state, safe) > remaining_risk:
+            return safe
+        lam = (remaining_risk - qmax_safe) / (self._qmax(state, distribution) - qmax_safe)
+        lam = min(max(lam, 0.0), 1.0)
+        return [(1.0 - lam) * q + lam * p for q, p in zip(safe, distribution)]
 
     def _make_wasteless(self, risk_shares, last_state, last_distribution, slack):
         # Re-project risk_shares (the risk distribution, a distribution over (action, next-state) pairs) onto

@@ -144,8 +144,7 @@ def set_global_seeds(seed):
 @click.option("--risk-distribution", type=click.Choice(list(RISK_DISTRIBUTIONS.keys()) + ["capacity-informed"]), default="capacity", help="Risk distribution function to use when --shield=risk-distribution: how the remaining risk is distributed over the (action, next state) outcomes of a decision. 'capacity' (the default) is the standard one, 'capacity-informed' needs --policy-values.")
 @click.option("--policy-values", type=click.Path(exists=True), default=None, help="For --risk-distribution=capacity-informed: .npy file with one number per model state, the probability that the unshielded policy being shielded reaches a bad state from that state.")
 @click.option("--informed-trust", type=float, default=1.0, help="For --risk-distribution=capacity-informed: weight in [0, 1] of the given policy values against the worst-case vmax - vmin capacity (1 = only the policy values, 0 = plain capacity risk distribution).")
-@click.option("--use-clamp", is_flag=True, default=False, help="For --shield=risk-distribution: use the old clamp-to-vmin-safe correction instead of the L1-closest-allowed projection, for comparison purposes only.")
-@click.option("--blocking-lambda", type=click.FloatRange(0.0, 1.0), default=None, help="For --shield=risk-distribution: how a blocked distribution d is corrected, as the allowed distribution d' minimizing lambda * L1(d, d') + (1 - lambda) * L1(clamp(d), d'). 1 (the default) is the L1-closest allowed distribution, 0 is clamping to the vmin-safe actions (same as --use-clamp, which returns the clamp even where it exceeds the remaining risk, e.g. when every action counts as vmin-safe and clamping changes nothing); for lambda > 0 the result is always within the remaining risk. By the triangle inequality lambda <= 0.5 gives the clamp (when it is within the remaining risk) and all of (0.5, 1) gives one L1-type correction, so the blend switches at 0.5 instead of changing gradually.")
+@click.option("--blocking", type=click.Choice(list(compact_rl.rl.shielding.shields.BLOCKING_MODES)), default="optimized", help="For --shield=risk-distribution: how a blocked distribution d is replaced. 'safe-projection' projects it to the vmin-safe actions (d_safe). 'optimized' (the default) uses (1 - lambda) * d_safe + lambda * d with the smallest lambda in [0, 1] whose Qmin <= remaining risk <= Qmax, so that the block neither wastes remaining risk nor spends all of it at once.")
 @click.option("--no-force-wasteless-risk-distribution", is_flag=True, default=False, help="For --shield=risk-distribution: disable the proportional-to-headroom re-projection normally applied to whatever the risk distribution proposes, for diagnostic comparison only (the capacity risk distribution is wasteless by construction, so it makes no difference there).")
 @click.option("--gamma", type=float, default=0.99, help="For --shield=risk-distribution: discount factor used for the discounted intervention-cost metric.")
 @click.option("--load-agent", type=str, default=None, help="Path to load a pre-trained agent from.")
@@ -170,9 +169,7 @@ def set_global_seeds(seed):
 @click.option("--fail-rew", type=float, default=-100.0, help="Reward value for reaching the fail state.")
 @click.option("--seed", type=int, default=None, help="Random seed for reproducibility.")
 @click.option("--tabular-epsilon", type=float, default=None, help="Use an exact finite-horizon-optimal tabular policy (see compute_finite_horizon_policy) instead of a trained agent, for benchmarks where RL exploration alone fails to find any reward signal. This epsilon is the fraction of probability mass spread uniformly over each state's non-optimal actions (so the policy remains genuinely stochastic - see TabularHorizonPolicy); 0 would make --deterministic-agent's stochastic mode meaningless. The DP horizon matches --episode-length; the reward model is assumed to be named 'rews'.")
-def main(project, nu, shield, risk_distribution, use_clamp, blocking_lambda, no_force_wasteless_risk_distribution, gamma, load_agent, save_agent, agent_training, deterministic_agent, shield_memory, training_iterations, episode_length, min_episodes_per_environment, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, uniform_random_policy, eval_file, risk_distribution_metrics_file, model_checking_eval, expected_shield_calls, goal_rew, fail_rew, seed, tabular_epsilon, policy_values, informed_trust):
-    if use_clamp and blocking_lambda not in (None, 0.0):
-        raise click.UsageError("--use-clamp is --blocking-lambda 0, it cannot be combined with another --blocking-lambda.")
+def main(project, nu, shield, risk_distribution, blocking, no_force_wasteless_risk_distribution, gamma, load_agent, save_agent, agent_training, deterministic_agent, shield_memory, training_iterations, episode_length, min_episodes_per_environment, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, uniform_random_policy, eval_file, risk_distribution_metrics_file, model_checking_eval, expected_shield_calls, goal_rew, fail_rew, seed, tabular_epsilon, policy_values, informed_trust):
     project_path = project
     project_name = os.path.basename(os.path.normpath(project_path))
     prism_path = os.path.join(project_path, "sketch.templ")
@@ -208,8 +205,8 @@ def main(project, nu, shield, risk_distribution, use_clamp, blocking_lambda, no_
         shield_folder = None
     
     if shield is not None:
-        shield_processor = ShieldProcessor(environment.action_keywords, model, nu, shield, args=args, shield_memory=shield_memory, debug=model_debug, shield_folder=shield_folder, deterministic_agent=deterministic_agent, risk_distribution=risk_distribution, use_clamp=use_clamp, force_wasteless_risk_distribution=not no_force_wasteless_risk_distribution, discount_factor=gamma,
-                                          policy_values=None if policy_values is None else np.load(policy_values).tolist(), informed_trust=informed_trust, blocking_lambda=blocking_lambda)
+        shield_processor = ShieldProcessor(environment.action_keywords, model, nu, shield, args=args, shield_memory=shield_memory, debug=model_debug, shield_folder=shield_folder, deterministic_agent=deterministic_agent, risk_distribution=risk_distribution, blocking=blocking, force_wasteless_risk_distribution=not no_force_wasteless_risk_distribution, discount_factor=gamma,
+                                          policy_values=None if policy_values is None else np.load(policy_values).tolist(), informed_trust=informed_trust)
     else:
         shield_processor = None
 
@@ -393,8 +390,7 @@ def main(project, nu, shield, risk_distribution, use_clamp, blocking_lambda, no_
                     agent_str = "uniform_random"
                 else:
                     agent_str = load_agent
-                effective_lambda = shield_processor.shield.blocking_lambda
-                mode_str = "l1" if effective_lambda == 1.0 else "clamp" if effective_lambda == 0.0 else f"lambda={effective_lambda:g}"
+                mode_str = getattr(shield_processor.shield, "blocking", "-")
                 f.write(f"{project_name};{agent_str};{risk_distribution};{mode_str};{nu};"
                         f"{episode_stats['episodes_n']};"
                         f"{episode_stats['safety_mean']};{episode_stats['safety_std']};"

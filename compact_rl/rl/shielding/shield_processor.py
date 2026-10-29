@@ -38,7 +38,7 @@ class _RunningStat:
 
 
 class ShieldProcessor:
-    def __init__(self, actions : list[str], model : stormpy.models.SparsePomdp, nu : float, shield_type : str, args : ArgsEmulator = None, shield_memory : int = 0, debug: bool = False, shield_folder: str = None, deterministic_agent: bool = False, risk_distribution: str = "capacity", use_clamp: bool = False, force_wasteless_risk_distribution: bool = True, discount_factor: float = 0.99, policy_values=None, informed_trust: float = 1.0, blocking_lambda: float = None):
+    def __init__(self, actions : list[str], model : stormpy.models.SparsePomdp, nu : float, shield_type : str, args : ArgsEmulator = None, shield_memory : int = 0, debug: bool = False, shield_folder: str = None, deterministic_agent: bool = False, risk_distribution: str = "capacity", blocking: str = "optimized", force_wasteless_risk_distribution: bool = True, discount_factor: float = 0.99, policy_values=None, informed_trust: float = 1.0):
         self.args = args
         self.actions = actions
         self.shield_folder = shield_folder
@@ -121,7 +121,7 @@ class ShieldProcessor:
                 risk_distribution_fn = CapacityInformedRiskDistribution(model_info, policy_values, informed_trust)
             else:
                 risk_distribution_fn = RISK_DISTRIBUTIONS[risk_distribution](model_info)
-            self.shield = compact_rl.rl.shielding.shields.RiskDistributionShield(model_info=model_info, actions=self.actions, nu=nu, risk_distribution=risk_distribution_fn, use_l1_projection=not use_clamp, force_wasteless_risk_distribution=force_wasteless_risk_distribution, discount_factor=discount_factor, blocking_lambda=blocking_lambda)
+            self.shield = compact_rl.rl.shielding.shields.RiskDistributionShield(model_info=model_info, actions=self.actions, nu=nu, risk_distribution=risk_distribution_fn, blocking=blocking, force_wasteless_risk_distribution=force_wasteless_risk_distribution, discount_factor=discount_factor)
         else:
             raise ValueError(f"Unknown shield type: {shield_type}")
         
