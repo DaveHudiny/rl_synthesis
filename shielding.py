@@ -162,14 +162,16 @@ def set_global_seeds(seed):
 @click.option("--load-shield", type=str, default=None, help="Path to load a pre-trained shield from.")
 @click.option("--uniform-random-policy", is_flag=True, default=False, help="Whether to use a uniform random policy for evaluation instead of a trained agent.")
 @click.option("--eval-file", type=str, default=None, help="File to save evaluation results.")
+@click.option("--episode-log-file", type=str, default=None, help="Write one CSV row per finished episode (in the order they finished: reached bad, steps, blocked and actually changed decisions, discounted intervention cost), to follow a run over time.")
 @click.option("--risk-distribution-metrics-file", type=str, default=None, help="For --shield=risk-distribution: file to append the 5 per-episode metrics (safety, allowed-actions ratio, discounted intervention cost, time-to-first-block, pct-episodes-blocked), with mean/std, to.")
 @click.option("--model-checking-eval", is_flag=True, default=False, help="Whether to perform model checking based evaluation.")
 @click.option("--expected-shield-calls", is_flag=True, default=False, help="Whether to compute expected shield calls and blocked actions during model checking evaluation.")
 @click.option("--goal-rew", type=float, default=100.0, help="Reward value for reaching the goal state.")
 @click.option("--fail-rew", type=float, default=-100.0, help="Reward value for reaching the fail state.")
 @click.option("--seed", type=int, default=None, help="Random seed for reproducibility.")
+@click.option("--policy-file", type=click.Path(exists=True), default=None, help="Play a stored stationary policy instead of a trained agent: an .npy table with one row per model state, the probabilities of that state's own actions in the model's choice order (see StoredPolicy).")
 @click.option("--tabular-epsilon", type=float, default=None, help="Use an exact finite-horizon-optimal tabular policy (see compute_finite_horizon_policy) instead of a trained agent, for benchmarks where RL exploration alone fails to find any reward signal. This epsilon is the fraction of probability mass spread uniformly over each state's non-optimal actions (so the policy remains genuinely stochastic - see TabularHorizonPolicy); 0 would make --deterministic-agent's stochastic mode meaningless. The DP horizon matches --episode-length; the reward model is assumed to be named 'rews'.")
-def main(project, nu, shield, risk_distribution, blocking, no_force_wasteless_risk_distribution, gamma, load_agent, save_agent, agent_training, deterministic_agent, shield_memory, training_iterations, episode_length, min_episodes_per_environment, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, uniform_random_policy, eval_file, risk_distribution_metrics_file, model_checking_eval, expected_shield_calls, goal_rew, fail_rew, seed, tabular_epsilon, policy_values, informed_trust):
+def main(project, nu, shield, risk_distribution, blocking, no_force_wasteless_risk_distribution, gamma, load_agent, save_agent, agent_training, deterministic_agent, shield_memory, training_iterations, episode_length, min_episodes_per_environment, num_environments, num_parallel_environments, model_debug, save_shield, load_shield, uniform_random_policy, eval_file, risk_distribution_metrics_file, episode_log_file, model_checking_eval, expected_shield_calls, goal_rew, fail_rew, seed, policy_file, tabular_epsilon, policy_values, informed_trust):
     project_path = project
     project_name = os.path.basename(os.path.normpath(project_path))
     prism_path = os.path.join(project_path, "sketch.templ")
@@ -243,6 +245,17 @@ def main(project, nu, shield, risk_distribution, blocking, no_force_wasteless_ri
         from compact_rl.rl.shielding.custom_policy import create_uniform_random_policy
         policy = create_uniform_random_policy(environment)
         compile_policy = False
+    elif policy_file is not None:
+        print(f"Using the stored stationary policy {policy_file} instead of a trained agent.")
+        from compact_rl.rl.shielding.model_info import ModelInfo
+        from compact_rl.rl.shielding.tabular_horizon_policy import StoredPolicy
+        observation_to_state = [None] * model.nr_observations
+        for state in range(model.nr_states):
+            observation_to_state[model.get_observation(state)] = state
+        model_info = ModelInfo(model=model, observation_to_state=observation_to_state, bad_state="bad", vmin=None, vmax=None)
+        policy = StoredPolicy(action_spec=tf_env.action_spec(), time_step_spec=tf_env.time_step_spec(),
+                              model_info=model_info, actions=environment.action_keywords, distributions=np.load(policy_file))
+        compile_policy = False
     elif tabular_epsilon is not None:
         print(f"Using exact finite-horizon tabular policy (horizon={episode_length}, noise_epsilon={tabular_epsilon}) instead of a trained agent.")
         from compact_rl.rl.shielding.model_info import ModelInfo
@@ -298,7 +311,7 @@ def main(project, nu, shield, risk_distribution, blocking, no_force_wasteless_ri
                 if uniform_random_policy:
                     agent_str = "uniform_random"
                 else:
-                    agent_str = load_agent
+                    agent_str = load_agent if load_agent is not None else os.path.basename(policy_file) if policy_file is not None else f"tabular-eps{tabular_epsilon}" if tabular_epsilon is not None else None
                 if load_shield is not None:
                     shield = f"constructed-{shield}"
                 f.write(f"{project_name};{agent_str};{shield};{shield_memory};{nu};") 
@@ -367,6 +380,12 @@ def main(project, nu, shield, risk_distribution, blocking, no_force_wasteless_ri
             print(f"Expected per-episode discounted intervention cost (J, gamma={shield_processor.shield.discount_factor}): {discounted_cost / discounted_episodes if discounted_episodes > 0 else 0}")
 
         episode_stats = shield_processor.get_episode_stats_summary()
+        if episode_log_file is not None:
+            import csv
+            with open(episode_log_file, "w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=["episode", "bad", "steps", "blocked", "changed", "discounted_cost"])
+                writer.writeheader()
+                writer.writerows(shield_processor.episode_log)
         print()
         print("Per-episode metrics (mean +/- std, over the shield's own finalized-episode count):")
         print(f"Episodes counted: {episode_stats['episodes_n']}")
@@ -389,7 +408,7 @@ def main(project, nu, shield, risk_distribution, blocking, no_force_wasteless_ri
                 if uniform_random_policy:
                     agent_str = "uniform_random"
                 else:
-                    agent_str = load_agent
+                    agent_str = load_agent if load_agent is not None else os.path.basename(policy_file) if policy_file is not None else f"tabular-eps{tabular_epsilon}" if tabular_epsilon is not None else None
                 mode_str = getattr(shield_processor.shield, "blocking", "-")
                 f.write(f"{project_name};{agent_str};{risk_distribution};{mode_str};{nu};"
                         f"{episode_stats['episodes_n']};"
@@ -428,7 +447,7 @@ def main(project, nu, shield, risk_distribution, blocking, no_force_wasteless_ri
                 if uniform_random_policy:
                     agent_str = "uniform_random"
                 else:
-                    agent_str = load_agent
+                    agent_str = load_agent if load_agent is not None else os.path.basename(policy_file) if policy_file is not None else f"tabular-eps{tabular_epsilon}" if tabular_epsilon is not None else None
                 if load_shield is not None:
                     shield = f"constructed-{shield}"
                 f.write(f"{project_name};{agent_str};{shield};{shield_memory};{nu};") 

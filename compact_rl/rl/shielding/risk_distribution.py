@@ -27,6 +27,7 @@ from abc import ABC, abstractmethod
 from typing import Callable, Union
 
 from compact_rl.rl.shielding.model_info import ModelInfo
+from compact_rl.rl.shielding.storm_tools import matrix_row
 
 State = int
 Action = int
@@ -48,7 +49,7 @@ def reachable_pair_probs(model_info: ModelInfo, state: State, action_distributio
     for action, action_prob in enumerate(action_distribution):
         if action_prob <= 0.0:
             continue
-        row = transition_matrix.get_row(row_group_start + action)
+        row = matrix_row(transition_matrix, row_group_start + action)
         for entry in row:
             if entry.value > 0.0:
                 probs[(action, entry.column)] = entry.value

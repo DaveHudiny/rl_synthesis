@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from compact_rl.rl.shielding.model_info import ModelInfo
 from compact_rl.rl.shielding.risk_distribution import RiskDistributionFunction
-from compact_rl.rl.shielding.storm_tools import model_check
+from compact_rl.rl.shielding.storm_tools import matrix_row, model_check
 import random
 import numpy as np
 from scipy.spatial import ConvexHull
@@ -67,7 +67,7 @@ class StandardShield(Shield):
     def _allow_action(self, state, action):
         next_val = 0.0
         row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + action
-        row = self.model_info.model.transition_matrix.get_row(row_index)
+        row = matrix_row(self.model_info.model.transition_matrix, row_index)
         for entry in row:
             next_val += entry.value * self.model_info.vmin[entry.column]
         next_val_rounded = round(next_val, self.rounding_precision)
@@ -102,7 +102,7 @@ class PessimisticShield(Shield):
         qmax = 0.0
         for choice_index, prob in enumerate(distr):
             row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + choice_index
-            row = self.model_info.model.transition_matrix.get_row(row_index)
+            row = matrix_row(self.model_info.model.transition_matrix, row_index)
             for entry in row:
                 qmax += prob * entry.value * self.model_info.vmax[entry.column]
         return qmax
@@ -132,7 +132,7 @@ class PessimisticShield(Shield):
 
             last_choice_index = prev_state_choice_labels.index(last_action_label)
             row_index = self.model_info.model.transition_matrix.get_row_group_start(self.last_states[trace_index]) + last_choice_index
-            row = self.model_info.model.transition_matrix.get_row(row_index)
+            row = matrix_row(self.model_info.model.transition_matrix, row_index)
 
             last_transition_prob = 0.0
             for entry in row:
@@ -181,7 +181,7 @@ class OptimisticShield(Shield):
         qmin = 0.0
         for choice_index, prob in enumerate(distr):
             row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + choice_index
-            row = self.model_info.model.transition_matrix.get_row(row_index)
+            row = matrix_row(self.model_info.model.transition_matrix, row_index)
             for entry in row:
                 qmin += prob * entry.value * self.model_info.vmin[entry.column]
         return qmin
@@ -211,7 +211,7 @@ class OptimisticShield(Shield):
 
             last_choice_index = prev_state_choice_labels.index(last_action_label)
             row_index = self.model_info.model.transition_matrix.get_row_group_start(self.last_states[trace_index]) + last_choice_index
-            row = self.model_info.model.transition_matrix.get_row(row_index)
+            row = matrix_row(self.model_info.model.transition_matrix, row_index)
 
             last_transition_prob = 0.0
             for entry in row:
@@ -260,7 +260,7 @@ class DeltaShield(Shield):
         expected_value = 0.0
         for choice_index, prob in enumerate(distribution):
             row_index = self.model_info.model.transition_matrix.get_row_group_start(current_state) + choice_index
-            row = self.model_info.model.transition_matrix.get_row(row_index)
+            row = matrix_row(self.model_info.model.transition_matrix, row_index)
             for entry in row:
                 expected_value += prob * entry.value * self.model_info.vmin[entry.column]
 
@@ -389,7 +389,7 @@ class SelfConstructingShield(Shield):
             vmin_actions = []
             for action in range(actions_count):
                 row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + action
-                row = self.model_info.model.transition_matrix.get_row(row_index)
+                row = matrix_row(self.model_info.model.transition_matrix, row_index)
                 val = 0.0
                 for entry in row:
                     val += entry.value * self.model_info.vmin[entry.column]
@@ -457,7 +457,7 @@ class SelfConstructingShield(Shield):
                     if action_prob == 0:
                         continue
                     row_index = self.model_info.model.transition_matrix.get_row_group_start(node.state_index) + action_index
-                    row = self.model_info.model.transition_matrix.get_row(row_index)
+                    row = matrix_row(self.model_info.model.transition_matrix, row_index)
                     for entry in row:
                         if (entry.column, distr_index) not in node.successors.keys():
                             q_value += action_prob * entry.value * self.model_info.vmin[entry.column]
@@ -468,12 +468,29 @@ class SelfConstructingShield(Shield):
             node.value = best_value
             node = node.predecessor
 
+    def match_stored_distribution(self, allowed_distributions, distribution):
+        """`distribution`, or the allowed distribution it equals up to the processor's rounding. Agents pass their
+        probabilities through float32, so the same distribution can round to neighbouring values (0.482940 and 0.482941)
+        in the run that built a tree and in the run that loads it, and would otherwise not be found there."""
+        if distribution in allowed_distributions:
+            return distribution
+        tolerance = 1.5 * 10 ** -self.rounding_precision
+        for allowed in allowed_distributions:
+            if len(allowed) == len(distribution) and all(abs(a - d) <= tolerance for a, d in zip(allowed, distribution)):
+                return allowed
+        return distribution
+
     def correct_for_given_node(self, last_action, current_state, distribution, reset, node):
 
         assert self.memory == 0, "This is only needed for non-memory bounded shields."
 
         self.shield_calls += 1
 
+        return self.decide_for_given_node(last_action, current_state, distribution, reset, node)
+
+    def decide_for_given_node(self, last_action, current_state, distribution, reset, node):
+        """The played distribution at tree node `node` and its index among the node's allowed distributions (counts blocks,
+        not calls). Off the tree (node None) the standard shield decides."""
         output_distribution = distribution
 
         if node is None:
@@ -484,6 +501,8 @@ class SelfConstructingShield(Shield):
             last_distribution_index = None
         else:
             all_allowed_distributions = self.vmin_actions_distributions[current_state] + node.distributions
+            proposed = distribution
+            distribution = output_distribution = self.match_stored_distribution(all_allowed_distributions, distribution)
 
             if not self.point_in_convex_hull(all_allowed_distributions, distribution):
                 self.blocked_actions += 1
@@ -500,6 +519,8 @@ class SelfConstructingShield(Shield):
             else:
                 assert not self.static_shield_clamp_to_existing_distributions, "This should not happen, as the distribution was clamped to allowed distributions."
                 last_distribution_index = len(all_allowed_distributions)
+            if output_distribution is distribution:  # allowed: the agent plays its own distribution, not the matched copy
+                output_distribution = proposed
 
         return output_distribution, last_distribution_index
     
@@ -556,26 +577,9 @@ class SelfConstructingShield(Shield):
                 self.blocked_actions += 1
                 output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
         else:
-            # check if current distribution is inside the convex set
-            if self.current_nodes[trace_index] is None:
-                all_allowed_distributions = self.vmin_actions_distributions[current_state]
-            else:
-                all_allowed_distributions = self.vmin_actions_distributions[current_state] + self.current_nodes[trace_index].distributions
-            if not self.point_in_convex_hull(all_allowed_distributions, distribution):
-                self.blocked_actions += 1
-                output_distribution = clamp_distribution(distribution, self.vmin_actions[current_state])
-                if self.static_shield_clamp_to_existing_distributions and output_distribution not in all_allowed_distributions:
-                    self.point_in_convex_hull(all_allowed_distributions, output_distribution) # to get the max index
-                    output_distribution = all_allowed_distributions[self.convex_point_max_index]
-            elif self.static_shield_clamp_to_existing_distributions and output_distribution not in all_allowed_distributions:
-                self.blocked_actions += 1
-                output_distribution = all_allowed_distributions[self.convex_point_max_index]
-
-            if output_distribution in all_allowed_distributions:
-                self.last_distribution_indices[trace_index] = all_allowed_distributions.index(output_distribution)
-            else:
-                assert not self.static_shield_clamp_to_existing_distributions, "This should not happen, as the distribution was clamped to allowed distributions."
-                self.last_distribution_indices[trace_index] = len(all_allowed_distributions)
+            # the same decision as the model-checking path (correct_for_given_node)
+            output_distribution, self.last_distribution_indices[trace_index] = self.decide_for_given_node(
+                last_action, current_state, distribution, reset, self.current_nodes[trace_index])
 
         return output_distribution
 
@@ -859,7 +863,7 @@ class RiskDistributionShield(Shield):
             vmin_actions, qmin_values, qmax_values = [], [], []
             for action in range(self.model_info.model.get_nr_available_actions(state)):
                 qmin = qmax = 0.0
-                for entry in tm.get_row(row_group_start + action):
+                for entry in matrix_row(tm, row_group_start + action):
                     qmin += entry.value * vmin[entry.column]
                     qmax += entry.value * upper[entry.column]
                 qmin_values.append(qmin)
@@ -879,7 +883,7 @@ class RiskDistributionShield(Shield):
 
     def _transition_prob(self, last_state, distribution, action, current_state):
         row_index = self.model_info.model.transition_matrix.get_row_group_start(last_state) + action
-        row = self.model_info.model.transition_matrix.get_row(row_index)
+        row = matrix_row(self.model_info.model.transition_matrix, row_index)
         prob = 0.0
         for entry in row:
             if entry.column == current_state:
@@ -908,14 +912,14 @@ class RiskDistributionShield(Shield):
                lambda* = 0                                            if Qmax(d_safe) >= rr,
                lambda* = (rr - Qmax(d_safe)) / (Qmax(d) - Qmax(d_safe))   otherwise (then Qmax(d_lambda*) = rr),
            and Qmin(d_lambda*) <= Qmax(d_lambda*) = rr holds automatically. The condition has no solution only when d_safe
-           itself exceeds rr (rounding can make every action count as vmin-safe, so that d_safe = d); d_safe is used then,
-           as in "safe-projection".
+           itself exceeds rr (rounding can make every action count as vmin-safe, so that d_safe = d); Qmax(d_safe) >= Qmin(d_safe)
+           > rr then, so the first case returns d_safe, as in "safe-projection".
         Qmax uses the same upper value of a successor as the rest of the shield (vmax, or vmin + capacity)."""
         safe = clamp_distribution(distribution, self.vmin_actions[state])
         if self.blocking == "safe-projection":
             return safe
         qmax_safe = self._qmax(state, safe)
-        if qmax_safe >= remaining_risk or self._qmin(state, safe) > remaining_risk:
+        if qmax_safe >= remaining_risk:  # also covers d_safe exceeding rr: then Qmax(d_safe) >= Qmin(d_safe) > rr
             return safe
         lam = (remaining_risk - qmax_safe) / (self._qmax(state, distribution) - qmax_safe)
         lam = min(max(lam, 0.0), 1.0)

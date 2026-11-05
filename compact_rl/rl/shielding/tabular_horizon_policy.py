@@ -14,6 +14,7 @@ from tf_agents.trajectories.policy_step import PolicyStep
 
 from compact_rl.rl.tools.encoding_methods import observation_and_action_constraint_splitter
 from compact_rl.rl.shielding.model_info import ModelInfo
+from compact_rl.rl.shielding.storm_tools import matrix_row
 
 
 def compute_finite_horizon_policy(model, horizon: int, reward_name: str = "rews",
@@ -47,7 +48,7 @@ def compute_finite_horizon_policy(model, horizon: int, reward_name: str = "rews"
         start = tm.get_row_group_start(s)
         acts = []
         for a in range(n_a):
-            row = tm.get_row(start + a)
+            row = matrix_row(tm, start + a)
             succs = [(e.column, e.value) for e in row]
             if rm.has_state_action_rewards:
                 rew = rm.get_state_action_reward(start + a)
@@ -109,7 +110,7 @@ def compute_bad_probability(model, policy_table, horizon: int, bad_label: str = 
         start = tm.get_row_group_start(s)
         acts = []
         for a in range(n_a):
-            row = tm.get_row(start + a)
+            row = matrix_row(tm, start + a)
             acts.append([(e.column, e.value) for e in row])
         actions_per_state.append(acts)
 
@@ -203,6 +204,46 @@ class TabularHorizonPolicy(TFPolicy):
             action=tfp.distributions.Categorical(logits=tf.math.log(tf.constant(probs) + 1e-10)),
             state=next_state)
         return policy_step
+
+    def _action(self, time_step, policy_state, seed=None):
+        step = self._distribution(time_step, policy_state)
+        action = tf.argmax(step.action.logits, axis=-1, output_type=tf.int32)
+        return PolicyStep(action=action, state=step.state)
+
+
+class StoredPolicy(TFPolicy):
+    """Plays a stationary stochastic policy given as a table: `distributions[state][local_action]`, one row per model state
+    over that state's own actions in the model's choice order (rows may be padded with zeros up to the largest number of
+    actions), e.g. an .npy file written next to the benchmark. policy_state is an unused int counter, kept only so the
+    policy plugs into the same drivers as TabularHorizonPolicy. No automatic state reset: TFPolicy does it with
+    nest_utils.where, which traces a fresh tf.function on every eager call and leaks ~100 KB per step (a long simulation
+    ran out of memory), and the unused state needs no reset."""
+
+    def __init__(self, action_spec, time_step_spec, model_info: ModelInfo, actions: list, distributions):
+        super().__init__(time_step_spec, action_spec,
+                         policy_state_spec=tf.TensorSpec([], tf.int32),
+                         automatic_state_reset=False,
+                         observation_and_action_constraint_splitter=observation_and_action_constraint_splitter)
+        model = model_info.model
+        assert len(distributions) == model.nr_states, f"{len(distributions)} rows for a model with {model.nr_states} states"
+        self._model_info = model_info
+        # global action probabilities of every state, computed once (choice labels map local to global actions)
+        self._global_probs = np.zeros((model.nr_states, len(actions)), dtype=np.float32)
+        for state in range(model.nr_states):
+            start = model.transition_matrix.get_row_group_start(state)
+            for local in range(model.get_nr_available_actions(state)):
+                label = model.choice_labeling.get_labels_of_choice(start + local).pop()
+                self._global_probs[state, actions.index(label)] += distributions[state][local]
+
+    def _get_initial_state(self, batch_size):
+        return tf.zeros([batch_size], dtype=tf.int32)
+
+    def _distribution(self, time_step, policy_state):
+        integers = time_step.observation["integer"].numpy()
+        states = [self._model_info.observation_to_state[int(o)] for o in integers[:, 0]]
+        probs = self._global_probs[states]
+        return PolicyStep(action=tfp.distributions.Categorical(logits=tf.math.log(tf.constant(probs) + 1e-10)),
+                          state=tf.zeros([len(states)], dtype=tf.int32))
 
     def _action(self, time_step, policy_state, seed=None):
         step = self._distribution(time_step, policy_state)

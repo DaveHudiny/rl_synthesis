@@ -141,6 +141,10 @@ class ShieldProcessor:
         self._episode_blocked = []
         self._episode_first_block_step = []
         self._episode_cost = []
+        self._episode_changed = []
+        # One record per finalized episode, in the order the episodes finished: lets a run be looked at over time (how a
+        # learning shield improves); written by shielding.py --episode-log-file.
+        self.episode_log = []
         self.metric_safety = _RunningStat()
         self.metric_allowed_ratio = _RunningStat()
         self.metric_discounted_cost = _RunningStat()
@@ -218,6 +222,7 @@ class ShieldProcessor:
             self._episode_blocked.append(0)
             self._episode_first_block_step.append(None)
             self._episode_cost.append(0.0)
+            self._episode_changed.append(0)
 
     def _finalize_episode(self, i):
         steps = self._episode_steps[i]
@@ -226,6 +231,8 @@ class ShieldProcessor:
             # terminal) - nothing meaningful to fold into the running statistics.
             return
         blocked = self._episode_blocked[i]
+        self.episode_log.append(dict(episode=len(self.episode_log), bad=int(self._episode_bad[i]), steps=steps, blocked=blocked,
+                                     changed=self._episode_changed[i], discounted_cost=self._episode_cost[i]))
         self.metric_safety.add(1.0 if self._episode_bad[i] else 0.0)
         # allowed_ratio itself is now accumulated per-decision, directly in compute_new_logits -
         # see the note there for why (step-weighted "expected allowed actions", not an unweighted
@@ -285,6 +292,7 @@ class ShieldProcessor:
                 self._episode_blocked[i] = 0
                 self._episode_first_block_step[i] = None
                 self._episode_cost[i] = 0.0
+                self._episode_changed[i] = 0
 
             if current_state in self._bad_states_set:
                 self._episode_bad[i] = True
@@ -323,6 +331,8 @@ class ShieldProcessor:
                 # distribution/output_distribution.
                 cost_delta = sum(abs(p - q) for p, q in zip(mapped_played_distribution, distribution))
                 self._episode_cost[i] += (self.discount_factor ** step_index) * cost_delta
+                # decisions the shield actually changed (shields also count blocks that change nothing as blocked)
+                self._episode_changed[i] += cost_delta > 1e-9
                 self._episode_steps[i] += 1
 
             distribution = [distribution[current_state_choice_labels.index(action)] if action in current_state_choice_labels else 0.0 for action in self.actions]

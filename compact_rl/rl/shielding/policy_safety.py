@@ -3,6 +3,8 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
+from compact_rl.rl.shielding.storm_tools import matrix_row
+
 
 def policy_safety_values(model, state_distributions, bad_label: str = "bad") -> np.ndarray:
     """Probability of ever reaching a bad state, from every state, when the unshielded policy plays
@@ -18,7 +20,7 @@ def policy_safety_values(model, state_distributions, bad_label: str = "bad") -> 
         for action, prob in enumerate(state_distributions[state]):
             if prob <= 0.0:
                 continue
-            for entry in transition_matrix.get_row(start + action):
+            for entry in matrix_row(transition_matrix, start + action):
                 rows.append(state)
                 cols.append(entry.column)
                 vals.append(prob * entry.value)

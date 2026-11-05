@@ -211,9 +211,18 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
             [0] * self.num_envs, dtype=tf.float32)
         self.noisy_observations = args.noisy_observations
         self.bad_states = np.zeros((self.vectorized_simulator.nr_states,), dtype=bool)
+        # reward penalty for the first bad state of an episode (set_bad_state_penalty; 0 = off)
+        self.bad_state_penalty = 0.0
+        self.visited_bad = np.zeros((self.num_envs,), dtype=bool)
+        self.entered_bad = np.zeros((self.num_envs,), dtype=bool)
 
     def set_bad_states(self, bad_states_indices: list):
         self.bad_states[bad_states_indices] = True
+
+    def set_bad_state_penalty(self, penalty: float):
+        """Subtract `penalty` from the reward of the step on which an episode first reaches a bad state (set_bad_states),
+        so that the expected penalty of an episode is penalty * P(reach bad). Used to train agents with a given risk."""
+        self.bad_state_penalty = float(penalty)
 
     def add_new_pomdp(self, pomdp):
         """Adds a new POMDP to the environment. This is used with BatchedVecStorm to add new POMDPs to the batch of simulators.
@@ -528,6 +537,8 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         self.virtual_reward = tf.zeros((self.num_envs,), dtype=tf.float32)
         self.dones = np.array(len(self.last_observation) * [False])
         self.is_in_bad_state = np.zeros((self.num_envs,), dtype=bool)
+        self.visited_bad = np.zeros((self.num_envs,), dtype=bool)
+        self.entered_bad = np.zeros((self.num_envs,), dtype=bool)
         self.orig_reward = tf.constant(
             np.array(len(self.last_observation) * [0.0]), dtype=tf.float32)
         self.integers = self.vectorized_simulator.simulator_integer_observations
@@ -600,6 +611,8 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
             tf.zeros((self.num_envs,), dtype=tf.float32)
         )
         self.reward += truncation_penalty
+        if self.bad_state_penalty:
+            self.reward -= self.bad_state_penalty * tf.cast(self.entered_bad, tf.float32)
         # self.reward = tf.where(
         #     self.goal_state_mask,
         #     goal_values_vector,
@@ -702,6 +715,9 @@ class EnvironmentWrapperVec(py_environment.PyEnvironment):
         self.last_observation = observations
         self.states = self.vectorized_simulator.simulator_states
         self.is_in_bad_state = self.bad_states[self.states.vertices]
+        # the state returned with done still belongs to the finished episode, the next step starts a new one
+        self.entered_bad = self.is_in_bad_state & ~self.visited_bad
+        self.visited_bad = (self.visited_bad | self.is_in_bad_state) & ~np.asarray(done, dtype=bool)
         self.allowed_actions = allowed_actions
         self.labels_mask = metalabels
         self.orig_reward = tf.constant(
