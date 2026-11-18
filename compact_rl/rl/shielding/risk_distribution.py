@@ -59,6 +59,14 @@ def reachable_pair_probs(model_info: ModelInfo, state: State, action_distributio
 class RiskDistributionFunction(ABC):
     """Abstract interface for a risk distribution function used by `RiskDistributionShield`."""
 
+    # True when every distribution it returns is wasteless already, so that `RiskDistributionShield._make_wasteless`
+    # would return it unchanged; the shield then skips that re-projection.
+    wasteless = False
+    # True when every distribution it returns gives the pair (a, s') a share proportional to
+    # action_distribution[a] * P(s, a, s') * (vmax(s') - vmin(s')), as CapacityRiskDistribution does; the shield then
+    # computes the remaining risk of the successor in closed form, without calling it (see RiskDistributionShield.correct).
+    headroom_proportional = False
+
     @abstractmethod
     def __call__(self, history: History, action_distribution: Distribution) -> RiskDistribution:
         """Return a distribution over (action, next-state) pairs reachable from the current state.
@@ -128,8 +136,15 @@ class CapacityRiskDistribution(RiskDistributionFunction):
     It is wasteless by construction: the weights sum to qmax - qmin of the played distribution,
     so every successor gets the same fraction slack / (qmax - qmin) <= 1 of its own headroom,
     remaining_risk(s') = vmin(s') + slack / (qmax - qmin) * (vmax(s') - vmin(s')) <= vmax(s'),
-    and the wasteless re-projection never changes it.
+    and the wasteless re-projection never changes it, so `RiskDistributionShield` skips it.
+    (With floating point rounding, a share can exceed its bound by a few ulps; the re-projection treats a total excess up
+    to 1e-9 as none and returns the distribution unchanged then.)
+    Since that remaining risk needs only the total weight (qmax - qmin of the played distribution), `RiskDistributionShield`
+    computes it in closed form and calls this only when the total is 0 (`headroom_proportional`).
     """
+
+    wasteless = True
+    headroom_proportional = True
 
     def __init__(self, model_info: ModelInfo):
         self.model_info = model_info

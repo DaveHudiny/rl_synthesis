@@ -109,7 +109,8 @@ def custom_loop(policy : TFPolicy, environment : EnvironmentWrapperVec, shield_p
                 integers=time_step.observation["integer"].numpy().tolist(),
                 prev_actions=prev_actions.numpy().tolist(),
                 played_logits=distribution.logits,
-                resets=time_step.is_first().numpy().tolist()
+                resets=time_step.is_first().numpy().tolist(),
+                is_last=time_step.is_last().numpy().tolist()
             )
         else:
             logits = distribution.logits
@@ -129,6 +130,31 @@ def custom_loop(policy : TFPolicy, environment : EnvironmentWrapperVec, shield_p
         )
         trajectory_buffer.add_batched_step(trajectory)
         time_step = new_time_step
+
+    # Let the episodes still running at the end of the window finish (counted, with the shield deciding as before) while
+    # episodes starting now are neither shielded nor counted: counting only the episodes that finish inside a fixed window
+    # over-represents short ones, and the next call's reset would otherwise end them early. An episode lasts at most
+    # num_steps (the episode length) steps plus its last time step. Not added to the trajectory buffer.
+    if shield_processor is not None:
+        shield_processor.accept_new_episodes = False
+        for _ in range(num_steps + 2):
+            if not shield_processor.episodes_in_progress():
+                break
+            policy_step = policy_function(time_step, policy_state)
+            policy_state = policy_step.state
+            logits = shield_processor.compute_new_logits(
+                valuations=time_step.observation["observation"].numpy().tolist(),
+                integers=time_step.observation["integer"].numpy().tolist(),
+                prev_actions=prev_actions.numpy().tolist(),
+                played_logits=policy_step.action.logits,
+                resets=time_step.is_first().numpy().tolist(),
+                is_last=time_step.is_last().numpy().tolist()
+            )
+            action = tf.random.categorical(logits, 1, dtype=tf.int32, seed=seed)
+            prev_actions = action
+            time_step = tf_environment.step(tf.reshape(action, (action.shape[0],)))
+        assert not shield_processor.episodes_in_progress(), "an episode did not end within the episode length"
+        shield_processor.accept_new_episodes = True
 
 
 def set_global_seeds(seed):
@@ -184,7 +210,9 @@ def main(project, nu, shield, risk_distribution, blocking, no_force_wasteless_ri
                     )
     set_global_seeds(seed)
     # Replace by your sketch loader.
+    t_build = time.time()
     sketch = load_sketch(project_path=project_path)
+    print(f"Model building took {time.time() - t_build:.6f} seconds.")
 
     # ---------------------------------------------------------
     # This is the learning
@@ -217,7 +245,9 @@ def main(project, nu, shield, risk_distribution, blocking, no_force_wasteless_ri
             print(f"WARNING: Loading shield and therefore ignoring the provided shield type {shield}.")
             shield_processor = None
         shield_processor = ShieldProcessor(environment.action_keywords, model, nu, 'self-constructing-static', args=args, shield_memory=shield_memory, debug=model_debug, shield_folder=None, deterministic_agent=deterministic_agent)
+        t_load = time.time()
         shield_processor.load_shield(f"results/shields/{project_name}/{load_shield}")
+        print(f"Shield loading took {time.time() - t_load:.6f} seconds.")
 
     if load_agent is not None:
         assert not agent_training, "Cannot load and train an agent at the same time."
@@ -359,6 +389,7 @@ def main(project, nu, shield, risk_distribution, blocking, no_force_wasteless_ri
         print()
         print("Shield stats:")
         print(f"Shield calls: {shield_processor.shield.shield_calls}")
+        print(f"Shield time: {shield_processor.shield_seconds:.6f} seconds")
         print(f"Blocked actions: {shield_processor.shield.blocked_actions}")
         if hasattr(shield_processor.shield, "total_intervention_cost"):
             calls = shield_processor.shield.shield_calls

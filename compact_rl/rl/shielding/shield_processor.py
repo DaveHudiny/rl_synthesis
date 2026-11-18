@@ -1,3 +1,4 @@
+import time
 from compact_rl.rl.tools.args_emulator import ArgsEmulator
 import tensorflow as tf
 
@@ -60,8 +61,14 @@ class ShieldProcessor:
         mdp = stormpy.models.SparseMdp(components)
 
         # get Vmin and Vmax values for all states
+        t0 = time.perf_counter()
         vmin = model_check(mdp, "Pmin=? [ F \"bad\" ]").get_value_vector()
+        t1 = time.perf_counter()
         vmax = model_check(mdp, "Pmax=? [ F \"bad\" ]").get_value_vector()
+        t2 = time.perf_counter()
+        # the preprocessing of the shields (vmin: every shield; vmax: the capacity shield), for the runtime comparison
+        self.vmin_seconds, self.vmax_seconds = t1 - t0, t2 - t1
+        print(f"Model checking times: vmin {self.vmin_seconds:.6f} s, vmax {self.vmax_seconds:.6f} s")
         # Print vmin and vmax for the initial state
         print("Vmin and Vmax for initial state:", vmin[mdp.initial_states[0]], vmax[mdp.initial_states[0]])
 
@@ -99,6 +106,7 @@ class ShieldProcessor:
             
         model_info = ModelInfo(model=model, observation_to_state=observation_to_state, bad_state="bad", vmin=vmin, vmax=vmax)
 
+        t_setup = time.perf_counter()
         if shield_type == 'identity':
             self.shield = compact_rl.rl.shielding.shields.IdentityShield(model_info=model_info, actions=self.actions)
         elif shield_type == 'standard':
@@ -124,7 +132,10 @@ class ShieldProcessor:
             self.shield = compact_rl.rl.shielding.shields.RiskDistributionShield(model_info=model_info, actions=self.actions, nu=nu, risk_distribution=risk_distribution_fn, blocking=blocking, force_wasteless_risk_distribution=force_wasteless_risk_distribution, discount_factor=discount_factor)
         else:
             raise ValueError(f"Unknown shield type: {shield_type}")
-        
+        # the rest of the shield's preprocessing, after vmin and vmax (e.g. the capacity shield's table of action values)
+        self.setup_seconds = time.perf_counter() - t_setup
+        print(f"Shield setup took {self.setup_seconds:.6f} seconds.")
+
         self.shield.rounding_precision = 6
 
         # --- Per-episode metric tracking (safety, allowed-actions ratio, discounted
@@ -145,6 +156,12 @@ class ShieldProcessor:
         # One record per finalized episode, in the order the episodes finished: lets a run be looked at over time (how a
         # learning shield improves); written by shielding.py --episode-log-file.
         self.episode_log = []
+        # False while shielding.py's custom_loop lets the running episodes finish at the end of its step window: episodes
+        # starting then are neither shielded nor counted (counting only the episodes that finish inside a fixed window
+        # over-represents short ones)
+        self.accept_new_episodes = True
+        # time spent in shield.correct (the shield's own execution cost, without the simulator and the policy)
+        self.shield_seconds = 0.0
         self.metric_safety = _RunningStat()
         self.metric_allowed_ratio = _RunningStat()
         self.metric_discounted_cost = _RunningStat()
@@ -260,7 +277,12 @@ class ShieldProcessor:
             "first_block_step_mean": self.metric_first_block_step.mean, "first_block_step_std": self.metric_first_block_step.std,
         }
 
-    def compute_new_logits(self, valuations : list, integers : list, prev_actions : list, played_logits : tf.Tensor, resets : list) -> tf.Tensor:
+    def episodes_in_progress(self) -> bool:
+        """whether some environment still has a counted episode running"""
+        return any(self._episode_started)
+
+    def compute_new_logits(self, valuations : list, integers : list, prev_actions : list, played_logits : tf.Tensor, resets : list,
+                           is_last : list = None) -> tf.Tensor:
         """ A dummy shielding method that always allows the action.
         Args:
             valuations: The valuations of a current environment state/observation.
@@ -268,8 +290,15 @@ class ShieldProcessor:
             prev_actions: The previous actions taken by the agent.
             played_logits: The logits of the actions played by the agent.
             resets: Whether the episode is a restarted simulation in a current state ([True/False]).
+            is_last: Whether the time step is the last one of its episode ([True/False], optional). The action chosen
+                there is never played (the environment resets), so the shield is not called and nothing is counted; only
+                a bad final state is recorded, and the episode is finalized.
         Returns:
             np.ndarray[np.float_]: New logits of probabilities for each action.
+
+        The per-episode statistics (episode_log, the allowed-ratio metric) count an episode's decisions until it first
+        reaches a bad state, as the exact evaluations do: a bad state that is not a sink does not end the episode, and the
+        shield keeps deciding there, but those decisions are not counted.
         """
         if not self.deterministic_agent:
             played_probs = tf.nn.softmax(played_logits).numpy().tolist()
@@ -286,7 +315,7 @@ class ShieldProcessor:
             if resets[i]:
                 if self._episode_started[i]:
                     self._finalize_episode(i)
-                self._episode_started[i] = True
+                self._episode_started[i] = self.accept_new_episodes
                 self._episode_bad[i] = False
                 self._episode_steps[i] = 0
                 self._episode_blocked[i] = 0
@@ -294,10 +323,18 @@ class ShieldProcessor:
                 self._episode_cost[i] = 0.0
                 self._episode_changed[i] = 0
 
-            if current_state in self._bad_states_set:
+            counted = self._episode_started[i]
+            if counted and current_state in self._bad_states_set:
                 self._episode_bad[i] = True
+            last = is_last is not None and bool(is_last[i])
 
-            if "goal" in self.shield.model_info.model.labeling.get_labels_of_state(current_state) or "fail" in self.shield.model_info.model.labeling.get_labels_of_state(current_state):
+            if last or not counted and not self.accept_new_episodes:
+                # the last time step (its action is never played) or an episode that is not counted: no decision
+                distribution = mapped_played_distribution
+                if last and counted:
+                    self._finalize_episode(i)
+                    self._episode_started[i] = False
+            elif "goal" in self.shield.model_info.model.labeling.get_labels_of_state(current_state) or "fail" in self.shield.model_info.model.labeling.get_labels_of_state(current_state):
                 distribution = mapped_played_distribution
             else:
                 if (type(prev_actions[i]) == list):
@@ -308,32 +345,35 @@ class ShieldProcessor:
                 step_index = self._episode_steps[i]
                 blocked_before = self.shield.blocked_actions
 
+                t_shield = time.perf_counter()
                 distribution = self.shield.correct(prev_actions_i, current_state, mapped_played_distribution, resets[i], i)
+                self.shield_seconds += time.perf_counter() - t_shield  # the shield's own time (runtime comparison)
 
                 was_blocked = self.shield.blocked_actions > blocked_before
-                # One sample per actual shield decision (not per episode), so the aggregate mean
-                # is the step-weighted "expected allowed actions" (matches model-checking's
-                # expected_blocked_actions/expected_shield_calls) rather than an unweighted
-                # average of each episode's own ratio - the two differ sharply whenever episodes
-                # vary a lot in length (a rare episode that gets stuck blocked for 40 steps must
-                # count 40x more than a common one that's never blocked in 3 steps, not count the
-                # same "one episode" each).
-                self.metric_allowed_ratio.add(0.0 if was_blocked else 1.0)
-                if was_blocked:
-                    self._episode_blocked[i] += 1
-                    if self._episode_first_block_step[i] is None:
-                        self._episode_first_block_step[i] = step_index
-                # L1 distance between what the policy proposed and what the shield actually
-                # returned - computed directly here (rather than reading shield.total_intervention_cost,
-                # which only RiskDistributionShield tracks) so this is meaningful for every shield type.
-                # Identical formula/value to RiskDistributionShield's own internal cost tracking (shields.py),
-                # since mapped_played_distribution/distribution here are exactly its correct()'s own
-                # distribution/output_distribution.
-                cost_delta = sum(abs(p - q) for p, q in zip(mapped_played_distribution, distribution))
-                self._episode_cost[i] += (self.discount_factor ** step_index) * cost_delta
-                # decisions the shield actually changed (shields also count blocks that change nothing as blocked)
-                self._episode_changed[i] += cost_delta > 1e-9
-                self._episode_steps[i] += 1
+                if counted and not self._episode_bad[i]:  # the decisions before the first bad state (see the docstring)
+                    # One sample per actual shield decision (not per episode), so the aggregate mean
+                    # is the step-weighted "expected allowed actions" (matches model-checking's
+                    # expected_blocked_actions/expected_shield_calls) rather than an unweighted
+                    # average of each episode's own ratio - the two differ sharply whenever episodes
+                    # vary a lot in length (a rare episode that gets stuck blocked for 40 steps must
+                    # count 40x more than a common one that's never blocked in 3 steps, not count the
+                    # same "one episode" each).
+                    self.metric_allowed_ratio.add(0.0 if was_blocked else 1.0)
+                    if was_blocked:
+                        self._episode_blocked[i] += 1
+                        if self._episode_first_block_step[i] is None:
+                            self._episode_first_block_step[i] = step_index
+                    # L1 distance between what the policy proposed and what the shield actually
+                    # returned - computed directly here (rather than reading shield.total_intervention_cost,
+                    # which only RiskDistributionShield tracks) so this is meaningful for every shield type.
+                    # Identical formula/value to RiskDistributionShield's own internal cost tracking (shields.py),
+                    # since mapped_played_distribution/distribution here are exactly its correct()'s own
+                    # distribution/output_distribution.
+                    cost_delta = sum(abs(p - q) for p, q in zip(mapped_played_distribution, distribution))
+                    self._episode_cost[i] += (self.discount_factor ** step_index) * cost_delta
+                    # decisions the shield actually changed (shields also count blocks that change nothing as blocked)
+                    self._episode_changed[i] += cost_delta > 1e-9
+                    self._episode_steps[i] += 1
 
             distribution = [distribution[current_state_choice_labels.index(action)] if action in current_state_choice_labels else 0.0 for action in self.actions]
 

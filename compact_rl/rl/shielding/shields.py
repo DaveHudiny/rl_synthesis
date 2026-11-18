@@ -7,6 +7,7 @@ import numpy as np
 from scipy.spatial import ConvexHull
 from scipy.optimize import linprog
 import pickle
+import sys
 
 import stormpy
 import payntbind
@@ -20,6 +21,45 @@ def clamp_distribution(distribution, allowed_actions):
         uniform_prob = 1.0 / len(allowed_actions)
         return [uniform_prob if action in allowed_actions else 0.0 for action in range(len(distribution))]
     return [prob / total_prob if action in allowed_actions else 0.0 for action, prob in enumerate(distribution)]
+
+
+class LazyStateTable:
+    """Per-state entries, computed by compute(state) on the first lookup of the state and kept. The shields build their tables
+    (the vmin-safe actions, the actions' Qmin and Qmax) this way, only for the states they visit and while they run, instead
+    of in a pass over the whole model before they start (about 4 s on collect, 87k states)."""
+    __slots__ = ("_compute", "_entries")
+
+    def __init__(self, nr_states, compute):
+        self._compute = compute
+        self._entries = [None] * nr_states
+
+    def __getitem__(self, state):
+        entry = self._entries[state]
+        if entry is None:
+            entry = self._entries[state] = self._compute(state)
+        return entry
+
+    def __len__(self):
+        return len(self._entries)
+
+    def filled(self):
+        """the number of states computed so far"""
+        return sum(entry is not None for entry in self._entries)
+
+
+class LazyStateField:
+    """Field `field` of the tuples of a LazyStateTable, indexed by state like a list."""
+    __slots__ = ("_table", "_field")
+
+    def __init__(self, table, field):
+        self._table = table
+        self._field = field
+
+    def __getitem__(self, state):
+        return self._table[state][self._field]
+
+    def __len__(self):
+        return len(self._table)
 
 
 # How RiskDistributionShield replaces a blocked distribution d, see RiskDistributionShield._blocked_distribution.
@@ -45,6 +85,32 @@ class Shield:
         self.added_nonoptimal_actions = 0
         self.trace_count = 0
 
+    def _vmin_action_values(self, state, upper=None):
+        """(vmin-safe actions, Qmin per action, Qmax per action, headroom per action) of a state, in one pass over its rows.
+        Qmin of an action is the expected vmin of its successor, Qmax the expected upper value (`upper`, per state), and the
+        headroom the expected upper - vmin of its successor, summed per successor (Qmax - Qmin would lose precision when the
+        two are close). Qmax and the headroom are all 0.0 without `upper`. An action is vmin-safe when its Qmin rounded to
+        rounding_precision digits is at most vmin(state) rounded so."""
+        tm = self.model_info.model.transition_matrix
+        vmin = self.model_info.vmin
+        row_group_start = tm.get_row_group_start(state)
+        vmin_state_rounded = round(vmin[state], self.rounding_precision)
+        vmin_actions, qmin_values, qmax_values, headroom_values = [], [], [], []
+        for action in range(self.model_info.model.get_nr_available_actions(state)):
+            qmin = qmax = headroom = 0.0
+            for entry in matrix_row(tm, row_group_start + action):
+                qmin += entry.value * vmin[entry.column]
+                if upper is not None:
+                    qmax += entry.value * upper[entry.column]
+                    headroom += entry.value * (upper[entry.column] - vmin[entry.column])
+            qmin_values.append(qmin)
+            qmax_values.append(qmax)
+            headroom_values.append(headroom)
+            if round(qmin, self.rounding_precision) <= vmin_state_rounded:
+                vmin_actions.append(action)
+        assert len(vmin_actions) > 0, f"No safe actions for state {state}"
+        return vmin_actions, qmin_values, qmax_values, headroom_values
+
     def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
         """Correct a distribution."""
         raise NotImplementedError("Not implemented")
@@ -63,22 +129,13 @@ class IdentityShield(Shield):
 class StandardShield(Shield):
     def __init__(self, model_info, actions):
         super().__init__(model_info, actions)
-
-    def _allow_action(self, state, action):
-        next_val = 0.0
-        row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + action
-        row = matrix_row(self.model_info.model.transition_matrix, row_index)
-        for entry in row:
-            next_val += entry.value * self.model_info.vmin[entry.column]
-        next_val_rounded = round(next_val, self.rounding_precision)
-        vmin_state_rounded = round(self.model_info.vmin[state], self.rounding_precision)
-        return next_val_rounded <= vmin_state_rounded
+        # the vmin-safe actions of a state, computed on its first visit
+        self.vmin_actions = LazyStateTable(model_info.model.nr_states, lambda state: self._vmin_action_values(state)[0])
 
     def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
         self.shield_calls += 1
 
-        actions = self.model_info.model.get_nr_available_actions(current_state)
-        allowed_actions = [a for a in range(actions) if self._allow_action(current_state, a)]
+        allowed_actions = self.vmin_actions[current_state]
 
         # debug only
         for a, prob in enumerate(distribution):
@@ -252,17 +309,23 @@ class DeltaShield(Shield):
         super().__init__(model_info, actions)
         self.delta = delta
         self.standard_shield = StandardShield(model_info, actions)
+        # per action of a state, the (probability, vmin) of its successors, read on the state's first visit
+        self._successor_vmins = LazyStateTable(model_info.model.nr_states, self._read_successor_vmins)
+
+    def _read_successor_vmins(self, state):
+        tm, vmin = self.model_info.model.transition_matrix, self.model_info.vmin
+        row_group_start = tm.get_row_group_start(state)
+        return [[(entry.value, vmin[entry.column]) for entry in matrix_row(tm, row_group_start + action)]
+                for action in range(self.model_info.model.get_nr_available_actions(state))]
 
     def correct(self, last_action : int, current_state : int, distribution : list[float], reset : bool, trace_index : int = 0):
         self.shield_calls += 1
 
-        # compute expected value of the distribution
+        # compute expected value of the distribution (the sum in the same order as over the rows, so bit for bit the same)
         expected_value = 0.0
-        for choice_index, prob in enumerate(distribution):
-            row_index = self.model_info.model.transition_matrix.get_row_group_start(current_state) + choice_index
-            row = matrix_row(self.model_info.model.transition_matrix, row_index)
-            for entry in row:
-                expected_value += prob * entry.value * self.model_info.vmin[entry.column]
+        for prob, successors in zip(distribution, self._successor_vmins[current_state]):
+            for value, successor_vmin in successors:
+                expected_value += prob * value * successor_vmin
 
         if expected_value - self.model_info.vmin[current_state] < self.delta:
             output_distribution = distribution
@@ -335,9 +398,10 @@ class SelfConstructingShield(Shield):
 
         self.current_nodes = [self.initial_node]
 
-        self.vmin_actions_distributions = []
-        self.vmin_actions = []
-        self.initialize_vmin_actions()
+        # per state, the vmin-safe actions and their Dirac distributions, computed on the state's first visit
+        vmin_tables = LazyStateTable(model_info.model.nr_states, self._vmin_actions_of)
+        self.vmin_actions_distributions = LazyStateField(vmin_tables, 0)
+        self.vmin_actions = LazyStateField(vmin_tables, 1)
 
         self.last_distribution_indices = [None]
 
@@ -382,25 +446,11 @@ class SelfConstructingShield(Shield):
         self.backpropagation_calls = 0
         self.model_checking_calls = 0
 
-    def initialize_vmin_actions(self):
-        for state in range(self.model_info.model.nr_states):
-            actions_count = self.model_info.model.get_nr_available_actions(state)
-            vmin_actions_distributions = []
-            vmin_actions = []
-            for action in range(actions_count):
-                row_index = self.model_info.model.transition_matrix.get_row_group_start(state) + action
-                row = matrix_row(self.model_info.model.transition_matrix, row_index)
-                val = 0.0
-                for entry in row:
-                    val += entry.value * self.model_info.vmin[entry.column]
-                val_rounded = round(val, self.rounding_precision)
-                vmin_state_rounded = round(self.model_info.vmin[state], self.rounding_precision)
-                if val_rounded <= vmin_state_rounded:
-                    vmin_actions_distributions.append([1.0 if a == action else 0.0 for a in range(actions_count)])
-                    vmin_actions.append(action)
-            assert len(vmin_actions) > 0, f"No safe actions for state {state}"
-            self.vmin_actions_distributions.append(vmin_actions_distributions)
-            self.vmin_actions.append(vmin_actions)
+    def _vmin_actions_of(self, state):
+        """(the Dirac distributions of the vmin-safe actions, the vmin-safe actions) of a state"""
+        vmin_actions = self._vmin_action_values(state)[0]
+        actions_count = self.model_info.model.get_nr_available_actions(state)
+        return [[1.0 if a == action else 0.0 for a in range(actions_count)] for action in vmin_actions], vmin_actions
 
     def load_matrix_vector_from_current_distributions(self, action_distributions=None):
         assert self.memory > 0, "This is only needed for memory bounded shields."
@@ -781,9 +831,14 @@ class RiskDistributionShield(Shield):
         self.nu = nu
         self.risk_distribution = risk_distribution
         self.force_wasteless_risk_distribution = force_wasteless_risk_distribution
+        # A risk distribution that is wasteless by construction (CapacityRiskDistribution) skips the re-projection, which
+        # would return it unchanged.
+        self._project_wasteless = force_wasteless_risk_distribution and not risk_distribution.wasteless
         # Upper value of a successor state, used for qmax and for the usable headroom in _make_wasteless: vmax, unless the
         # risk distribution brings its own capacity per state (CapacityInformedRiskDistribution), then vmin + capacity.
         capacity = getattr(risk_distribution, "capacity", None)
+        # The capacity risk distribution's remaining risk in closed form (see correct()), without the risk distribution.
+        self._closed_form = risk_distribution.headroom_proportional and capacity is None
         if capacity is None:
             self._upper_values = model_info.vmax
             self._block_tolerance = 0.0
@@ -822,13 +877,20 @@ class RiskDistributionShield(Shield):
         self._episode_discounted_cost = [0.0]
         self._episode_undiscounted_cost = [0.0]
         self._episode_started = [False]
-        self.vmin_actions = []
-        # Qmin / Qmax of every action, the expected vmin / upper value of its successor; Qmin and Qmax of a
-        # distribution are their weighted sums (_qmin, _qmax).
-        self.action_qmin_values = []
-        self.action_qmax_values = []
-
-        self._compute_action_values()
+        # Per state, computed on the state's first visit: the vmin-safe actions, and the Qmin / Qmax / headroom of every
+        # action, the expected vmin / upper value / upper - vmin of its successor; those of a distribution are their
+        # weighted sums (_qmin, _qmax, _headroom).
+        action_values = LazyStateTable(model_info.model.nr_states, lambda state: self._vmin_action_values(state, self._upper_values))
+        self.vmin_actions = LazyStateField(action_values, 0)
+        self.action_qmin_values = LazyStateField(action_values, 1)
+        self.action_qmax_values = LazyStateField(action_values, 2)
+        self.action_headroom_values = LazyStateField(action_values, 3)
+        self._row_cache = {}  # see _row_values
+        # The label of every choice of a state, also read on the state's first visit (see _local_action_index). Every access
+        # of the model's choice_labeling property copies the whole labeling in stormpy (13 us on collect), so the shield
+        # keeps one copy.
+        self._choice_labeling = model_info.model.choice_labeling
+        self._choice_labels = LazyStateTable(model_info.model.nr_states, self._read_choice_labels)
 
         # assumption
         initial_state = model_info.model.initial_states[0]
@@ -852,53 +914,46 @@ class RiskDistributionShield(Shield):
         self._episode_undiscounted_cost = [0.0 for _ in self._episode_undiscounted_cost]
         self._episode_started = [False for _ in self._episode_started]
 
-    def _compute_action_values(self):
-        """Qmin and Qmax of every action of every state, and the vmin-safe actions (Qmin equal to vmin(state) when
-        rounded to rounding_precision digits), in one pass over the transition matrix."""
-        tm = self.model_info.model.transition_matrix
-        vmin, upper = self.model_info.vmin, self._upper_values
-        for state in range(self.model_info.model.nr_states):
-            row_group_start = tm.get_row_group_start(state)
-            vmin_state_rounded = round(vmin[state], self.rounding_precision)
-            vmin_actions, qmin_values, qmax_values = [], [], []
-            for action in range(self.model_info.model.get_nr_available_actions(state)):
-                qmin = qmax = 0.0
-                for entry in matrix_row(tm, row_group_start + action):
-                    qmin += entry.value * vmin[entry.column]
-                    qmax += entry.value * upper[entry.column]
-                qmin_values.append(qmin)
-                qmax_values.append(qmax)
-                if round(qmin, self.rounding_precision) <= vmin_state_rounded:
-                    vmin_actions.append(action)
-            assert len(vmin_actions) > 0, f"No safe actions for state {state}"
-            self.vmin_actions.append(vmin_actions)
-            self.action_qmin_values.append(qmin_values)
-            self.action_qmax_values.append(qmax_values)
-
     def _qmin(self, state, distr):
         return sum(p * q for p, q in zip(distr, self.action_qmin_values[state]))
 
     def _qmax(self, state, distr):
         return sum(p * q for p, q in zip(distr, self.action_qmax_values[state]))
 
+    def _headroom(self, state, distr):
+        return sum(p * h for p, h in zip(distr, self.action_headroom_values[state]))
+
+    def _row_values(self, row_index):
+        """{successor: probability} of a row of the transition matrix, read once and cached: _transition_prob is called
+        for every (action, successor) pair of a decision (_make_wasteless), and reading the whole row each time made a
+        decision quadratic in the number of successors (blackjack has rows with 270 successors). The rows of a Storm matrix
+        have no repeated column, so this gives the same values as summing over the row."""
+        values = self._row_cache.get(row_index)
+        if values is None:
+            values = {}
+            for entry in matrix_row(self.model_info.model.transition_matrix, row_index):
+                assert entry.column not in values, f"row {row_index} repeats column {entry.column}"
+                values[entry.column] = entry.value
+            self._row_cache[row_index] = values
+        return values
+
     def _transition_prob(self, last_state, distribution, action, current_state):
         row_index = self.model_info.model.transition_matrix.get_row_group_start(last_state) + action
-        row = matrix_row(self.model_info.model.transition_matrix, row_index)
-        prob = 0.0
-        for entry in row:
-            if entry.column == current_state:
-                prob += distribution[action] * entry.value
-        return prob
+        value = self._row_values(row_index).get(current_state)
+        return 0.0 if value is None else distribution[action] * value
+
+    def _read_choice_labels(self, state):
+        """The labels of the state's choices, by local choice index. The labels are interned, so a state's entry costs only
+        its tuple."""
+        tm = self.model_info.model.transition_matrix
+        return tuple(sys.intern(self._choice_labeling.get_labels_of_choice(choice).pop())
+                     for choice in range(tm.get_row_group_start(state), tm.get_row_group_end(state)))
 
     def _local_action_index(self, state, global_action):
         # `global_action` indexes into self.actions (as passed to Shield.correct), but rows in
         # the transition matrix are indexed per-state by local choice index - translate via the
         # shared action label, same as PessimisticShield/OptimisticShield.correct do inline.
-        action_label = self.actions[global_action]
-        row_group_start = self.model_info.model.transition_matrix.get_row_group_start(state)
-        row_group_end = self.model_info.model.transition_matrix.get_row_group_end(state)
-        choice_labels = [self.model_info.model.choice_labeling.get_labels_of_choice(choice).pop() for choice in range(row_group_start, row_group_end)]
-        return choice_labels.index(action_label)
+        return self._choice_labels[state].index(self.actions[global_action])
 
     def _blocked_distribution(self, state, distribution, remaining_risk):
         """The distribution that replaces a blocked distribution d (one with Qmin(d) > remaining risk rr).
@@ -986,21 +1041,33 @@ class RiskDistributionShield(Shield):
 
             self.history[trace_index].append(local_last_action)
 
-            transition_prob = self._transition_prob(self.last_states[trace_index], self.last_distributions[trace_index], local_last_action, current_state)
-            # this shouldn't happen so I will just put assert here, but for completness of the risk function if this happens it should either
-            # be set to Vmax(current_state) if qmin <= risk or to Vmin(current_state) otherwise
-            assert transition_prob > 0, f"Transition probability is zero for last_state {self.last_states[trace_index]}, last_action {local_last_action}, current_state {current_state}."
-
             qmax = self._qmax(self.last_states[trace_index], self.last_distributions[trace_index])
             slack = min(self.remaining_risk[trace_index], qmax) - self.last_qmin_ds[trace_index]
 
-            risk_shares = self.risk_distribution(self.history[trace_index], self.last_distributions[trace_index])
-            if self.force_wasteless_risk_distribution:
-                risk_shares = self._make_wasteless(
-                    risk_shares, self.last_states[trace_index], self.last_distributions[trace_index], slack)
-            risk_share = risk_shares.get((local_last_action, current_state), 0.0)
+            # The capacity risk distribution gives the pair (a, s') the share d(a) P(s,a,s') (vmax(s') - vmin(s')) / total,
+            # total = sum of these weights over all pairs = the headroom of d (_headroom), so the remaining risk below is
+            #   vmin(s') + share * slack / (d(a) P(s,a,s')) = vmin(s') + slack (vmax(s') - vmin(s')) / total:
+            # every successor gets the same fraction slack / total of its headroom, whatever action led there. That needs
+            # neither the rows of the previous state nor the risk distribution. (The same up to floating point rounding,
+            # since the sums are in a different order. Unlike the general path, it does not check that the transition
+            # is possible.) A total of 0 (no successor with headroom) takes the general path.
+            total = self._headroom(self.last_states[trace_index], self.last_distributions[trace_index]) if self._closed_form else 0.0
+            if total > 0.0:
+                vmin_next = self.model_info.vmin[current_state]
+                self.remaining_risk[trace_index] = vmin_next + slack * (self._upper_values[current_state] - vmin_next) / total
+            else:
+                transition_prob = self._transition_prob(self.last_states[trace_index], self.last_distributions[trace_index], local_last_action, current_state)
+                # this shouldn't happen so I will just put assert here, but for completness of the risk function if this happens it should either
+                # be set to Vmax(current_state) if qmin <= risk or to Vmin(current_state) otherwise
+                assert transition_prob > 0, f"Transition probability is zero for last_state {self.last_states[trace_index]}, last_action {local_last_action}, current_state {current_state}."
 
-            self.remaining_risk[trace_index] = self.model_info.vmin[current_state] + (risk_share*slack)/transition_prob
+                risk_shares = self.risk_distribution(self.history[trace_index], self.last_distributions[trace_index])
+                if self._project_wasteless:
+                    risk_shares = self._make_wasteless(
+                        risk_shares, self.last_states[trace_index], self.last_distributions[trace_index], slack)
+                risk_share = risk_shares.get((local_last_action, current_state), 0.0)
+
+                self.remaining_risk[trace_index] = self.model_info.vmin[current_state] + (risk_share*slack)/transition_prob
 
 
         self.last_qmin_ds[trace_index] = self._qmin(current_state, distribution)

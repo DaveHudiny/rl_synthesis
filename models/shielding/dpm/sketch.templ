@@ -1,3 +1,4 @@
+// Default reward-aligned dpm, from dpm-original (results/scripts/make_aligned_dpm.py --lost 2 --fail 50)
 pomdp
 
 // timing:
@@ -25,7 +26,7 @@ module CLOCK
     [pm2] c=0 -> (c'=1);
     [serve] c=1 -> (c'=0);
 
-    [loop] bat=0 | bat=2 -> true;
+    [loop] bat=0 | bat>=2 -> true;
 endmodule
 
 
@@ -37,7 +38,7 @@ module power_manager
     [pm1] bat=1 -> (pm'=1);
     [pm2] bat=1 -> (pm'=2); 
 
-    [loop] bat=0 | bat=2 -> true;
+    [loop] bat=0 | bat>=2 -> true;
 endmodule
 
 
@@ -54,7 +55,7 @@ module service_requester
 
     [serve] true -> pr: (request'=true) + 1-pr: true;
 
-    [loop] bat=0 | bat=2 -> true;
+    [loop] bat=0 | bat>=2 -> true;
 
 endmodule
 
@@ -81,7 +82,7 @@ module service_provider
     [serve] sp = 3 -> tp1 : (sp'=sp-2) + 1-tp1 : true;
     [serve] sp = 4 -> tp2 : (sp'=sp-2) + 1-tp2 : true;
 
-    [loop] bat=0 | bat=2 -> true;
+    [loop] bat=0 | bat>=2 -> true;
 
 endmodule
 
@@ -121,7 +122,7 @@ module SRQ
     [serve]  sp_active -> (q'=max(q-1,0)); // serve
     [serve] !sp_active -> true;
 
-    [loop] bat=0 | bat=2 -> true;
+    [loop] bat=0 | bat>=2 -> true;
 
 endmodule
 
@@ -136,21 +137,28 @@ formula bat_ok      = bat=1;
 formula bat_failed  = bat=2;
 
 module battery
-    bat : [0..2] init 1; // 0 empty, 1 - operational, 2 - failed
+    bat : [0..3] init 1; // 0 empty, 1 - operational, 2 - failed, 3 - failed and priced (absorbing)
     [serve] bat_drained | bat_failed -> true;
     [serve] bat_ok & !sp_active -> p_drain : (bat'=0) + 1-p_drain : true;
     [serve] bat_ok &  sp_active -> p_drain : (bat'=0) + p_fail : (bat'=2) + (1-p_drain-p_fail) : true;
 
-    [loop] bat=0 | bat=2 -> true;
+    [loop] bat=2 -> (bat'=3);  // the failure is priced, then absorbing
+    [loop] bat=0 | bat=3 -> true;
 endmodule
 
 rewards "rews"
   [serve] sp_active & q>0 : 1;
+  // a request arriving at a full queue is lost: -2
+  [pm0] bat=1 & request & qfull : -2;
+  [pm1] bat=1 & request & qfull : -2;
+  [pm2] bat=1 & request & qfull : -2;
+  // the battery failure: -50, paid by the failed battery's single action
+  [loop] bat=2 : -50;
 endrewards
 
 formula fail = bat_failed;
 formula goal = bat_drained;
 formula bat_done = goal;
 
-label "bad" = bat_failed;
+label "bad" = bat>=2;
 label "goal" = bat_drained;
